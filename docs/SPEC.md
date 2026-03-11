@@ -1,0 +1,422 @@
+# @deessejs/server Specification
+
+## Overview
+
+`@deessejs/server` is the core API package for the `@deessejs` multi-package architecture (RFC #57). It provides a unified way to define queries and mutations with local execution capabilities, designed for server actions, lambdas, workers, and any in-process function calls.
+
+## Project Context
+
+This package is part of a multi-package architecture:
+- **@deessejs/core** - Core types and utilities (dependency)
+- **@deessejs/server** - This package: local execution and API definitions
+- **@deessejs/api** - HTTP layer (future package that will consume this)
+
+## Scope
+
+### Core Features
+
+1. **Query and Mutation Constructors**
+   - `query()` - Define read operations that return `AsyncOutcome<T, Cause<CauseData>, Unit>`
+   - `mutation()` - Define write operations that return `AsyncOutcome<T, Cause<CauseData>, Unit>`
+
+2. **Context Management**
+   - `defineContext<T>()` - Define typed context with runtime initialization
+   - `createAPI()` - Create API instance with router and plugins
+
+3. **Router System**
+   - Hierarchical routing: `api.users.get()`, `api.posts.create()`
+   - Nested routers for organization
+
+4. **Lifecycle Hooks**
+   - `beforeInvoke` - Run before query/mutation execution
+   - `onSuccess` - Run after successful execution
+   - `onError` - Run after failed execution
+
+5. **Aliases**
+   - Multiple names for the same function
+   - Example: `getUser`, `fetchUser`, `retrieveUser` all point to the same query
+
+6. **Cache Invalidation Stream**
+   - `createCacheStream()` - Create a stream for cache management
+   - `invalidate()` - Mark queries as stale
+
+7. **Local Executor**
+   - `createLocalExecutor()` - Execute queries/mutations in-process
+   - No network overhead for server actions
+
+8. **Plugin System**
+   - Plugins can register new queries and mutations
+   - Plugins can extend context with additional properties
+   - Plugins can hook into cache invalidation
+
+## Dependencies
+
+- **@deessejs/core** - Required peer dependency
+  - Provides: `success()`, `cause()`, `AsyncOutcome`, `Cause`, `Unit`
+
+## Requirements
+
+1. Support new API: `createAPI({ router: t.router(...), plugins: [...] })`
+2. Plugin system with hooks for cache invalidation
+3. Plugins can extend context with additional properties
+4. Local executor for in-process calls (server actions)
+5. Export types for @deessejs/api to use
+6. Include comprehensive tests
+
+## Type Definitions
+
+### AsyncOutcome Pattern
+
+```typescript
+type AsyncOutcome<Success, CauseData, ExceptionData = Unit> =
+  | { ok: true; value: Success }
+  | { ok: false; error: Cause<CauseData, ExceptionData> }
+
+type Cause<CauseData, ExceptionData = Unit> = {
+  name: string
+  message: string
+  data: CauseData
+  exception?: ExceptionData
+}
+
+type Unit = undefined | null | void
+```
+
+### Context Definition
+
+```typescript
+function defineContext<T>(initialValues: T): {
+  t: QueryBuilder<T>
+  createContext: () => T
+}
+```
+
+### API Creation
+
+```typescript
+function createAPI(config: {
+  router: Router
+  plugins?: Plugin[]
+  executor?: Executor
+}): API
+```
+
+### Plugin Structure
+
+```typescript
+interface Plugin {
+  name: string
+  context?: {
+    [key: string]: () => any
+  }
+  queries?: Record<string, Query>
+  mutations?: Record<string, Mutation>
+  onInvalidate?: string[]
+}
+```
+
+## Usage Examples
+
+### Installation
+
+```bash
+pnpm add @deessejs/server @deessejs/core
+# or
+npm install @deessejs/server @deessejs/core
+```
+
+### Define Context
+
+```typescript
+import { defineContext } from "@deessejs/server"
+
+type Context = {
+  db: Database
+  logger: Logger
+  userId: string | null
+}
+
+const { t, createContext } = defineContext<Context>({
+  db: myDatabase,
+  logger: myLogger,
+  userId: null,
+})
+```
+
+### Define Query
+
+```typescript
+import { success, cause, AsyncOutcome, Cause, Unit } from "@deessejs/core"
+
+const getUser = t.query({
+  args: z.object({
+    id: z.number()
+  }),
+  handler: async (ctx, args): AsyncOutcome<User, Cause<{ id: number }>, Unit> => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return cause({
+        name: "NOT_FOUND",
+        message: "User not found",
+        data: { id: args.id }
+      })
+    }
+
+    return success(user)
+  }
+})
+```
+
+### Define Mutation
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args): AsyncOutcome<User, Cause<{ field: string; message: string }>, Unit> => {
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing) {
+      return cause({
+        name: "DUPLICATE",
+        message: "Email already exists",
+        data: { field: "email", message: "This email is already registered" }
+      })
+    }
+
+    const user = await ctx.db.users.create(args)
+    return success(user)
+  }
+})
+```
+
+### Create API with Router
+
+```typescript
+import { createAPI } from "@deessejs/server"
+
+const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: getUser,
+      create: createUser,
+      list: t.query({
+        args: z.object({ limit: z.number().default(10) }),
+        handler: async (ctx, args): Success<User[]> => {
+          const users = await ctx.db.users.list({ limit: args.limit })
+          return success(users)
+        }
+      }),
+    }),
+    posts: t.router({
+      get: t.query({ ... }),
+      create: t.mutation({ ... }),
+    }),
+  }),
+})
+
+export { api }
+```
+
+### Using in Server Actions
+
+```typescript
+// app/actions.ts
+"use server"
+
+import { api } from "./server"
+
+async function getUserAction(id: number) {
+  const result = await api.users.get({ id })
+
+  if (result.ok) {
+    return result.value
+  }
+
+  if (result.error.name === "NOT_FOUND") {
+    return null
+  }
+
+  throw new Error(result.error.message)
+}
+
+async function createUserAction(data: { name: string; email: string }) {
+  const result = await api.users.create(data)
+
+  if (result.ok) {
+    return result.value
+  }
+
+  throw new Error(result.error.message)
+}
+```
+
+### Lifecycle Hooks
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args): AsyncOutcome<User> => success({ id: args.id, name: "John" })
+})
+  .beforeInvoke((ctx, args) => {
+    console.log(`Fetching user ${args.id}`)
+  })
+  .onSuccess((ctx, args, data) => {
+    console.log(`User fetched: ${data.id}`)
+  })
+  .onError((ctx, args, error) => {
+    console.error(`Failed to fetch user: ${error.message}`)
+  })
+```
+
+### Cache Invalidation
+
+```typescript
+import { createCacheStream } from "@deessejs/server"
+
+const cacheStream = createCacheStream()
+
+const createUser = t.mutation({
+  args: z.object({ name: z.string() }),
+  handler: async (ctx, args): AsyncOutcome<User> => {
+    const user = await ctx.db.users.create(args)
+
+    cacheStream.invalidate("users.list")
+
+    return success(user)
+  }
+})
+```
+
+### Aliases
+
+```typescript
+import { aliases } from "@deessejs/server"
+
+const getUser = t.query({ ... })
+
+aliases(getUser, ["fetchUser", "retrieveUser", "getUserById"])
+
+api.users.get({ id: 1 })
+api.users.fetchUser({ id: 1 })
+api.users.retrieveUser({ id: 1 })
+```
+
+### Plugin System
+
+```typescript
+// plugins/auth.ts
+import { Plugin } from "@deessejs/server"
+
+export const authPlugin: Plugin = {
+  name: "auth",
+
+  context: {
+    userId: z.string().nullable(),
+    init: () => ({ userId: null }),
+  },
+
+  queries: {
+    getCurrentUser: t.query({
+      args: {},
+      handler: async (ctx): AsyncOutcome<User> => {
+        if (!ctx.userId) {
+          return cause({
+            name: "UNAUTHORIZED",
+            message: "Not authenticated"
+          })
+        }
+        return success({ id: ctx.userId })
+      }
+    }),
+  },
+
+  mutations: {
+    login: t.mutation({
+      args: z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }),
+      handler: async (ctx, args): AsyncOutcome<{ token: string }> => {
+        // ... auth logic
+        return success({ token: "..." })
+      }
+    }),
+  },
+
+  onInvalidate: ["getCurrentUser"],
+}
+```
+
+### Using Plugins
+
+```typescript
+import { authPlugin } from "./plugins/auth"
+import { databasePlugin } from "./plugins/database"
+
+const { t, createContext } = defineContext<{
+  db: Database
+  logger: Logger
+  userId: string | null
+  cache: Cache
+  redis: Redis
+}>({
+  db: myDatabase,
+  logger: myLogger,
+  userId: null,
+  cache: new Cache(),
+  redis: createRedisClient(),
+})
+
+const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: getUser,
+      create: createUser,
+    }),
+  }),
+  plugins: [authPlugin, databasePlugin]
+})
+```
+
+### Local Executor (for Testing)
+
+```typescript
+import { createLocalExecutor } from "@deessejs/server"
+
+const executor = createLocalExecutor(api)
+
+const result = await executor.execute("users.get", { id: 1 })
+```
+
+## Architecture
+
+```
+@deessejs/core (peer dependency)
+       │
+       ▼
+@deessejs/server (this package)
+       │
+       ▼ (exports types)
+@deessejs/api (future - HTTP layer)
+```
+
+## Why This Package?
+
+This is the heart of the `@deessejs` ecosystem:
+
+- Define queries and mutations once
+- Use locally (server actions) or expose via HTTP (@deessejs/api)
+- Plugin system for extensibility (queries, mutations, context)
+- Built on @deessejs/core patterns (AsyncOutcome<T, Cause, ExceptionData>)
+
+## Future Considerations
+
+- HTTP adapter (@deessejs/api)
+- WebSocket support
+- Batch execution optimization
+- Built-in validation layer
+- Rate limiting
+- Request/response logging middleware
