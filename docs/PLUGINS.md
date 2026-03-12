@@ -141,7 +141,7 @@ type BaseContext = {
   db: Database
 }
 
-const { t, api } = defineContext({
+const { t, createAPI } = defineContext({
   initialValues: {
     db: myDatabase,
   },
@@ -150,6 +150,10 @@ const { t, api } = defineContext({
     cachePlugin,
     loggerPlugin,
   ],
+})
+
+const api = createAPI({
+  router: t.router({ ... })
 })
 
 // Context now has: db, userId, isAuthenticated, cache, logger

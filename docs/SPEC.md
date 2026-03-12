@@ -91,7 +91,7 @@ function defineContext<T, Plugins extends Plugin<T>[]>(
   }
 ): {
   t: QueryBuilder<T>
-  api: API
+  createAPI: (config: { router: Router }) => API
 }
 ```
 
@@ -125,12 +125,17 @@ type Context = {
   userId: string | null
 }
 
-const { t, api } = defineContext({
+const { t, createAPI } = defineContext({
   initialValues: {
     db: myDatabase,
     logger: myLogger,
     userId: null,
   }
+})
+
+// Then create API with router
+const api = createAPI({
+  router: t.router({ ... })
 })
 ```
 
@@ -329,7 +334,7 @@ type BaseContext = {
 }
 
 // Define context with plugins
-const { t, api } = defineContext({
+const { t, createAPI } = defineContext({
   initialValues: {
     db: myDatabase,
     logger: myLogger,
@@ -338,6 +343,10 @@ const { t, api } = defineContext({
     authPlugin,
     cachePlugin,
   ],
+})
+
+const api = createAPI({
+  router: t.router({ ... })
 })
 
 // ctx now has: db, logger, userId, getUserId, setUserId, cache
