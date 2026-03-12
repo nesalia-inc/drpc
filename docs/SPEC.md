@@ -45,9 +45,8 @@ This package is part of a multi-package architecture:
    - No network overhead for server actions
 
 8. **Plugin System**
-   - Plugins can register new queries and mutations
-   - Plugins can extend context with additional properties
-   - Plugins can hook into cache invalidation
+   - Plugins extend context with additional properties
+   - Additional plugin features (queries, mutations, events) coming later
 
 ## Dependencies
 
@@ -306,80 +305,80 @@ api.users.retrieveUser({ id: 1 })
 
 ### Plugin System
 
+Plugins extend the context with additional properties. Each plugin can add new properties to `ctx`.
+
+```typescript
+type Plugin<Ctx> = {
+  name: string
+  extend: (ctx: Ctx) => Partial<Ctx>
+}
+```
+
+**Example: Auth Plugin**
+
 ```typescript
 // plugins/auth.ts
 import { Plugin } from "@deessejs/server"
 
-export const authPlugin: Plugin = {
+export const authPlugin: Plugin<Context> = {
   name: "auth",
 
-  context: {
-    userId: z.string().nullable(),
-    init: () => ({ userId: null }),
-  },
-
-  queries: {
-    getCurrentUser: t.query({
-      args: {},
-      handler: async (ctx): AsyncOutcome<User> => {
-        if (!ctx.userId) {
-          return cause({
-            name: "UNAUTHORIZED",
-            message: "Not authenticated"
-          })
-        }
-        return success({ id: ctx.userId })
-      }
-    }),
-  },
-
-  mutations: {
-    login: t.mutation({
-      args: z.object({
-        email: z.string().email(),
-        password: z.string(),
-      }),
-      handler: async (ctx, args): AsyncOutcome<{ token: string }> => {
-        // ... auth logic
-        return success({ token: "..." })
-      }
-    }),
-  },
-
-  onInvalidate: ["getCurrentUser"],
+  extend: (ctx) => ({
+    // Add userId to context
+    userId: null,
+    // Add auth helpers
+    getUserId: () => ctx.userId,
+    setUserId: (userId: string) => { ctx.userId = userId },
+  })
 }
 ```
 
-### Using Plugins
+**Example: Cache Plugin**
 
 ```typescript
-import { authPlugin } from "./plugins/auth"
-import { databasePlugin } from "./plugins/database"
+// plugins/cache.ts
+import { Plugin } from "@deessejs/server"
 
-const { t, createContext } = defineContext<{
+export const cachePlugin: Plugin<Context> = {
+  name: "cache",
+
+  extend: (ctx) => ({
+    cache: {
+      get: (key: string) => { ... },
+      set: (key: string, value: unknown) => { ... },
+      delete: (key: string) => { ... },
+    }
+  })
+}
+```
+
+**Using Plugins**
+
+```typescript
+import { createAPI, Plugin } from "@deessejs/server"
+import { authPlugin } from "./plugins/auth"
+import { cachePlugin } from "./plugins/cache"
+
+type BaseContext = {
   db: Database
   logger: Logger
-  userId: string | null
-  cache: Cache
-  redis: Redis
-}>({
-  db: myDatabase,
-  logger: myLogger,
-  userId: null,
-  cache: new Cache(),
-  redis: createRedisClient(),
-})
+}
+
+// Plugins extend the base context
+const plugins: Plugin<BaseContext>[] = [
+  authPlugin,
+  cachePlugin,
+]
 
 const api = createAPI({
-  router: t.router({
-    users: t.router({
-      get: getUser,
-      create: createUser,
-    }),
-  }),
-  plugins: [authPlugin, databasePlugin]
+  router: t.router({ ... }),
+  plugins,
 })
+
+// ctx now has: db, logger, userId, getUserId, setUserId, cache
 ```
+
+**Note:** Plugins can only extend context for now. Additional plugin features (queries, mutations, event handlers) will be documented later.
 
 ### Local Executor (for Testing)
 
