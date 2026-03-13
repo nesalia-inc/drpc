@@ -8,7 +8,7 @@ The event system provides a publish-subscribe mechanism integrated into `@deesse
 
 ### Event Emission (`ctx.send`)
 
-The context provides a `send` method to emit events. Events are typed and can carry arbitrary data.
+The context provides a `send` method to emit events. Events are typed and can carry arbitrary data. Events can also return data to the caller.
 
 ### Event Subscription (`t.on` and `.on`)
 
@@ -24,8 +24,8 @@ There are two ways to subscribe to events:
 
 ```typescript
 type Send = {
-  <EventData = unknown>(event: string, data: EventData): void
-  <EventData = unknown>(event: string, data: EventData, options: SendOptions): void
+  <EventData = unknown>(event: string, data: EventData): EventData | undefined
+  <EventData = unknown, ReturnData = unknown>(event: string, data: EventData, options: SendOptions): ReturnData | undefined
 }
 
 type SendOptions = {
@@ -49,12 +49,14 @@ type SendOptions = {
 }
 ```
 
+**Note:** Events can return data to the caller. Listeners can use `ctx.sendResponse()` to send data back.
+
 ### Global Listener: `t.on()`
 
 Global event listener that subscribes to events emitted anywhere in the application.
 
 ```typescript
-type EventHandler<Ctx, Args, EventData> = (ctx: Ctx, args: Args, event: EventData) => void | Promise<void>
+type EventHandler<Ctx, Args, EventData> = (ctx: Ctx, args: Args, event: EventData) => void | Promise<void> | ReturnType<typeof ctx.sendResponse>
 
 type T<Ctx> = {
   on<EventName extends string, EventData = unknown>(
@@ -101,7 +103,7 @@ const createUser = t.mutation({
     name: z.string(),
     email: z.string().email(),
   }),
-  handler: async (ctx, args): AsyncOutcome<User> => {
+  handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
 
     // Emit event when user is created
@@ -111,8 +113,39 @@ const createUser = t.mutation({
       timestamp: new Date().toISOString(),
     })
 
-    return success(user)
+    return ok(user)
   }
+})
+```
+
+### Event with Response
+
+Events can return data to the caller:
+
+```typescript
+// Handler sends event and gets response
+const sendWelcomeEmail = t.mutation({
+  args: z.object({ userId: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.userId)
+
+    // Send event and get response from listener
+    const result = ctx.send("email.send", {
+      to: user.email,
+      template: "welcome",
+    })
+
+    // result contains data returned by listener
+    return ok({ sent: result?.success ?? false })
+  }
+})
+
+// Listener can return data via sendResponse
+t.on("email.send", async (ctx, args) => {
+  await ctx.email.send(args.template, args.to)
+
+  // Return data to caller
+  ctx.sendResponse({ success: true, messageId: "msg_123" })
 })
 ```
 
