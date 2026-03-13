@@ -418,10 +418,22 @@ export const CreateTask = clientComponent({
   props: z.object({}),
   component: (ctx) => {
     const [title, setTitle] = useState("")
+    const [error, setError] = useState<string | null>(null)
 
     const handleSubmit = async () => {
-      await ctx.api.tasks.create({ title })
-      setTitle("")
+      if (!title.trim()) return
+
+      const result = await ctx.api.tasks.create({ title })
+
+      result.match({
+        isSuccess: () => {
+          setTitle("")
+          setError(null)
+        },
+        isError: (err) => setError(err.message),
+        isLoading: () => {},
+        isStale: () => {},
+      })
     }
 
     return (
@@ -431,6 +443,7 @@ export const CreateTask = clientComponent({
           onChange={(e) => setTitle(e.target.value)}
           placeholder="New task..."
         />
+        {error && <Error message={error} />}
         <button type="submit">Add</button>
       </form>
     )
