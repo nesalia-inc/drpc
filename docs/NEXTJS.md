@@ -64,13 +64,14 @@ Creates a Next.js page with automatic cache management.
 ```typescript
 import { z } from "zod"
 
-function page<Params extends z.ZodType, Ctx extends ApiContext>(
+function page<Params extends z.ZodType, Search extends z.ZodType, Ctx extends ApiContext>(
   config: {
     params: Params
-    component: (ctx: Ctx, params: z.infer<Params>) => React.ReactNode
+    search?: Search
+    component: (ctx: Ctx, params: z.infer<Params>, search: z.infer<Search>) => React.ReactNode
     fallback?: React.ReactNode
   }
-): React.ComponentType<z.infer<Params>>
+): React.ComponentType<{ params: z.infer<Params>; search: z.infer<Search> }>
 ```
 
 ### layout
@@ -118,20 +119,19 @@ The API methods automatically handle cache registration and invalidation.
 ### Basic Usage
 
 ```tsx
-// app/page.tsx
+// app/tasks/[id]/page.tsx
 import { page } from "@deessejs/server/next"
-import { TaskList } from "./TaskList"
-import { CreateTask } from "./CreateTask"
+import { TaskDetail } from "./TaskDetail"
 
 export const Page = page({
-  params: z.object({}),
-  component: () => {
-    return (
-      <>
-        <CreateTask />
-        <TaskList />
-      </>
-    )
+  params: z.object({
+    id: z.string()
+  }),
+  search: z.object({
+    tab: z.enum(["details", "history"]).optional()
+  }),
+  component: (ctx, params, search) => {
+    return <TaskDetail id={params.id} tab={search.tab} />
   }
 })
 ```
