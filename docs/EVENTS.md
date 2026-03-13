@@ -18,6 +18,35 @@ There are two ways to subscribe to events:
 
 2. **`.on`** - Query/Mutation lifecycle listener. Attaches handlers that run before/after a specific query or mutation executes (see `beforeInvoke`, `onSuccess`, `onError` in SPEC.md).
 
+### Event Registry
+
+Events are typed via a registry for autocomplete and type safety.
+
+```typescript
+// Define your events
+const events = {
+  "user.created": {
+    data: { userId: number; email: string; timestamp: string }
+  },
+  "user.updated": {
+    data: { userId: number; changes: Record<string, unknown> }
+  },
+  "email.send": {
+    data: { to: string; template: string },
+    response: { success: boolean; messageId: string }
+  },
+}
+
+// Type-safe send
+ctx.send("user.created", { userId: 1, email: "test@test.com" })
+// Autocomplete works for event names and data shape
+
+// Type-safe listener
+t.on("user.created", (ctx, args, event) => {
+  // event is typed as { userId: number; email: string; timestamp: string }
+})
+```
+
 ## API Reference
 
 ### Context: `ctx.send()`

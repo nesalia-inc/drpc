@@ -86,14 +86,26 @@ err(error)          // returns { ok: false, error }
 ### Context Definition
 
 ```typescript
-function defineContext<T, Plugins extends Plugin<T>[]>(
+function defineContext<T, Plugins extends Plugin<T>[], Events extends EventRegistry>(
   config: {
     initialValues: T
     plugins?: Plugins
+    events?: Events
   }
 ): {
   t: QueryBuilder<T>
   createAPI: (config: { router: Router }) => API
+}
+```
+
+**EventRegistry** provides type safety for events:
+
+```typescript
+type EventRegistry = {
+  [eventName: string]: {
+    data?: unknown
+    response?: unknown
+  }
 }
 ```
 
