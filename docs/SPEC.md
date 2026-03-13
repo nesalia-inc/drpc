@@ -51,7 +51,7 @@ This package is part of a multi-package architecture:
 ## Dependencies
 
 - **@deessejs/core** - Required peer dependency
-  - Provides: `success()`, `cause()`, `AsyncOutcome`, `Cause`, `Unit`
+  - Provides: `Result` type
 
 ## Requirements
 
@@ -64,21 +64,12 @@ This package is part of a multi-package architecture:
 
 ## Type Definitions
 
-### AsyncOutcome Pattern
+### Result Pattern
 
 ```typescript
-type AsyncOutcome<Success, CauseData, ExceptionData = Unit> =
+type Result<Success, Error = { code: string; message: string }> =
   | { ok: true; value: Success }
-  | { ok: false; error: Cause<CauseData, ExceptionData> }
-
-type Cause<CauseData, ExceptionData = Unit> = {
-  name: string
-  message: string
-  data: CauseData
-  exception?: ExceptionData
-}
-
-type Unit = undefined | null | void
+  | { ok: false; error: Error }
 ```
 
 ### Context Definition
@@ -142,24 +133,18 @@ const api = createAPI({
 ### Define Query
 
 ```typescript
-import { success, cause, AsyncOutcome, Cause, Unit } from "@deessejs/core"
-
 const getUser = t.query({
   args: z.object({
     id: z.number()
   }),
-  handler: async (ctx, args): AsyncOutcome<User, Cause<{ id: number }>, Unit> => {
+  handler: async (ctx, args) => {
     const user = await ctx.db.users.find(args.id)
 
     if (!user) {
-      return cause({
-        name: "NOT_FOUND",
-        message: "User not found",
-        data: { id: args.id }
-      })
+      return { ok: false as const, error: { code: "NOT_FOUND", message: "User not found" } }
     }
 
-    return success(user)
+    return { ok: true as const, value: user }
   }
 })
 ```
@@ -172,18 +157,14 @@ const createUser = t.mutation({
     name: z.string().min(2),
     email: z.string().email(),
   }),
-  handler: async (ctx, args): AsyncOutcome<User, Cause<{ field: string; message: string }>, Unit> => {
+  handler: async (ctx, args) => {
     const existing = await ctx.db.users.findByEmail(args.email)
     if (existing) {
-      return cause({
-        name: "DUPLICATE",
-        message: "Email already exists",
-        data: { field: "email", message: "This email is already registered" }
-      })
+      return { ok: false as const, error: { code: "DUPLICATE", message: "Email already exists" } }
     }
 
     const user = await ctx.db.users.create(args)
-    return success(user)
+    return { ok: true as const, value: user }
   }
 })
 ```

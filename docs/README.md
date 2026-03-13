@@ -18,7 +18,7 @@
 
 | Package | Description |
 |---------|-------------|
-| `@deessejs/core` | Core types (`success`, `cause`, `AsyncOutcome`) |
+| `@deessejs/core` | Core types (`Result`) |
 | `@deessejs/server` | This package: local API definitions |
 | `@deessejs/server/react` | React hooks with cache sync |
 
@@ -43,16 +43,14 @@ const { t, createAPI } = defineContext({
 ### Define Query
 
 ```typescript
-import { success, cause } from "@deessejs/core"
-
 const getUser = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.find(args.id)
     if (!user) {
-      return cause({ name: "NOT_FOUND", message: "User not found", data: { id: args.id } })
+      return { ok: false as const, error: { code: "NOT_FOUND", message: "User not found" } }
     }
-    return success(user, { keys: [["users", { id: args.id }]] })
+    return { ok: true as const, value: user, keys: [["users", { id: args.id }]] }
   }
 })
 ```
