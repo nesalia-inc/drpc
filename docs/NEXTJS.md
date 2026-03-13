@@ -64,14 +64,16 @@ Creates a Next.js page with automatic cache management.
 ```typescript
 import { z } from "zod"
 
-function page<Params extends z.ZodType, Search extends z.ZodType, Ctx extends ApiContext>(
+function page<Params extends z.ZodType, Ctx extends ApiContext>(
   config: {
     params: Params
-    search?: Search
-    component: (ctx: Ctx, params: z.infer<Params>, search: z.infer<Search>) => React.ReactNode
+    component: (ctx: Ctx, params: z.infer<Params>) => React.ReactNode
     fallback?: React.ReactNode
   }
-): React.ComponentType<{ params: z.infer<Params>; search: z.infer<Search> }>
+): React.ComponentType<z.infer<Params>>
+
+// params contains both route params and search params
+// { route: { id: "123" }, search: { tab: "details" } }
 ```
 
 ### layout
@@ -125,13 +127,17 @@ import { TaskDetail } from "./TaskDetail"
 
 export const Page = page({
   params: z.object({
-    id: z.string()
+    route: z.object({
+      id: z.string()
+    }),
+    search: z.object({
+      tab: z.enum(["details", "history"]).optional()
+    })
   }),
-  search: z.object({
-    tab: z.enum(["details", "history"]).optional()
-  }),
-  component: (ctx, params, search) => {
-    return <TaskDetail id={params.id} tab={search.tab} />
+  component: (ctx, params) => {
+    // params.route = { id: "123" }
+    // params.search = { tab: "details" }
+    return <TaskDetail id={params.route.id} tab={params.search.tab} />
   }
 })
 ```
