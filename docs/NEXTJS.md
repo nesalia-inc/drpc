@@ -64,13 +64,13 @@ Creates a Next.js page with automatic cache management.
 ```typescript
 import { z } from "zod"
 
-function page<Props extends z.ZodType, Ctx extends ApiContext>(
+function page<Params extends z.ZodType, Ctx extends ApiContext>(
   config: {
-    props: Props
-    component: (ctx: Ctx, props: z.infer<Props>) => React.ReactNode
+    params: Params
+    component: (ctx: Ctx, params: z.infer<Params>) => React.ReactNode
     fallback?: React.ReactNode
   }
-): React.ComponentType<z.infer<Props>>
+): React.ComponentType<z.infer<Params>>
 ```
 
 ### layout
@@ -124,7 +124,7 @@ import { TaskList } from "./TaskList"
 import { CreateTask } from "./CreateTask"
 
 export const Page = page({
-  props: z.object({}),
+  params: z.object({}),
   component: () => {
     return (
       <>
