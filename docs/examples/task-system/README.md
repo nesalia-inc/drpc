@@ -438,6 +438,80 @@ export const CreateTask = clientComponent({
 })
 ```
 
+## Task Detail Page
+
+```tsx
+// app/tasks/[id]/page.tsx
+import { page } from "@deessejs/server/next"
+import { TaskDetail } from "./TaskDetail"
+
+export const Page = page({
+  params: z.object({
+    route: z.object({
+      id: z.string()
+    }),
+    search: z.object({
+      tab: z.enum(["details", "history"]).optional()
+    })
+  }),
+  component: (ctx, params) => {
+    return <TaskDetail id={params.route.id} tab={params.search.tab} />
+  }
+})
+```
+
+```tsx
+// app/tasks/[id]/TaskDetail.tsx
+"use client"
+
+import { clientComponent } from "@deessejs/server/next"
+
+export const TaskDetail = clientComponent({
+  props: z.object({
+    id: z.string(),
+    tab: z.enum(["details", "history"]).optional()
+  }),
+  component: (ctx, props) => {
+    const { data } = ctx.api.tasks.get({ id: Number(props.id) })
+
+    return data.match({
+      isLoading: () => <Skeleton />,
+      isError: (error) => <Error message={error.message} />,
+      isSuccess: (task) => task.match({
+        empty: () => <Error message="Task not found" />,
+        nonempty: (t) => (
+          <div>
+            <h1>{t.title}</h1>
+            {t.description && <p>{t.description}</p>}
+
+            <div>
+              Status: {t.completed ? "Completed" : "Pending"}
+            </div>
+
+            <div>
+              {props.tab === "history" ? (
+                <TaskHistory taskId={t.id} />
+              ) : (
+                <button onClick={() => ctx.api.tasks.update({
+                  id: t.id,
+                  completed: !t.completed
+                })}>
+                  {t.completed ? "Mark as pending" : "Mark as complete"}
+                </button>
+              )}
+            </div>
+          </div>
+        ),
+      }),
+      isStale: (task) => task.match({
+        empty: () => <StaleMessage>Task not found</StaleMessage>,
+        nonempty: (t) => <StaleTaskDetail task={t} />,
+      }),
+    })
+  }
+})
+```
+
 ## Summary
 
 This example demonstrates:
