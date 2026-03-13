@@ -4,9 +4,19 @@
 
 `@deessejs/server/next` provides a higher-level integration for Next.js that enables automatic cache revalidation across components. When one component mutates data, other components that query that data are automatically refetched.
 
+## Imports
+
+```typescript
+import { page, layout, serverComponent, clientComponent, Provider } from "@deessejs/server/next"
+```
+
 ## Core Concept
 
-- **Client Component Wrapper** - `c.clientComponent()` wraps a component with automatic cache management
+- **`clientComponent`** - Wraps a component with automatic cache management
+- **`page`** - Creates a Next.js page with cache management
+- **`layout`** - Creates a Next.js layout with cache management
+- **`serverComponent`** - Marks a component as server component
+- **`Provider`** - Provides API context to child components
 - **Reactive Queries** - Queries within a component are automatically refetched when related mutations occur
 - **Shared Cache** - Components share a cache context, enabling cross-component invalidation
 
@@ -32,9 +42,10 @@ Component A                              Component B
 
 ### clientComponent
 
+Wraps a client component with automatic cache management.
+
 ```typescript
 type ClientComponentProps<Props, Ctx> = {
-  props: Props
   component: (ctx: Ctx) => React.ReactNode
   fallback?: React.ReactNode
 }
@@ -42,6 +53,58 @@ type ClientComponentProps<Props, Ctx> = {
 function clientComponent<Props, Ctx extends ApiContext>(
   config: ClientComponentProps<Props, Ctx>
 ): React.ComponentType<Props>
+```
+
+### page
+
+Creates a Next.js page with automatic cache management.
+
+```typescript
+function page<Props, Ctx extends ApiContext>(
+  config: {
+    component: (ctx: Ctx, props: Props) => React.ReactNode
+    fallback?: React.ReactNode
+  }
+): React.ComponentType<Props>
+```
+
+### layout
+
+Creates a Next.js layout with automatic cache management.
+
+```typescript
+function layout<Props, Ctx extends ApiContext>(
+  config: {
+    component: (ctx: Ctx, props: Props) => React.ReactNode
+    children?: React.ReactNode
+  }
+): React.ComponentType<Props>
+```
+
+### serverComponent
+
+Marks a component as a server component with optional data prefetching.
+
+```typescript
+function serverComponent<Props, Data>(
+  config: {
+    component: (props: Props) => React.ReactNode
+    prefetch?: (props: Props) => Promise<Data>
+  }
+): React.ComponentType<Props>
+```
+
+### Provider
+
+Provides API context to child components.
+
+```typescript
+type ProviderProps = {
+  api: API
+  children: React.ReactNode
+}
+
+function Provider(props: ProviderProps): React.ReactElement
 ```
 
 ### ApiContext
@@ -60,16 +123,16 @@ type ApiContext = {
 
 ```tsx
 // app/page.tsx (Server Component)
-import { c } from "@deessejs/server/next"
+import { clientComponent, Provider } from "@deessejs/server/next"
 import { TaskList } from "./TaskList"
 import { CreateTask } from "./CreateTask"
 
 export default function Page() {
   return (
-    <c.Provider api={api}>
+    <Provider api={api}>
       <CreateTask />
       <TaskList />
-    </c.Provider>
+    </Provider>
   )
 }
 ```
@@ -78,10 +141,10 @@ export default function Page() {
 // app/TaskList.tsx (Client Component)
 "use client"
 
-import { c } from "@deessejs/server/next"
+import { clientComponent, Provider } from "@deessejs/server/next"
 
 export function TaskList() {
-  return c.clientComponent({
+  return clientComponent({
     props: {},
     component: (ctx) => {
       const { data, isLoading } = ctx.query(["tasks", "list"], () =>
@@ -106,7 +169,7 @@ export function TaskList() {
 // app/CreateTask.tsx (Client Component)
 "use client"
 
-import { c } from "@deessejs/server/next"
+import { clientComponent, Provider } from "@deessejs/server/next"
 
 export function CreateTask() {
   const { mutate } = ctx.mutate(async () => {
@@ -134,7 +197,7 @@ export function CreateTask() {
 
 ```tsx
 // Component that queries a specific task
-c.clientComponent({
+clientComponent({
   props: { taskId: number },
   component: (ctx, props) => {
     const { data } = ctx.query(["tasks", { id: props.taskId }], () =>
@@ -145,7 +208,7 @@ c.clientComponent({
 })
 
 // Component that creates a task
-c.clientComponent({
+clientComponent({
   props: {},
   component: (ctx) => {
     const { mutate } = ctx.mutate(async () => {
@@ -162,7 +225,7 @@ c.clientComponent({
 ### Optimistic Updates
 
 ```tsx
-c.clientComponent({
+clientComponent({
   props: { taskId: number },
   component: (ctx, props) => {
     const { mutate, data } = ctx.mutate(async (optimisticData) => {
@@ -194,7 +257,7 @@ c.clientComponent({
 ### With Loading States
 
 ```tsx
-c.clientComponent({
+clientComponent({
   props: {},
   fallback: <Skeleton />,
   component: (ctx) => {
@@ -216,7 +279,7 @@ c.clientComponent({
 ### Error Handling
 
 ```tsx
-c.clientComponent({
+clientComponent({
   props: {},
   fallback: <ErrorBoundary><TaskList /></ErrorBoundary>,
   component: (ctx) => {
@@ -239,16 +302,16 @@ c.clientComponent({
 
 ```tsx
 // app/layout.tsx
-import { c } from "@deessejs/server/next"
+import { clientComponent, Provider } from "@deessejs/server/next"
 import { api } from "./api"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html>
       <body>
-        <c.Provider api={api}>
+        <Provider api={api}>
           {children}
-        </c.Provider>
+        </Provider>
       </body>
     </html>
   )
@@ -259,7 +322,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ```tsx
 // app/tasks/page.tsx
-import { c } from "@deessejs/server/next"
+import { clientComponent, Provider } from "@deessejs/server/next"
 import { dehydrate, HydrationBoundary } from "@deessejs/server/next"
 import { TaskList } from "./TaskList"
 
@@ -273,11 +336,11 @@ export default async function TasksPage() {
   })
 
   return (
-    <c.Provider api={api}>
+    <Provider api={api}>
       <HydrationBoundary state={dehydrate(queryClient)}>
         <TaskList />
       </HydrationBoundary>
-    </c.Provider>
+    </Provider>
   )
 }
 ```
@@ -286,8 +349,8 @@ export default async function TasksPage() {
 
 ### Server vs Client Components
 
-- Only use `c.clientComponent()` in Client Components (`"use client"`)
-- Use `<c.Provider>` in Server Components
+- Only use `clientComponent()` in Client Components (`"use client"`)
+- Use `<Provider>` in Server Components
 - Prefetch data in Server Components and pass via `HydrationBoundary`
 
 ### Performance
