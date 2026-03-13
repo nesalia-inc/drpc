@@ -7,7 +7,7 @@
 ## Imports
 
 ```typescript
-import { page, layout, serverComponent, clientComponent, Provider } from "@deessejs/server/next"
+import { page, layout, serverComponent, clientComponent } from "@deessejs/server/next"
 ```
 
 ## Core Concept
@@ -16,7 +16,6 @@ import { page, layout, serverComponent, clientComponent, Provider } from "@deess
 - **`page`** - Creates a Next.js page with cache management
 - **`layout`** - Creates a Next.js layout with cache management
 - **`serverComponent`** - Marks a component as server component
-- **`Provider`** - Provides API context to child components
 - **Reactive Queries** - Queries within a component are automatically refetched when related mutations occur
 - **Shared Cache** - Components share a cache context, enabling cross-component invalidation
 
@@ -63,12 +62,15 @@ function clientComponent<Props extends z.ZodType, Ctx extends ApiContext>(
 Creates a Next.js page with automatic cache management.
 
 ```typescript
-function page<Props, Ctx extends ApiContext>(
+import { z } from "zod"
+
+function page<Props extends z.ZodType, Ctx extends ApiContext>(
   config: {
-    component: (ctx: Ctx, props: Props) => React.ReactNode
+    props: Props
+    component: (ctx: Ctx, props: z.infer<Props>) => React.ReactNode
     fallback?: React.ReactNode
   }
-): React.ComponentType<Props>
+): React.ComponentType<z.infer<Props>>
 ```
 
 ### layout
@@ -76,38 +78,29 @@ function page<Props, Ctx extends ApiContext>(
 Creates a Next.js layout with automatic cache management.
 
 ```typescript
-function layout<Props, Ctx extends ApiContext>(
+import { z } from "zod"
+
+function layout<Props extends z.ZodType, Ctx extends ApiContext>(
   config: {
-    component: (ctx: Ctx, props: Props) => React.ReactNode
-    children?: React.ReactNode
+    props: Props
+    component: (ctx: Ctx, props: z.infer<Props>, children?: React.ReactNode) => React.ReactNode
   }
-): React.ComponentType<Props>
+): React.ComponentType<z.infer<Props>>
 ```
 
 ### serverComponent
 
-Marks a component as a server component with optional data prefetching.
+Marks a component as a server component (no client-side cache).
 
 ```typescript
-function serverComponent<Props, Data>(
+import { z } from "zod"
+
+function serverComponent<Props extends z.ZodType>(
   config: {
-    component: (props: Props) => React.ReactNode
-    prefetch?: (props: Props) => Promise<Data>
+    props: Props
+    component: (props: z.infer<Props>) => React.ReactNode
   }
-): React.ComponentType<Props>
-```
-
-### Provider
-
-Provides API context to child components.
-
-```typescript
-type ProviderProps = {
-  api: API
-  children: React.ReactNode
-}
-
-function Provider(props: ProviderProps): React.ReactElement
+): React.ComponentType<z.infer<Props>>
 ```
 
 ### ApiContext
@@ -126,16 +119,16 @@ The API methods automatically handle cache registration and invalidation.
 
 ```tsx
 // app/page.tsx (Server Component)
-import { clientComponent, Provider } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/server/next"
 import { TaskList } from "./TaskList"
 import { CreateTask } from "./CreateTask"
 
 export default function Page() {
   return (
-    <Provider api={api}>
+    <>
       <CreateTask />
       <TaskList />
-    </Provider>
+    </>
   )
 }
 ```
@@ -144,7 +137,7 @@ export default function Page() {
 // app/TaskList.tsx (Client Component)
 "use client"
 
-import { clientComponent, Provider } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/server/next"
 
 export function TaskList() {
   return clientComponent({
@@ -289,20 +282,15 @@ const TaskList = clientComponent({
 
 ## Setup
 
-### Provider
+No Provider needed. The API is automatically available in all components.
 
 ```tsx
 // app/layout.tsx
-import { clientComponent, Provider } from "@deessejs/server/next"
-import { api } from "./api"
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html>
       <body>
-        <Provider api={api}>
-          {children}
-        </Provider>
+        {children}
       </body>
     </html>
   )
@@ -313,7 +301,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ```tsx
 // app/tasks/page.tsx
-import { clientComponent, Provider } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/server/next"
 import { dehydrate, HydrationBoundary } from "@deessejs/server/next"
 import { TaskList } from "./TaskList"
 
@@ -327,11 +315,9 @@ export default async function TasksPage() {
   })
 
   return (
-    <Provider api={api}>
-      <HydrationBoundary state={dehydrate(queryClient)}>
-        <TaskList />
-      </HydrationBoundary>
-    </Provider>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <TaskList />
+    </HydrationBoundary>
   )
 }
 ```
@@ -340,8 +326,8 @@ export default async function TasksPage() {
 
 ### Server vs Client Components
 
-- Only use `clientComponent()` in Client Components (`"use client"`)
-- Use `<Provider>` in Server Components
+- Use `clientComponent()` for Client Components (`"use client"`)
+- Use `page()`, `layout()`, or `serverComponent()` for Server Components
 - Prefetch data in Server Components and pass via `HydrationBoundary`
 
 ### Performance
