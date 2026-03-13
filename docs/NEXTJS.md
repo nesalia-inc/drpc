@@ -86,7 +86,7 @@ import { z } from "zod"
 function layout<Props extends z.ZodType, Ctx extends ApiContext>(
   config: {
     props: Props
-    component: (ctx: Ctx, props: z.infer<Props>, children?: React.ReactNode) => React.ReactNode
+    component: (ctx: Ctx, props: z.infer<Props>, children: React.ReactNode) => React.ReactNode
   }
 ): React.ComponentType<z.infer<Props>>
 ```
