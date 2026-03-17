@@ -117,7 +117,7 @@ registerExtension(cacheExtension)
 registerExtension(loggerExtension)
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
   },
   plugins: [sessionPlugin],
@@ -125,7 +125,7 @@ const { t, createAPI } = defineContext({
 // OK - cache and logger extensions are available
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
   },
   plugins: [sessionPlugin],
@@ -163,7 +163,7 @@ ctx.extensions.jobs.schedule(name, payload, cron)
 ```typescript
 // If a plugin requires an extension that's not registered
 const { t, createAPI } = defineContext({
-  initialValues: { db: myDatabase },
+  context: { db: myDatabase },
   plugins: [sessionPlugin], // sessionPlugin needs "cache"
 })
 

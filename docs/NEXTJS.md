@@ -351,7 +351,7 @@ For TypeScript safety, create a separate client API that only exposes public ope
 import { defineContext, createAPI, createPublicAPI } from "@deessejs/server"
 
 const { t, createAPI } = defineContext({
-  initialValues: { db: myDatabase },
+  context: { db: myDatabase },
 })
 
 // Public operations

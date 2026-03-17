@@ -74,7 +74,7 @@ import { authPlugin } from "./plugins/auth"
 import { cachePlugin } from "./plugins/cache"
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
     logger: myLogger,
   },
@@ -296,7 +296,7 @@ export const authPlugin = {
 
 // Usage
 const { t, createAPI } = defineContext({
-  initialValues: { db: myDatabase },
+  context: { db: myDatabase },
   plugins: [authPlugin],
 })
 ```

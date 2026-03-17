@@ -97,7 +97,7 @@ err(error)          // returns { ok: false, error }
 ```typescript
 function defineContext<T, Plugins extends Plugin<T>[], Events extends EventRegistry>(
   config: {
-    initialValues: T
+    context: T
     plugins?: Plugins
     events?: Events
   }
@@ -149,7 +149,7 @@ type Context = {
 }
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
     logger: myLogger,
     userId: null,
@@ -490,7 +490,7 @@ type BaseContext = {
 
 // Define context with plugins
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
     logger: myLogger,
   },

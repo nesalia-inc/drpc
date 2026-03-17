@@ -36,7 +36,7 @@ type Context = {
 }
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
     logger: console,
     cache: new MemoryCache(),

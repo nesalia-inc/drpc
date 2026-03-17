@@ -142,7 +142,7 @@ type BaseContext = {
 }
 
 const { t, createAPI } = defineContext({
-  initialValues: {
+  context: {
     db: myDatabase,
   },
   plugins: [
