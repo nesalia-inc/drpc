@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="public/icon.png">
-    <source media="(prefers-color-scheme: light)" srcset="public/icon.png">
+    <source media="(prefers-color-scheme: dark)" srcset="public/icon.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="public/icon.jpg">
     <img src="public/icon.png" alt="server" width="150" height="150" style="border-radius: 50%;">
   </picture>
 </p>
