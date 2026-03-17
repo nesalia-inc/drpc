@@ -1,9 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="public/banner.jpg">
-    <source media="(prefers-color-scheme: light)" srcset="public/oklch(0.97 0 0);.jpg">
-    <img src="public/icon.png" alt="server" width="150" height="150" style="border-radius: 50%;">
-  </picture>
+  <img src="public/banner.jpg" alt="nesalia Logo" width="100%">
 </p>
 
 <h1 align="center">@deessejs/server</h1>
