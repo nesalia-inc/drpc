@@ -18,6 +18,179 @@ type WithMetadata<T, Keys extends CacheKey[]> = {
 }
 ```
 
+## Typed Key Registry
+
+To ensure type safety, define your cache keys as a registry type. This prevents typos and provides autocomplete.
+
+### Define Registry
+
+```typescript
+// cache/keys.ts
+import { defineCacheKeys } from "@deessejs/server"
+
+// Define all cache keys for your app
+const keys = defineCacheKeys({
+  // User keys
+  users: {
+    _root: "users",
+    list: (params?: { page?: number; limit?: number }) => ["users", "list", params],
+    count: () => ["users", "count"],
+    byId: (id: number) => ["users", { id }],
+    search: (query: string) => ["users", "search", { q: query }],
+  },
+
+  // Task keys
+  tasks: {
+    _root: "tasks",
+    list: () => ["tasks", "list"],
+    byId: (id: number) => ["tasks", { id }],
+    byUser: (userId: number) => ["tasks", "byUser", { userId }],
+  },
+
+  // Config keys
+  config: {
+    _root: "config",
+    app: () => ["config", "app"],
+  },
+})
+
+export { keys }
+```
+
+### Use in Queries
+
+```typescript
+import { t } from "../context"
+import { keys } from "./cache/keys"
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err({ code: "NOT_FOUND", message: "User not found" })
+    }
+
+    // Type-safe cache keys
+    return ok(user, {
+      keys: [keys.users.byId(args.id)]
+    })
+  }
+})
+
+const listUsers = t.query({
+  args: z.object({
+    page: z.number().default(1),
+    limit: z.number().default(10),
+  }),
+  handler: async (ctx, args) => {
+    const users = await ctx.db.users.findMany({ ... })
+
+    return ok(users, {
+      keys: [
+        keys.users.list({ page: args.page, limit: args.limit }),
+        keys.users.count(),
+      ]
+    })
+  }
+})
+```
+
+### Use in Mutations
+
+```typescript
+import { keys } from "./cache/keys"
+
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+
+    return ok(user, {
+      invalidate: [
+        keys.users.list(),
+        keys.users.count(),
+      ]
+    })
+  }
+})
+
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string().optional(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.update({
+      where: { id: args.id },
+      data: { name: args.name }
+    })
+
+    return ok(user, {
+      invalidate: [
+        keys.users.byId(args.id),
+        keys.users.list(),
+      ]
+    })
+  }
+})
+
+const deleteUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.delete({ where: { id: args.id } })
+
+    return ok({ id: args.id }, {
+      invalidate: [
+        keys.users.byId(args.id),
+        keys.users.list(),
+        keys.users.count(),
+      ]
+    })
+  }
+})
+```
+
+### TypeScript Benefits
+
+With a typed registry, you get:
+
+1. **Autocomplete** - IDE suggests valid keys
+2. **Type checking** - Invalid keys cause TypeScript errors
+3. **Refactoring** - Rename keys safely
+
+```typescript
+// Autocomplete works!
+keys.users. // shows: list, count, byId, search
+
+// Type checking catches typos
+keys.users.byId(args.id)  // ✅ Valid
+keys.user.byId(args.id)   // ❌ TypeScript error: 'user' does not exist
+
+// Refactoring is safe
+// Rename in registry -> all usages update
+```
+
+### Registry Type Inference
+
+The registry provides full type inference:
+
+```typescript
+// Return type is inferred
+keys.users.byId(1)
+// Type: ["users", { id: number }]
+
+keys.users.list()
+// Type: ["users", "list", undefined | { page?: number; limit?: number }]
+
+keys.users.list({ page: 1, limit: 10 })
+// Type: ["users", "list", { page: number; limit: number }]
+```
+
 ### Query Result
 
 Queries return a result with metadata:

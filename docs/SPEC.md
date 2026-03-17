@@ -36,20 +36,22 @@ This package is part of a multi-package architecture:
    - `onSuccess` - Run after successful execution
    - `onError` - Run after failed execution
 
-6. **Cache Invalidation Stream**
-   - `createCacheStream()` - Create a stream for cache management
-   - `invalidate()` - Mark queries as stale
+6. **Cache System**
+   - `defineCacheKeys()` - Create typed cache key registry
+   - Query returns `WithMetadata<T, Keys>` with cache keys
+   - Mutation returns invalidation keys
+   - Full TypeScript support for key autocomplete and type checking
 
-8. **Route Handler**
+7. **Route Handler**
    - `createRouteHandler()` - Create Next.js route handler for HTTP exposure
    - Only exposes `query` and `mutation` operations
    - `internalQuery` and `internalMutation` remain private
 
-9. **Public API**
+8. **Public API**
    - `createPublicAPI(api)` - Create client-safe API with only public operations
    - Provides TypeScript safety to prevent calling internal operations from client code
 
-10. **Plugin System**
+9. **Plugin System**
    - Plugins extend context with additional properties
    - Additional plugin features (queries, mutations, events) coming later
 
