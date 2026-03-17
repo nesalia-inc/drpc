@@ -2,25 +2,24 @@
 
 ## Overview
 
-The plugin system in `@deessejs/server` allows extending the context (`ctx`) with additional properties. Plugins are a way to add reusable functionality across your application.
+The plugin system in `@deessejs/server` allows extending the context (`ctx`) with additional properties **and** adding API routes. Plugins are a way to add reusable functionality across your application.
 
-## Current Scope
+## Plugin Capabilities
 
-**Version 1** - Plugins can only extend the context.
+Plugins can provide:
 
-Future versions will add:
-- Plugin queries and mutations
-- Event handlers
-- Cache invalidation hooks
+1. **Context Extension** - Add properties to the context object
+2. **API Routes** - Add queries and mutations to the router
 
 ## API Reference
 
 ### Plugin Type
 
 ```typescript
-type Plugin<Ctx> = {
+type Plugin<Ctx, PluginRouter extends Router = {}> = {
   name: string
   extend: (ctx: Ctx) => Partial<Ctx>
+  router?: (t: QueryBuilder<Ctx>) => PluginRouter
 }
 ```
 
@@ -30,6 +29,7 @@ type Plugin<Ctx> = {
 |----------|------|-------------|
 | `name` | `string` | Unique identifier for the plugin |
 | `extend` | `(ctx: Ctx) => Partial<Ctx>` | Function that returns additional context properties |
+| `router` | `(t: QueryBuilder<Ctx>) => PluginRouter` | Optional function that returns plugin queries and mutations |
 
 ## Usage Examples
 
@@ -213,6 +213,139 @@ export const sessionPlugin: Plugin<SessionContext> = {
 }
 ```
 
+## Plugin with API Routes
+
+Plugins can also add queries and mutations to the API router:
+
+```typescript
+// plugins/notifications.ts
+import { Plugin, ok } from "@deessejs/server"
+
+type NotificationContext = {
+  db: Database
+  userId: string | null
+}
+
+type NotificationRouter = {
+  list: ReturnType<typeof t.query>
+  markAsRead: ReturnType<typeof t.mutation>
+  send: ReturnType<typeof t.mutation>
+}
+
+export const notificationPlugin: Plugin<NotificationContext, NotificationRouter> = {
+  name: "notifications",
+
+  // Extend context with notification helper
+  extend: (ctx) => ({
+    async sendNotification(userId: string, message: string) {
+      await ctx.db.notifications.create({ userId, message })
+    }
+  }),
+
+  // Add routes to the API
+  router: (t) => ({
+    list: t.query({
+      args: z.object({}),
+      handler: async (ctx) => {
+        const notifications = await ctx.db.notifications.findMany({
+          where: { userId: ctx.userId },
+          orderBy: { createdAt: "desc" }
+        })
+        return ok(notifications)
+      }
+    }),
+
+    markAsRead: t.mutation({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        await ctx.db.notifications.update({
+          where: { id: args.id },
+          data: { read: true }
+        })
+        return ok({ success: true })
+      }
+    }),
+
+    send: t.mutation({
+      args: z.object({
+        userId: z.string(),
+        message: z.string()
+      }),
+      handler: async (ctx, args) => {
+        const notification = await ctx.db.notifications.create(args)
+        return ok(notification)
+      }
+    })
+  })
+}
+```
+
+### Using Plugin Routes
+
+When you define your context with plugins that have routers, the routes are automatically merged into the main API:
+
+```typescript
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  plugins: [notificationPlugin]
+})
+
+const api = createAPI({
+  router: t.router({
+    // Main app routes
+    users: t.router({ ... }),
+    tasks: t.router({ ... }),
+
+    // Plugin routes are merged automatically
+    // Access via: api.notifications.list()
+  })
+})
+```
+
+### Plugin Router with Internal Operations
+
+Plugins can also include internal queries and mutations:
+
+```typescript
+export const analyticsPlugin: Plugin<Ctx, AnalyticsRouter> = {
+  name: "analytics",
+
+  extend: (ctx) => ({}),
+
+  router: (t) => ({
+    // Public - exposed via HTTP
+    getStats: t.query({
+      args: z.object({}),
+      handler: async (ctx) => {
+        return ok({ views: 1000 })
+      }
+    }),
+
+    // Internal - server only
+    getDetailedReport: t.internalQuery({
+      args: z.object({}),
+      handler: async (ctx) => {
+        // Only runs on server - safe from HTTP attacks
+        return ok({
+          views: 1000,
+          uniqueVisitors: 500,
+          revenue: 5000
+        })
+      }
+    }),
+
+    // Internal mutation
+    resetStats: t.internalMutation({
+      args: z.object({}),
+      handler: async (ctx) => {
+        await ctx.db.analytics.deleteMany()
+        return ok({ success: true })
+      }
+    })
+  })
+}
+```
+
 ## Type Safety
 
 ### Extending Context Types
@@ -250,6 +383,62 @@ const getUser = t.query({
 })
 ```
 
+### Plugin Router Types
+
+When using plugins with routers, types are automatically inferred:
+
+```typescript
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  plugins: [notificationPlugin, authPlugin]
+})
+
+const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: t.query({ ... })
+    })
+  })
+})
+
+// TypeScript knows about plugin routes
+api.notifications.list({})     // ✅ Works
+api.notifications.markAsRead({ id: 1 })  // ✅ Works
+
+// Main routes still work
+api.users.get({ id: 1 })      // ✅ Works
+```
+
+### Full Type Example
+
+```typescript
+// Context type
+type Ctx = {
+  db: Database
+  userId: string | null
+}
+
+// Plugin with context extension and router
+type AuthPlugin = Plugin<Ctx, {
+  getCurrentUser: ReturnType<typeof t.query>
+  updateProfile: ReturnType<typeof t.mutation>
+}>
+
+const authPlugin: AuthPlugin = {
+  name: "auth",
+  extend: () => ({ userId: null }),
+  router: (t) => ({
+    getCurrentUser: t.query({
+      handler: async (ctx) => {
+        const user = await ctx.db.users.find(ctx.userId!)
+        return ok(user)
+      }
+    }),
+    updateProfile: t.mutation({ ... })
+  })
+}
+```
+
 ## Best Practices
 
 1. **Keep plugins focused** - Each plugin should do one thing well
@@ -276,7 +465,6 @@ export const everythingPlugin = {
 
 ## Future Considerations
 
-- Plugin queries and mutations
 - Plugin event handlers
 - Cache invalidation hooks
 - Plugin ordering/priority
