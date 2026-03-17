@@ -11,6 +11,13 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nesalia-inc/server.git"
+  },
+  "bugs": {
+    "email": "support@nesalia.com"
+  },
   "scripts": {
     "test": "vitest",
     "test:run": "vitest run",
