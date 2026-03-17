@@ -49,7 +49,11 @@ This package is part of a multi-package architecture:
    - Only exposes `query` and `mutation` operations
    - `internalQuery` and `internalMutation` remain private
 
-9. **Plugin System**
+9. **Public API**
+   - `createPublicAPI(api)` - Create client-safe API with only public operations
+   - Provides TypeScript safety to prevent calling internal operations from client code
+
+10. **Plugin System**
    - Plugins extend context with additional properties
    - Additional plugin features (queries, mutations, events) coming later
 
@@ -303,6 +307,54 @@ import { createRouteHandler } from "@deessejs/server/next"
 import { api } from "@/server/api"
 
 export const POST = createRouteHandler(api)
+```
+
+### Create Client-Safe API
+
+For TypeScript safety, create a separate client API that only exposes public operations:
+
+```typescript
+import { createPublicAPI } from "@deessejs/server"
+
+// Full API for server usage
+const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: getUser,
+      create: createUser,
+      delete: deleteUser,           // internal
+      getAdminStats: getAdminStats, // internal
+    }),
+  }),
+})
+
+// Client-safe API (only public operations)
+const clientApi = createPublicAPI(api)
+
+export { api, clientApi }
+```
+
+**Server code** uses `api` (full access):
+```typescript
+// app/admin/page.tsx
+import { api } from "@/server/api"
+
+const stats = await api.users.getAdminStats({})  // ✅ Works
+await api.users.delete({ id: 1 })                  // ✅ Works
+```
+
+**Client code** uses `clientApi` (public only):
+```typescript
+// app/components/UserList.tsx
+"use client"
+import { clientApi } from "@/server/api"
+
+const users = await clientApi.users.get({})       // ✅ Works
+await clientApi.users.create({ name: "John" })    // ✅ Works
+
+// TypeScript error - not available on clientApi!
+const stats = await clientApi.users.getAdminStats({})  // ❌ TS Error
+await clientApi.users.delete({ id: 1 })                // ❌ TS Error
 ```
 
 This creates HTTP endpoints for all public `query` and `mutation` operations. Internal operations are NOT exposed.

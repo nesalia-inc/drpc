@@ -160,6 +160,49 @@ const api = createAPI({
 export { api }
 ```
 
+### Create Client-Safe API
+
+Create a separate API that only exposes public operations. This provides TypeScript safety to prevent calling internal operations from client code:
+
+```typescript
+import { createPublicAPI } from "@deessejs/server"
+
+// Creates a client-safe API with only query and mutation
+const clientApi = createPublicAPI(api)
+
+export { api, clientApi }
+```
+
+### Usage: Server vs Client
+
+```typescript
+// ===== SERVER CODE (Server Components, Server Actions) =====
+// app/users/page.tsx (Server Component)
+import { api } from "@/server/api"
+
+export default async function UsersPage() {
+  // Can call ALL operations (public + internal)
+  const users = await api.users.get({})
+  const stats = await api.users.getAdminStats({})    // ✅ Works
+  await api.users.delete({ id: 1 })                  // ✅ Works
+}
+
+// ===== CLIENT CODE (Client Components) =====
+// app/components/UserList.tsx (Client Component)
+"use client"
+import { clientApi } from "@/server/api"
+
+async function UserList() {
+  // Can only call PUBLIC operations
+  const users = await clientApi.users.get({})       // ✅ Works
+  await clientApi.users.create({ name: "John" })    // ✅ Works
+
+  // TypeScript error - internal operations don't exist!
+  const stats = await clientApi.users.getAdminStats({})  // ❌ TS Error
+  await clientApi.users.delete({ id: 1 })               // ❌ TS Error
+}
+```
+
 ### Use in Server Actions
 
 ```typescript

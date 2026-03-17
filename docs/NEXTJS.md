@@ -342,6 +342,80 @@ const response = await fetch("/api/users.get", {
 const result = await response.json()
 ```
 
+### Client-Safe API (Recommended)
+
+For TypeScript safety, create a separate client API that only exposes public operations. This prevents accidentally calling internal operations from client code:
+
+```typescript
+// server/api.ts
+import { defineContext, createAPI, createPublicAPI } from "@deessejs/server"
+
+const { t, createAPI } = defineContext({
+  initialValues: { db: myDatabase },
+})
+
+// Public operations
+const getUser = t.query({ ... })
+const createUser = t.mutation({ ... })
+
+// Internal operations (server-only)
+const deleteUser = t.internalMutation({ ... })
+const getAdminStats = t.internalQuery({ ... })
+
+// Full API for server usage
+const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: getUser,
+      create: createUser,
+      delete: deleteUser,
+      getAdminStats: getAdminStats,
+    }),
+  }),
+})
+
+// Client-safe API (only public operations)
+const clientApi = createPublicAPI(api)
+
+export { api, clientApi }
+```
+
+### Usage: Server vs Client
+
+**Server Components** - Use full `api`:
+
+```typescript
+// app/admin/page.tsx (Server Component)
+import { api } from "@/server/api"
+
+export default async function AdminPage() {
+  // Can call ALL operations
+  const users = await api.users.get({})
+  const stats = await api.users.getAdminStats({})   // ✅ Works
+  await api.users.delete({ id: 1 })                 // ✅ Works
+
+  return <Dashboard stats={stats} />
+}
+```
+
+**Client Components** - Use `clientApi`:
+
+```typescript
+// app/components/UserList.tsx (Client Component)
+"use client"
+import { clientApi } from "@/server/api"
+
+export function UserList() {
+  // Can only call PUBLIC operations
+  const users = await clientApi.users.get({})        // ✅ Works
+  await clientApi.users.create({ name: "John" })     // ✅ Works
+
+  // TypeScript error - these don't exist on clientApi!
+  const stats = await clientApi.users.getAdminStats({})  // ❌ TS Error
+  await clientApi.users.delete({ id: 1 })               // ❌ TS Error
+}
+```
+
 ### Call from Server
 
 ```typescript
