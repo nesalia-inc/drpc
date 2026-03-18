@@ -280,7 +280,7 @@ const createUser = t.mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
     ctx.send("user.created", { userId: user.id, email: user.email })
-    return success(user, { invalidate: ["users"] })
+    return ok(user, { invalidate: ["users"] })
   }
 })
 ```
@@ -303,15 +303,15 @@ Plugins extend the context with additional properties:
 
 ```typescript
 // plugins/auth.ts
-import { Plugin } from "@deessejs/server"
+import { plugin } from "@deessejs/server"
 
-export const authPlugin = {
+export const authPlugin = plugin({
   name: "auth",
   extend: (ctx) => ({
     userId: null,
     isAuthenticated: false,
   }),
-}
+})
 
 // Usage
 const { t, createAPI } = defineContext({
