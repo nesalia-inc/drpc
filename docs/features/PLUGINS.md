@@ -10,16 +10,23 @@ Plugins can provide:
 
 1. **Context Extension** - Add properties to the context object
 2. **API Routes** - Add queries and mutations to the router
+3. **Lifecycle Hooks** - Execute code on invoke, success, or error
+4. **Request Access** - Access headers and cookies
 
-## API Reference
-
-### Plugin Type
+## Plugin Type
 
 ```typescript
 type Plugin<Ctx, PluginRouter extends Router = {}> = {
   name: string
   extend: (ctx: Ctx) => Partial<Ctx>
   router?: (t: QueryBuilder<Ctx>) => PluginRouter
+  hooks?: PluginHooks<Ctx>
+}
+
+type PluginHooks<Ctx> = {
+  onInvoke?: (ctx: Ctx, args: unknown) => void | Promise<void>
+  onSuccess?: (ctx: Ctx, args: unknown, result: unknown) => void | Promise<void>
+  onError?: (ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>
 }
 ```
 
@@ -30,6 +37,175 @@ type Plugin<Ctx, PluginRouter extends Router = {}> = {
 | `name` | `string` | Unique identifier for the plugin |
 | `extend` | `(ctx: Ctx) => Partial<Ctx>` | Function that returns additional context properties |
 | `router` | `(t: QueryBuilder<Ctx>) => PluginRouter` | Optional function that returns plugin queries and mutations |
+| `hooks` | `PluginHooks` | Optional lifecycle hooks |
+
+## Plugin Factory Functions
+
+Plugins can be configured with options using factory functions:
+
+```typescript
+// plugins/notifications.ts
+import { Plugin } from "@deessejs/server"
+
+type NotificationOptions = {
+  retryCount?: number
+  defaultChannel?: "email" | "sms" | "push"
+}
+
+export const notificationPlugin = (options: NotificationOptions = {}): Plugin<Ctx> => ({
+  name: "notifications",
+  extend: (ctx) => ({
+    sendNotification: async (to: string, message: string) => {
+      // Use options
+      const retry = options.retryCount ?? 3
+      const channel = options.defaultChannel ?? "email"
+
+      // Send notification with retry logic
+      for (let i = 0; i < retry; i++) {
+        try {
+          return await ctx.notificationService.send(to, message, channel)
+        } catch (error) {
+          if (i === retry - 1) throw error
+        }
+      }
+    }
+  })
+})
+
+// Usage
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  plugins: [
+    notificationPlugin({ retryCount: 5, defaultChannel: "push" })
+  ]
+})
+```
+
+## Lifecycle Hooks
+
+Plugins can execute code at specific points during request execution:
+
+```typescript
+type PluginHooks<Ctx> = {
+  onInvoke?: (ctx: Ctx, args: unknown) => void | Promise<void>
+  onSuccess?: (ctx: Ctx, args: unknown, result: unknown) => void | Promise<void>
+  onError?: (ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>
+}
+```
+
+### Example: Logging Plugin
+
+```typescript
+const loggerPlugin: Plugin<Ctx> = {
+  name: "logger",
+  extend: (ctx) => ({
+    logger: {
+      info: (msg: string) => console.log("[INFO]", msg),
+      error: (msg: string) => console.error("[ERROR]", msg)
+    }
+  }),
+  hooks: {
+    onInvoke: (ctx, args) => {
+      console.log(`[INVOKE] ${ctx.operation}`, args)
+    },
+    onSuccess: (ctx, args, result) => {
+      console.log(`[SUCCESS] ${ctx.operation}`)
+    },
+    onError: (ctx, args, error) => {
+      console.error(`[ERROR] ${ctx.operation}`, error)
+    }
+  }
+}
+```
+
+### Example: Metrics Plugin
+
+```typescript
+const metricsPlugin: Plugin<Ctx> = {
+  name: "metrics",
+  extend: (ctx) => ({
+    metrics: {
+      increment: (name: string) => { /* ... */ },
+      timing: (name: string, ms: number) => { /* ... */ }
+    }
+  }),
+  hooks: {
+    onInvoke: (ctx, args) => {
+      ctx.metrics.increment(`${ctx.operation}.invoke`)
+      ctx.startTime = Date.now()
+    },
+    onSuccess: (ctx, args, result) => {
+      const duration = Date.now() - ctx.startTime
+      ctx.metrics.timing(`${ctx.operation}.duration`, duration)
+      ctx.metrics.increment(`${ctx.operation}.success`)
+    },
+    onError: (ctx, args, error) => {
+      const duration = Date.now() - ctx.startTime
+      ctx.metrics.timing(`${ctx.operation}.duration`, duration)
+      ctx.metrics.increment(`${ctx.operation}.error`)
+    }
+  }
+}
+```
+
+## Request Access (Headers & Cookies)
+
+Plugins can access HTTP headers and cookies from the request:
+
+```typescript
+const authPlugin: Plugin<Ctx> = {
+  name: "auth",
+  extend: async (ctx) => {
+    // Access headers (Next.js)
+    const headers = await headers()
+    const cookieStore = await cookies()
+
+    const authHeader = headers.get("authorization")
+    const sessionToken = cookieStore.get("session")?.value
+
+    let user = null
+    if (sessionToken) {
+      user = await verifySession(sessionToken)
+    }
+
+    return {
+      userId: user?.id ?? null,
+      userRoles: user?.roles ?? [],
+      isAuthenticated: !!user
+    }
+  }
+}
+```
+
+> **Note:** The `extend` function can be `async` to support awaiting headers/cookies.
+
+## Namespace Enforcement
+
+Plugin routes are automatically namespaced under the plugin name:
+
+```typescript
+const notificationPlugin: Plugin<Ctx, {
+  list: Query
+  send: Mutation
+  markRead: Mutation
+}> = {
+  name: "notifications",
+  extend: (ctx) => ({ sendNotification: (...args) => { ... } }),
+  router: (t) => ({
+    list: t.query({ ... }),
+    send: t.mutation({ ... }),
+    markRead: t.mutation({ ... })
+  })
+}
+
+// Usage: api.notifications.list()
+// NOT: api.list()
+```
+
+This ensures:
+- **No collisions** - Each plugin has its own namespace
+- **Clear origin** - `api.notifications.send` clearly shows the source
+- **Organized routes** - Routes are grouped logically
 
 ## Usage Examples
 
@@ -438,6 +614,50 @@ const authPlugin: AuthPlugin = {
   })
 }
 ```
+
+## Collision Detection
+
+The framework detects and prevents naming collisions:
+
+### Context Collision
+
+If two plugins add the same property to context:
+
+```typescript
+const pluginA = {
+  name: "pluginA",
+  extend: () => ({ cache: { get: () => {} } })
+}
+
+const pluginB = {
+  name: "pluginB",
+  extend: () => ({ cache: { get: () => {} } })
+}
+
+// Warning: "pluginB" overwrites "cache" from "pluginA"
+```
+
+The framework will emit a warning at startup, but allow it (last plugin wins).
+
+### Router Collision
+
+If two plugins (or main router) define the same route:
+
+```typescript
+const pluginA = {
+  name: "users",
+  router: () => ({ list: t.query({ ... }) })
+}
+
+const pluginB = {
+  name: "posts",
+  router: () => ({ list: t.query({ ... }) })
+}
+
+// Error: Cannot add route "list" - already exists
+```
+
+The framework **throws an error** at startup to prevent silent bugs.
 
 ## Best Practices
 
