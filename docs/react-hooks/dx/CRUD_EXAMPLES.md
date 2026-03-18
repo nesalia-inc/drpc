@@ -20,7 +20,7 @@ const getUsers = t.query({
       orderBy: { createdAt: 'desc' }
     })
 
-    return withMetadata(users, {
+    return ok(users, {
       keys: [["users", "list", { page: args.page, limit: args.limit }]]
     })
   }
@@ -32,7 +32,7 @@ const getUser = t.query({
     const user = await ctx.db.users.findUnique({ where: { id: args.id } })
     if (!user) return err({ code: "NOT_FOUND", message: "User not found" })
 
-    return withMetadata(user, {
+    return ok(user, {
       keys: [["users", { id: args.id }]]
     })
   }
@@ -45,7 +45,7 @@ const createUser = t.mutation({
   }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [["users", "list"]]
     })
   }
@@ -62,7 +62,7 @@ const updateUser = t.mutation({
       where: { id: args.id },
       data: args,
     })
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [
         ["users", { id: args.id }],
         ["users", "list"]
@@ -75,7 +75,7 @@ const deleteUser = t.mutation({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
     await ctx.db.users.delete({ where: { id: args.id } })
-    return withMetadata({ success: true }, {
+    return ok({ success: true }, {
       invalidate: [
         ["users", { id: args.id }],
         ["users", "list"]
@@ -223,7 +223,7 @@ const listPosts = t.query({
       orderBy: { createdAt: 'desc' }
     })
 
-    return withMetadata(posts, {
+    return ok(posts, {
       keys: [["posts", "list", { status: args.status, limit: args.limit }]]
     })
   }
@@ -237,7 +237,7 @@ const getPost = t.query({
     })
     if (!post) return err({ code: "NOT_FOUND", message: "Post not found" })
 
-    return withMetadata(post, {
+    return ok(post, {
       keys: [["posts", { slug: args.slug }]]
     })
   }
@@ -256,7 +256,7 @@ const createPost = t.mutation({
         slug: args.title.toLowerCase().replace(/\s+/g, "-")
       }
     })
-    return withMetadata(post, {
+    return ok(post, {
       invalidate: [["posts", "list"]]
     })
   }
@@ -269,7 +269,7 @@ const publishPost = t.mutation({
       where: { id: args.id },
       data: { status: "published" }
     })
-    return withMetadata(post, {
+    return ok(post, {
       invalidate: [
         ["posts", { id: args.id }],
         ["posts", "list"]
@@ -346,3 +346,103 @@ export function PostEditor() {
 | `useMutation(client.users.update)` | Returns `invalidate: [[...], [...]]` | Detail + list refetch |
 
 No configuration needed - the server drives everything!
+
+## Mutation Callbacks
+
+Even though invalidation is automatic, you often need to run code after a mutation completes.
+
+### Basic Callbacks
+
+```tsx
+// components/CreateUser.tsx
+"use client"
+import { useMutation } from "@deessejs/server/react"
+import { client } from "@/server/api"
+
+export function CreateUserForm() {
+  const { mutate } = useMutation(client.users.create, {
+    onSuccess: (data) => {
+      console.log("User created:", data.id)
+      // Navigation, toast, etc.
+    },
+    onError: (error) => {
+      console.error("Failed:", error.message)
+    }
+  })
+
+  return <form onSubmit={() => mutate({ name: "John", email: "john@example.com" })}>
+    <button>Create</button>
+  </form>
+}
+```
+
+### Callbacks with Navigation
+
+```tsx
+// components/EditUser.tsx
+"use client"
+import { useMutation } from "@deessejs/server/react"
+import { useRouter } from "next/navigation"
+import { client } from "@/server/api"
+
+export function EditUserForm({ userId }: { userId: number }) {
+  const router = useRouter()
+
+  const { mutate } = useMutation(client.users.update, {
+    onSuccess: () => {
+      router.push("/users")  // Navigate after success
+    }
+  })
+
+  return <form onSubmit={() => mutate({ id: userId, name: "New Name" })}>
+    <button>Save</button>
+  </form>
+}
+```
+
+### Callbacks with Typed Errors
+
+```tsx
+// components/RegisterForm.tsx
+"use client"
+import { useState } from "react"
+import { useMutation } from "@deessejs/server/react"
+import { client } from "@/server/api"
+
+export function RegisterForm() {
+  const [error, setError] = useState<string | null>(null)
+
+  const { mutate, isPending } = useMutation(client.users.create, {
+    onError: (err) => {
+      // err is typed from server - can check error.code
+      if (err.code === "DUPLICATE_EMAIL") {
+        setError("Email already exists")
+      } else if (err.code === "VALIDATION_ERROR") {
+        setError("Invalid input")
+      } else {
+        setError("Something went wrong")
+      }
+    }
+  })
+
+  return (
+    <form onSubmit={() => mutate({ name: "John", email: "test@example.com" })}>
+      {error && <div className="error">{error}</div>}
+      <button disabled={isPending}>Register</button>
+    </form>
+  )
+}
+```
+
+### Callback Options Summary
+
+| Option | Description |
+|--------|-------------|
+| `onSuccess` | Called when mutation succeeds |
+| `onError` | Called when mutation fails (typed!) |
+| `onSettled` | Called whether success or error |
+
+All callbacks have access to:
+- `data` - The returned data from server
+- `variables` - What was passed to mutate
+- `context` - Any context from `onMutate`

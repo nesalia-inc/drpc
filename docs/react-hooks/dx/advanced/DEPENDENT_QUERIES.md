@@ -11,7 +11,7 @@ const getUser = t.query({
   handler: async (ctx, args) => {
     const user = await ctx.db.users.findUnique({ where: { id: args.id } })
     if (!user) return err({ code: "NOT_FOUND" })
-    return withMetadata(user, { keys: [["users", { id: args.id }]] })
+    return ok(user, { keys: [["users", { id: args.id }]] })
   }
 })
 
@@ -21,7 +21,7 @@ const getUserPosts = t.query({
     const posts = await ctx.db.posts.findMany({
       where: { authorId: args.userId }
     })
-    return withMetadata(posts, {
+    return ok(posts, {
       keys: [["posts", "byUser", { userId: args.userId }]]
     })
   }

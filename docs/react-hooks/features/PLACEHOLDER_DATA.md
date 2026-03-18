@@ -139,7 +139,7 @@ const listUsers = t.query({
   handler: async (ctx, args) => {
     const users = await ctx.db.users.findMany({ take: args.limit })
 
-    return withMetadata({
+    return ok({
       items: users,
       total: users.length,
     }, {

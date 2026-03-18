@@ -15,7 +15,7 @@ const toggleLike = t.mutation({
 
     if (existing) {
       await ctx.db.likes.delete({ where: { id: existing.id } })
-      return withMetadata({ liked: false }, {
+      return ok({ liked: false }, {
         invalidate: [["posts", { id: args.postId }]]
       })
     }
@@ -23,7 +23,7 @@ const toggleLike = t.mutation({
     await ctx.db.likes.create({
       data: { postId: args.postId, userId: ctx.userId }
     })
-    return withMetadata({ liked: true }, {
+    return ok({ liked: true }, {
       invalidate: [["posts", { id: args.postId }]]
     })
   }

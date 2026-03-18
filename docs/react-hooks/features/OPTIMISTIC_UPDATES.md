@@ -109,7 +109,7 @@ const updatePost = t.mutation({
   handler: async (ctx, args) => {
     try {
       const post = await ctx.db.posts.update(args.id, { title: args.title })
-      return withMetadata(post, {
+      return ok(post, {
         invalidate: [['posts', 'list']]
       })
     } catch (error) {

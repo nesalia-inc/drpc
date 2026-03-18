@@ -15,7 +15,7 @@ pnpm add @deessejs/server @deessejs/server/react
 ```typescript
 // server/api.ts
 import { defineContext, createAPI, createPublicAPI } from "@deessejs/server"
-import { withMetadata } from "@deessejs/server"
+import { ok } from "@deessejs/server"
 
 const { t, createAPI } = defineContext({
   context: { db }
@@ -26,7 +26,7 @@ const listUsers = t.query({
   args: z.object({ limit: z.number().default(10) }),
   handler: async (ctx, args) => {
     const users = await ctx.db.users.findMany({ take: args.limit })
-    return withMetadata(users, {
+    return ok(users, {
       keys: [["users", "list", { limit: args.limit }]]
     })
   }
@@ -37,7 +37,7 @@ const createUser = t.mutation({
   args: z.object({ name: z.string(), email: z.string() }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [["users", "list"]]
     })
   }

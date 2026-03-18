@@ -268,7 +268,7 @@ const updateUser = t.mutation({
 
     try {
       const user = await ctx.db.users.update(args.id, { name: args.name })
-      return withMetadata(user, {
+      return ok(user, {
         invalidate: [['users', 'list']]
       })
     } catch (error) {
@@ -320,7 +320,7 @@ const updateUser = t.mutation({
       invalidate.push(['users', 'admins'])
     }
 
-    return withMetadata(user, { invalidate })
+    return ok(user, { invalidate })
   }
 })
 ```
@@ -340,7 +340,7 @@ const createOrder = t.mutation({
       ...args.items.map(item => ['products', { id: item.productId }])
     ]
 
-    return withMetadata(order, { invalidate })
+    return ok(order, { invalidate })
   }
 })
 ```

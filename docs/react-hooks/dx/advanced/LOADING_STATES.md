@@ -9,7 +9,7 @@ Handle different loading states for better UX.
 const getConfig = t.query({
   handler: async (ctx) => {
     const config = await ctx.db.config.findUnique()
-    return withMetadata(config, {
+    return ok(config, {
       keys: ["config"],
       ttl: 60000 // 1 minute
     })

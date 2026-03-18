@@ -189,7 +189,7 @@ const updateUser = t.mutation({
       data: { name: args.name }
     })
     // Server decides what to invalidate!
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [
         ["users", { id: args.id }],  // Specific user
         ["users", "list"]            // List
@@ -310,14 +310,17 @@ export function UserList() {
 
 ## Summary Table
 
-| Feature | Without Magic | With Magic |
-|---------|---------------|------------|
-| Query Key | Manual definition | From server `keys` |
-| Invalidation | Manual `onSuccess` | From server `invalidate` |
-| Stale Time | Manual config | From server `ttl` |
-| Type Safety | Partial | Full |
-| Boilerplate | Lots | Minimal |
-| Learning Curve | Steep | Flat |
+| Feature | Standard (TanStack Query) | DeesseJS Magic |
+|---------|--------------------------|----------------|
+| **Cache Keys** | Manual definition (risk of desync) | Automatic (from server) |
+| **Invalidation** | Manual `onSuccess: () => invalidate()` | Declarative in handler |
+| **Pagination** | Hard to sync | Server-driven metadata |
+| **Type Safety** | Often need to import types | Full inference via Proxy |
+| **Boilerplate** | ~30 lines | ~5 lines |
+| **Maintenance** | High (manual sync) | Low (server as source) |
+| **Learning Curve** | Steep | Flat |
+| **SSR/RSC** | Manual dehydrate/rehydrate | Built-in |
+| **Optimistic Updates** | Manual callbacks | Optional helpers |
 
 ## When to Use Each
 

@@ -12,6 +12,7 @@ Real-world patterns for complex applications.
 | [`PREFETCHING.md`](PREFETCHING.md) | Load data before needed |
 | [`ERROR_HANDLING.md`](ERROR_HANDLING.md) | Handle typed errors from server |
 | [`LOADING_STATES.md`](LOADING_STATES.md) | Different loading states |
+| [`SSR_HYDRATION.md`](SSR_HYDRATION.md) | Next.js SSR/RSC instant data |
 
 ## Quick Overview
 

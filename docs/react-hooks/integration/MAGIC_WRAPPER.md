@@ -53,7 +53,7 @@ const listUsers = t.query({
     const users = await ctx.db.users.findMany({ take: args.limit })
 
     // Server decides cache keys
-    return withMetadata(users, {
+    return ok(users, {
       keys: [['users', 'list', { limit: args.limit }]]
     })
   }
@@ -65,7 +65,7 @@ const createUser = t.mutation({
     const user = await ctx.db.users.create(args)
 
     // Server decides what to invalidate
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [['users', 'list']]
     })
   }

@@ -25,7 +25,7 @@ const createUser = t.mutation({
     }
 
     const user = await ctx.db.users.create(args)
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [["users", "list"]]
     })
   }

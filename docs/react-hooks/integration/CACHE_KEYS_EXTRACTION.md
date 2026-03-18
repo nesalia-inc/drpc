@@ -392,7 +392,7 @@ const listUsers = t.query({
   handler: async (ctx, args) => {
     const users = await ctx.db.users.findMany({ take: args.limit })
 
-    return withMetadata(users, {
+    return ok(users, {
       keys: [
         ['users', 'list'],
         ['users', 'list', { limit: args.limit }],
@@ -411,7 +411,7 @@ const { data } = useQuery(client.users.list, {
 // Mutation
 const createUser = t.mutation({
   handler: async (ctx, args) => {
-    return withMetadata(user, {
+    return ok(user, {
       invalidate: [['users', 'list']]
     })
   }

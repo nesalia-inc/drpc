@@ -47,7 +47,7 @@ const listPosts = t.query({
     const hasNextPage = posts.length > args.limit
     const items = hasNextPage ? posts.slice(0, -1) : posts
 
-    return withMetadata({
+    return ok({
       items,
       nextCursor: hasNextPage ? items[items.length - 1].id : undefined,
     }, {
@@ -135,7 +135,7 @@ The server defines the base cache key, and infinite queries extend it:
 
 ```typescript
 // Server returns base key
-withMetadata({ items: [...], nextCursor: 10 }, {
+ok({ items: [...], nextCursor: 10 }, {
   keys: [['posts', 'list', { limit: 10 }]]
 })
 
