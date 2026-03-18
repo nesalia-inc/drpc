@@ -66,10 +66,11 @@ type Mutation<Ctx, Args, Output> = {
 
 ### Hook Return Values
 
-All hooks can return:
-- `void` - No return value needed
+All hooks return:
+- `void` - No return value (observers only)
 - `Promise<void>` - For async operations
-- `Result` - To short-circuit and modify the result (only in `beforeInvoke`)
+
+> **Important:** Hooks are **passive observers**. They cannot short-circuit or modify the flow. If you need to control execution, use **Middleware** instead. This keeps hooks simple and predictable.
 
 ## Usage Examples
 
@@ -195,25 +196,27 @@ const getUser = t.query({
   }
 })
   .beforeInvoke((ctx, args) => {
-    // Initialize timing
-    ctx._hookStartTime = Date.now()
+    // Use ctx.meta for temporary data between hooks
+    ctx.meta.startTime = Date.now()
   })
   .onSuccess((ctx, args, data) => {
-    const duration = Date.now() - ctx._hookStartTime
+    const duration = Date.now() - ctx.meta.startTime
     ctx.metrics.increment("query.getUser.success")
     ctx.metrics.timing("query.getUser.duration", duration)
   })
   .onError((ctx, args, error) => {
-    const duration = Date.now() - ctx._hookStartTime
+    const duration = Date.now() - ctx.meta.startTime
     ctx.metrics.increment("query.getUser.error")
     ctx.metrics.timing("query.getUser.duration", duration)
   })
   .afterInvoke((ctx, args, result) => {
     // Always runs - for cleanup or final metrics
     ctx.metrics.increment("query.getUser.total")
-    delete ctx._hookStartTime
+    delete ctx.meta.startTime
   })
 ```
+
+> **Note:** Use `ctx.meta` (a built-in `Record<string, any>`) to share temporary data between hooks. This avoids polluting the typed context with internal variables.
 
 ### Cache Invalidation
 
@@ -274,6 +277,35 @@ const createUser = t.mutation({
       result.value.displayName = result.value.name.toUpperCase()
       result.value.createdAt = new Date(result.value.createdAt).toISOString()
     }
+  })
+```
+
+> **Note:** Hooks execute **serially** (one after another). Each hook receives the result modified by the previous hook. This is essential for transformation pipelines.
+
+### Events vs Lifecycle Hooks
+
+Use the right tool for the right job:
+
+| Aspect | Lifecycle Hooks (`.onSuccess`) | Events (`ctx.send`) |
+|--------|-------------------------------|---------------------|
+| **Coupling** | Tightly coupled to the query/mutation | Loosely coupled, decoupled |
+| **Use Case** | Format response, metrics for this specific query | Notify external systems (email, analytics) |
+| **Knowledge** | Knows exactly which query emitted it | Doesn't know the source |
+| **Execution** | Synchronous, within request | Asynchronous, fire-and-forget |
+
+```typescript
+// Hook: Format response for THIS query only
+const getUser = t.query({ ... })
+  .onSuccess((ctx, args, user) => {
+    // I know this is getUser - format specifically
+    user.displayName = user.name.toUpperCase()
+  })
+
+// Event: Notify external systems - doesn't know who listens
+const createUser = t.mutation({ ... })
+  .onSuccess((ctx, args, user) => {
+    // I don't know who's listening - just emit
+    ctx.send("user.created", { userId: user.id })
   })
 ```
 
@@ -461,6 +493,36 @@ describe("API with Lifecycle Hooks", () => {
   })
 })
 ```
+
+## Error Handling in Hooks
+
+Hooks should not break the main flow. The framework wraps hook execution in try/catch:
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({ name: z.string() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+  .onSuccess((ctx, args, user) => {
+    // Even if this fails, the user is still created
+    // The error is logged but doesn't break the response
+    ctx.metrics.increment("user.created") // If metrics is down, this is logged but doesn't fail
+  })
+```
+
+### Hook Error Behavior
+
+| Hook | Handler Success | Handler Error | Hook Fails |
+|------|-----------------|---------------|------------|
+| `beforeInvoke` | Runs | Skipped | Skips handler, returns error |
+| `onSuccess` | Runs | Skipped | Logged, doesn't affect result |
+| `onError` | Skipped | Runs | Logged, doesn't affect result |
+| `afterInvoke` | Runs | Runs | Logged, doesn't affect result |
+
+> **Principle:** If the handler succeeds, the response should always return success. Hook failures are logged but don't override the handler's result.
 
 ## Best Practices
 
