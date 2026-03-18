@@ -1,0 +1,574 @@
+# Lifecycle Hooks Specification
+
+## Overview
+
+Lifecycle hooks are methods on queries and mutations that allow running code at specific points during execution. They provide a declarative way to handle cross-cutting concerns like logging, metrics, audit trails, and cache invalidation without writing custom middleware.
+
+## Core Concepts
+
+### Available Hooks
+
+| Hook | When it runs | Arguments |
+|------|--------------|-----------|
+| `beforeInvoke` | Before the handler executes | `(ctx, args)` |
+| `afterInvoke` | After the handler executes (always) | `(ctx, args, result)` |
+| `onSuccess` | After successful handler execution | `(ctx, args, data)` |
+| `onError` | After handler throws or returns error | `(ctx, args, error)` |
+
+### Execution Order
+
+```
+beforeInvoke → [handler] → onSuccess/onError → afterInvoke
+```
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Lifecycle Flow                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   beforeInvoke(ctx, args)                                      │
+│           │                                                     │
+│           ▼                                                     │
+│   ┌───────────────┐                                             │
+│   │    Handler    │                                             │
+│   └───────────────┘                                             │
+│           │                                                     │
+│           ├──► onSuccess(ctx, args, data)  ──► afterInvoke()   │
+│           │                                                     │
+│           └──► onError(ctx, args, error)  ──► afterInvoke()     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## API Reference
+
+### Query Hooks
+
+```typescript
+type Query<Ctx, Args, Output> = {
+  beforeInvoke(handler: (ctx: Ctx, args: Args) => void | Promise<void>): Query<Ctx, Args, Output>
+  afterInvoke(handler: (ctx: Ctx, args: Args, result: Result<Output>) => void | Promise<void>): Query<Ctx, Args, Output>
+  onSuccess(handler: (ctx: Ctx, args: Args, data: Output) => void | Promise<void>): Query<Ctx, Args, Output>
+  onError(handler: (ctx: Ctx, args: args: Args, error: unknown) => void | Promise<void>): Query<Ctx, Args, Output>
+}
+```
+
+### Mutation Hooks
+
+```typescript
+type Mutation<Ctx, Args, Output> = {
+  beforeInvoke(handler: (ctx: Ctx, args: Args) => void | Promise<void>): Mutation<Ctx, Args, Output>
+  afterInvoke(handler: (ctx: Ctx, args: Args, result: Result<Output>) => void | Promise<void>): Mutation<Ctx, Args, Output>
+  onSuccess(handler: (ctx: Ctx, args: Args, data: Output) => void | Promise<void>): Mutation<Ctx, Args, Output>
+  onError(handler: (ctx: Ctx, args: Args, error: unknown) => void | Promise<void>): Mutation<Ctx, Args, Output>
+}
+```
+
+### Hook Return Values
+
+All hooks can return:
+- `void` - No return value needed
+- `Promise<void>` - For async operations
+- `Result` - To short-circuit and modify the result (only in `beforeInvoke`)
+
+## Usage Examples
+
+### Basic Hooks
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err({ code: "NOT_FOUND", message: "User not found" })
+    }
+    return ok(user)
+  }
+})
+  .beforeInvoke((ctx, args) => {
+    console.log("Fetching user", args.id)
+  })
+  .afterInvoke((ctx, args, result) => {
+    console.log("Query completed", { id: args.id, ok: result.ok })
+  })
+  .onSuccess((ctx, args, user) => {
+    console.log("User fetched successfully:", user.id)
+  })
+  .onError((ctx, args, error) => {
+    console.error("Failed to fetch user:", args.id, error)
+  })
+```
+
+### Logging
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+  .beforeInvoke((ctx, args) => {
+    console.log(`[CREATE_USER] Starting creation for: ${args.email}`)
+  })
+  .onSuccess((ctx, args, user) => {
+    console.log(`[CREATE_USER] Success: ${user.id}`)
+  })
+  .onError((ctx, args, error) => {
+    console.error(`[CREATE_USER] Failed: ${args.email}`, error)
+  })
+```
+
+### Audit Logging
+
+```typescript
+// Track all user modifications
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string().optional(),
+    email: z.string().email().optional(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.update(args.id, {
+      ...(args.name && { name: args.name }),
+      ...(args.email && { email: args.email }),
+    })
+    return ok(user)
+  }
+})
+  .onSuccess((ctx, args, user) => {
+    // Log successful modification
+    ctx.send("audit.log", {
+      action: "USER_UPDATED",
+      userId: user.id,
+      modifiedBy: ctx.userId,
+      changes: {
+        name: args.name,
+        email: args.email,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  })
+  .onError((ctx, args, error) => {
+    // Log failed modification attempt
+    ctx.send("audit.log", {
+      action: "USER_UPDATE_FAILED",
+      targetUserId: args.id,
+      modifiedBy: ctx.userId,
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    })
+  })
+
+// Track data access
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => { ... }
+})
+  .onSuccess((ctx, args, user) => {
+    ctx.send("audit.log", {
+      action: "USER_ACCESSED",
+      userId: user.id,
+      accessedBy: ctx.userId,
+      timestamp: new Date().toISOString(),
+    })
+  })
+```
+
+### Metrics Collection
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err({ code: "NOT_FOUND", message: "User not found" })
+    }
+    return ok(user)
+  }
+})
+  .beforeInvoke((ctx, args) => {
+    // Initialize timing
+    ctx._hookStartTime = Date.now()
+  })
+  .onSuccess((ctx, args, data) => {
+    const duration = Date.now() - ctx._hookStartTime
+    ctx.metrics.increment("query.getUser.success")
+    ctx.metrics.timing("query.getUser.duration", duration)
+  })
+  .onError((ctx, args, error) => {
+    const duration = Date.now() - ctx._hookStartTime
+    ctx.metrics.increment("query.getUser.error")
+    ctx.metrics.timing("query.getUser.duration", duration)
+  })
+  .afterInvoke((ctx, args, result) => {
+    // Always runs - for cleanup or final metrics
+    ctx.metrics.increment("query.getUser.total")
+    delete ctx._hookStartTime
+  })
+```
+
+### Cache Invalidation
+
+```typescript
+// Invalidate cache after mutations
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.update(args.id, { name: args.name })
+    return ok(user)
+  }
+})
+  .onSuccess((ctx, args, user) => {
+    // Invalidate related cache entries
+    ctx.cache.invalidate(`user:${args.id}`)
+    ctx.cache.invalidate("users:list")
+    ctx.cache.invalidate("users:count")
+  })
+
+// Refresh cache after mutations
+const createTask = t.mutation({
+  args: z.object({
+    title: z.string(),
+    userId: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.tasks.create(args)
+    return ok(task)
+  }
+})
+  .onSuccess((ctx, args, task) => {
+    // Invalidate user's task list
+    ctx.cache.invalidate(`tasks:user:${args.userId}`)
+    ctx.cache.invalidate("tasks:all")
+  })
+```
+
+### Response Transformation
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+  .afterInvoke((ctx, args, result) => {
+    // Transform response before returning
+    if (result.ok) {
+      // Add computed fields
+      result.value.displayName = result.value.name.toUpperCase()
+      result.value.createdAt = new Date(result.value.createdAt).toISOString()
+    }
+  })
+```
+
+### Conditional Execution
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => { ... }
+})
+  .beforeInvoke((ctx, args) => {
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.log("Fetching user:", args.id)
+    }
+  })
+  .onSuccess((ctx, args, user) => {
+    // Only track metrics in production
+    if (process.env.NODE_ENV === "production") {
+      ctx.metrics.increment("query.getUser.success")
+    }
+  })
+```
+
+### Multiple Hooks
+
+Multiple hooks of the same type can be chained:
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => { ... }
+})
+  // Multiple beforeInvoke - all run in order
+  .beforeInvoke((ctx, args) => {
+    console.log("Hook 1: Starting")
+  })
+  .beforeInvoke((ctx, args) => {
+    console.log("Hook 2: Continuing")
+  })
+  // Multiple onSuccess - all run in order
+  .onSuccess((ctx, args, user) => {
+    ctx.logger.info("User fetched", { userId: user.id })
+  })
+  .onSuccess((ctx, args, user) => {
+    ctx.analytics.track("user_viewed", { userId: user.id })
+  })
+```
+
+## Chaining with Middleware
+
+Middleware and lifecycle hooks can be used together. Middleware runs first, then lifecycle hooks:
+
+```typescript
+// Middleware runs first (wraps the entire operation)
+const authMiddleware = t.middleware({
+  name: "auth",
+  handler: async (ctx, next) => {
+    ctx.userId = Number(ctx.headers.get("x-user-id"))
+    return next()
+  }
+})
+
+// Then lifecycle hooks
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  middleware: authMiddleware,
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err({ code: "NOT_FOUND" })
+    }
+    return ok(user)
+  }
+})
+  .beforeInvoke((ctx, args) => {
+    console.log("User access:", ctx.userId, args.id)
+  })
+  .onSuccess((ctx, args, user) => {
+    // ctx.userId is available here from middleware
+    ctx.analytics.track("user_viewed", {
+      userId: user.id,
+      accessedBy: ctx.userId
+    })
+  })
+```
+
+## Testing Hooks
+
+### Unit Testing Hooks
+
+```typescript
+describe("getUser Query Hooks", () => {
+  const { t, createAPI } = defineContext({
+    context: { db: mockDb }
+  })
+
+  let beforeInvokeSpy: ReturnType<typeof vi.fn>
+  let onSuccessSpy: ReturnType<typeof vi.fn>
+  let onErrorSpy: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    beforeInvokeSpy = vi.fn()
+    onSuccessSpy = vi.fn()
+    onErrorSpy = vi.fn()
+  })
+
+  const getUser = t.query({
+    args: z.object({ id: z.number() }),
+    handler: async (ctx, args) => {
+      const user = await ctx.db.users.find(args.id)
+      if (!user) {
+        return err({ code: "NOT_FOUND" })
+      }
+      return ok(user)
+    }
+  })
+    .beforeInvoke(beforeInvokeSpy)
+    .onSuccess(onSuccessSpy)
+    .onError(onErrorSpy)
+
+  it("calls beforeInvoke before handler", async () => {
+    mockDb.users.find.mockResolvedValue({ id: 1, name: "John" })
+
+    await getUser.handler({ db: mockDb }, { id: 1 })
+
+    expect(beforeInvokeSpy).toHaveBeenCalledBefore(onSuccessSpy)
+  })
+
+  it("calls onSuccess when handler succeeds", async () => {
+    mockDb.users.find.mockResolvedValue({ id: 1, name: "John" })
+
+    await getUser.handler({ db: mockDb }, { id: 1 })
+
+    expect(onSuccessSpy).toHaveBeenCalledWith(
+      expect.any(Object),
+      { id: 1 },
+      { id: 1, name: "John" }
+    )
+    expect(onErrorSpy).not.toHaveBeenCalled()
+  })
+
+  it("calls onError when handler fails", async () => {
+    mockDb.users.find.mockResolvedValue(null)
+
+    await getUser.handler({ db: mockDb }, { id: 1 })
+
+    expect(onErrorSpy).toHaveBeenCalled()
+    expect(onSuccessSpy).not.toHaveBeenCalled()
+  })
+})
+```
+
+### Integration Testing
+
+```typescript
+import { createLocalExecutor } from "@deessejs/server"
+
+describe("API with Lifecycle Hooks", () => {
+  const executor = createLocalExecutor(api)
+
+  it("executes hooks in correct order", async () => {
+    const executionLog: string[] = []
+
+    const getUser = t.query({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        executionLog.push("handler")
+        return ok({ id: args.id })
+      }
+    })
+      .beforeInvoke(() => executionLog.push("beforeInvoke"))
+      .onSuccess(() => executionLog.push("onSuccess"))
+      .onError(() => executionLog.push("onError"))
+      .afterInvoke(() => executionLog.push("afterInvoke"))
+
+    await getUser.handler({}, { id: 1 })
+
+    expect(executionLog).toEqual([
+      "beforeInvoke",
+      "handler",
+      "onSuccess",
+      "afterInvoke"
+    ])
+  })
+})
+```
+
+## Best Practices
+
+### 1. Keep Hooks Focused
+
+Each hook should do one thing:
+
+```typescript
+// Good: Single responsibility
+.onSuccess((ctx, args, user) => {
+  ctx.metrics.increment("user.fetch.success")
+})
+.onSuccess((ctx, args, user) => {
+  ctx.analytics.track("user_viewed", { userId: user.id })
+})
+
+// Avoid: Multiple responsibilities
+.onSuccess((ctx, args, user) => {
+  ctx.metrics.increment("user.fetch.success")
+  ctx.analytics.track("user_viewed", { userId: user.id })
+  ctx.cache.set(...)
+  ctx.logger.info(...)
+})
+```
+
+### 2. Use Appropriate Hooks
+
+Choose the right hook for the job:
+
+- **`beforeInvoke`**: Pre-processing, validation, logging start
+- **`onSuccess`**: Positive outcomes, metrics, cache updates
+- **`onError`**: Error logging, alerting, cleanup
+- **`afterInvoke`**: Always-run tasks, final metrics, cleanup
+
+### 3. Don't Throw in Hooks
+
+```typescript
+// Good: Handle errors gracefully
+.onError((ctx, args, error) => {
+  console.error("Error:", error)  // Log but don't throw
+})
+
+// Bad: Throwing can break the flow
+.onError((ctx, args, error) => {
+  throw new Error("Hook error")  // Don't do this
+})
+```
+
+### 4. Order Matters for Multiple Hooks
+
+```typescript
+// Good: Logical order
+.beforeInvoke((ctx, args) => { console.log("1") })
+.beforeInvoke((ctx, args) => { console.log("2") })
+// Handler runs here
+.onSuccess((ctx, args, data) => { console.log("3") })
+.onSuccess((ctx, args, data) => { console.log("4") })
+.afterInvoke((ctx, args, result) => { console.log("5") })
+```
+
+### 5. Use Hooks Instead of Middleware When Possible
+
+Hooks are simpler for single-use cases:
+
+```typescript
+// Simple logging - hooks are cleaner
+const getUser = t.query({ ... })
+  .onSuccess((ctx, args, user) => {
+    ctx.logger.info("User fetched", { userId: user.id })
+  })
+
+// Custom logic that modifies flow - use middleware
+const authMiddleware = t.middleware({ ... })
+```
+
+## Comparison with Middleware
+
+| Feature | Lifecycle Hooks | Middleware |
+|---------|-----------------|------------|
+| **Declaration** | Method chaining on query/mutation | Separate definition, applied to operations |
+| **Use case** | Single operation concerns | Cross-cutting concerns |
+| **Access to result** | Yes (in onSuccess/onError/afterInvoke) | Yes (after calling next()) |
+| **Can modify args** | No | Yes |
+| **Can short-circuit** | No | Yes |
+| **Simplicity** | Simpler | More flexible |
+
+### When to Use Hooks
+
+- Logging
+- Metrics/analytics
+- Audit trails
+- Cache invalidation (after mutations)
+- Response transformation
+
+### When to Use Middleware
+
+- Authentication/authorization
+- Rate limiting
+- Request validation
+- Context modification
+- Caching (before handler)
+- Short-circuiting requests
+
+## Future Considerations
+
+- Hook priority/ordering
+- Hook groups for reuse
+- Async hooks with return values
+- Hook middleware (hooks that can modify flow)
+- Built-in hooks for common patterns
+- Hook debugging/tracing
