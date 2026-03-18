@@ -8,7 +8,9 @@ The event system provides a publish-subscribe mechanism integrated into `@deesse
 
 ### Event Emission (`ctx.send`)
 
-The context provides a `send` method to emit events. Events are typed and can carry arbitrary data. Events can also return data to the caller.
+The context provides a `send` method to emit events. Events are typed and can carry arbitrary data.
+
+> **Important Distinction:** Events follow a **"Fire and Forget"** pattern (1 → N). If you need a synchronous response, use **Lifecycle Hooks** (`.on("beforeInvoke")`, `.on("onSuccess")`, `.on("onError")`) instead.
 
 ### Event Subscription (`t.on` and `.on`)
 
@@ -20,32 +22,115 @@ There are two ways to subscribe to events:
 
 ### Event Registry
 
-Events are typed via a registry for autocomplete and type safety.
+Events are typed via a registry for autocomplete and type safety, using `defineEvents` (similar to `defineCacheKeys`).
 
 ```typescript
-// Define your events
-const events = {
-  "user.created": {
-    data: { userId: number; email: string; timestamp: string }
-  },
-  "user.updated": {
-    data: { userId: number; changes: Record<string, unknown> }
-  },
-  "email.send": {
-    data: { to: string; template: string },
-    response: { success: boolean; messageId: string }
-  },
-}
+// events/registry.ts
+import { defineEvents } from "@deessejs/server"
 
-// Type-safe send
-ctx.send("user.created", { userId: 1, email: "test@test.com" })
-// Autocomplete works for event names and data shape
+// Define all events for your app
+const events = defineEvents({
+  // User events
+  user: {
+    created: {
+      data: { userId: number; email: string; timestamp: string }
+    },
+    updated: {
+      data: { userId: number; changes: Record<string, unknown> }
+    },
+    deleted: {
+      data: { userId: number }
+    }
+  },
+
+  // Email events
+  email: {
+    send: {
+      data: { to: string; template: string }
+    },
+    sent: {
+      data: { messageId: string; to: string }
+    }
+  },
+
+  // Order events (namespaced)
+  order: {
+    created: {
+      data: { orderId: number; total: number }
+    },
+    completed: {
+      data: { orderId: number; status: string }
+    }
+  }
+})
+
+export { events }
+```
+
+### Use in Code
+
+```typescript
+import { t } from "../context"
+import { events } from "./events/registry"
+
+// Type-safe send - autocomplete works!
+ctx.send(events.user.created, { userId: 1, email: "test@test.com" })
 
 // Type-safe listener
-t.on("user.created", (ctx, args, event) => {
-  // event is typed as { userId: number; email: string; timestamp: string }
+t.on(events.user.created, (ctx, args, event) => {
+  // event.data is typed: { userId: number; email: string; timestamp: string }
+  await ctx.db.auditLog.create({
+    action: "USER_CREATED",
+    userId: event.data.userId
+  })
 })
 ```
+
+### TypeScript Benefits
+
+With a typed registry, you get:
+
+1. **Autocomplete** - IDE suggests valid events
+2. **Type checking** - Invalid events cause TypeScript errors
+3. **Refactoring** - Rename events safely
+
+```typescript
+// Autocomplete works!
+events.user.    // shows: created, updated, deleted
+events.email.   // shows: send, sent
+
+// Type checking catches typos
+events.user.created   // ✅ Valid
+events.user.creatdd    // ❌ TypeScript error
+
+// Refactoring is safe
+// Rename in registry -> all usages update
+```
+
+### Integration with `defineContext`
+
+Pass the registry to `defineContext` for automatic type inference across your app:
+
+```typescript
+import { defineContext, defineEvents } from "@deessejs/server"
+import { events } from "./events/registry"
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events  // Use the typed registry
+})
+
+// ctx.send is now fully typed with events from registry
+ctx.send(events.user.created, { userId: 1, email: "test@test.com" }) // ✅
+ctx.send(events.invalid, {}) // ❌ Type error
+
+// t.on is also typed
+t.on(events.user.created, (ctx, args, event) => {
+  // event.data is typed
+})
+```
+
+> **Pro Tip:** Use Standard Schema for event validation too! If you send an invalid payload, TypeScript will catch it at compile time.
 
 ## API Reference
 
@@ -73,19 +158,29 @@ type SendOptions = {
   /**
    * Delay event delivery (ms).
    * Default: 0 (immediate)
+   * Note: Requires a queue plugin (Redis/Upstash) in Serverless environments.
    */
   delay?: number
 }
 ```
 
-**Note:** Events can return data to the caller. Listeners can use `ctx.sendResponse()` to send data back.
+### Events vs Lifecycle Hooks
+
+| Aspect | Events (`ctx.send`) | Lifecycle Hooks (`.on`) |
+|--------|---------------------|------------------------|
+| **Pattern** | Fire and Forget (1 → N) | Synchronous (1 → 1) |
+| **Response** | Not expected | Not applicable |
+| **Use Case** | Decouple domains, async processing | Extend query/mutation behavior |
+| **Execution** | After handler completes | During handler lifecycle |
+
+> **Recommendation:** Use `ctx.send` for domain decoupling (e.g., `Users` module doesn't know about `Email`). Use `.on("onSuccess")` when you need to extend an existing query/mutation without modifying its handler (Open/Closed Principle).
 
 ### Global Listener: `t.on()`
 
 Global event listener that subscribes to events emitted anywhere in the application.
 
 ```typescript
-type EventHandler<Ctx, Args, EventData> = (ctx: Ctx, args: Args, event: EventData) => void | Promise<void> | ReturnType<typeof ctx.sendResponse>
+type EventHandler<Ctx, Args, EventData> = (ctx: Ctx, args: Args, event: EventData) => void | Promise<void>
 
 type T<Ctx> = {
   on<EventName extends string, EventData = unknown>(
@@ -149,32 +244,22 @@ const createUser = t.mutation({
 
 ### Event with Response
 
-Events can return data to the caller:
+> **Warning:** The Request/Response pattern on events is an anti-pattern. If you need a response, use **Lifecycle Hooks** instead.
 
 ```typescript
-// Handler sends event and gets response
+// ❌ Avoid: Events with response (1 → N becomes unclear)
+const result = ctx.send("email.send", { to: user.email })
+// Which listener should respond? What if 3 listeners all respond?
+
+// ✅ Better: Use lifecycle hooks for request/response patterns
 const sendWelcomeEmail = t.mutation({
   args: z.object({ userId: z.number() }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.find(args.userId)
-
-    // Send event and get response from listener
-    const result = ctx.send("email.send", {
-      to: user.email,
-      template: "welcome",
-    })
-
-    // result contains data returned by listener
-    return ok({ sent: result?.success ?? false })
+    // Direct call with expected response
+    const result = await ctx.email.send(args.userId, "welcome")
+    return ok(result)
   }
-})
-
-// Listener can return data via sendResponse
-t.on("email.send", async (ctx, args) => {
-  await ctx.email.send(args.template, args.to)
-
-  // Return data to caller
-  ctx.sendResponse({ success: true, messageId: "msg_123" })
 })
 ```
 
@@ -244,7 +329,40 @@ t.on("ecommerce.order.created", async (ctx, args, event) => {
 })
 ```
 
-### Delayed Events
+### Automatic Plugin Namespacing
+
+Events emitted from plugins are automatically prefixed with the plugin name:
+
+```typescript
+import { plugin } from "@deessejs/server"
+
+// Plugin: notifications
+const notificationPlugin = plugin({
+  name: "notifications",
+  router: (t) => ({
+    send: t.mutation({
+      args: z.object({ userId: z.number(), message: z.string() }),
+      handler: async (ctx, args) => {
+        // This event is automatically namespaced
+        ctx.send("sent", { userId: args.userId })
+
+        // Equivalent to: ctx.send("notifications.sent", { userId: args.userId })
+        return ok({ success: true })
+      }
+    })
+  })
+})
+
+// Global listener receives namespaced event
+t.on("notifications.sent", async (ctx, args, event) => {
+  // Listens to "notifications.sent" automatically
+  await ctx.db.notificationsLog.create(event.data)
+})
+```
+
+This reinforces:
+- **Security:** Events from plugins can't collide with main app events
+- **Clarity:** `api.notifications.sent` in code = `notifications.sent` in listeners
 
 ```typescript
 const scheduledNotification = t.mutation({
@@ -322,6 +440,76 @@ const api = createAPI({
   }),
 })
 ```
+
+## Serverless Considerations (Next.js / Vercel)
+
+In Serverless environments (Vercel, Cloudflare Workers), the function execution stops as soon as the HTTP response is sent. This creates critical challenges for event processing.
+
+### The Lambda Freeze Problem
+
+```typescript
+handler: async (ctx, args) => {
+  await ctx.db.users.create(args)
+  ctx.send("user.created", { userId: user.id })
+
+  return ok(user)
+  // ⚠️ HTTP response sent here - function may freeze!
+  // Listeners may never execute or be cut off mid-execution
+}
+```
+
+### Solution: `waitUntil` Support
+
+The framework uses `waitUntil` (Cloudflare/Vercel standard) to ensure events are processed after the response but before the function freezes:
+
+```typescript
+// Internal implementation
+const result = await handler(ctx, args)
+
+// Wait for event listeners to complete (up to timeout)
+await ctx.waitUntil(processEventQueue())
+```
+
+This guarantees:
+1. HTTP response is sent to the client
+2. Event listeners execute in the background
+3. Lambda doesn't freeze until processing completes
+
+### Delay Requires a Queue Plugin
+
+The `delay` option cannot work in-memory on Lambdas (they're too expensive and volatile). Use a queue plugin:
+
+```typescript
+// Requires a queue plugin (Upstash Redis, Inngest, BullMQ)
+ctx.send("notification.send", {
+  userId: args.userId,
+  message: args.message,
+}, { delay: 5000 }) // 5 second delay via Redis queue
+```
+
+## Transaction Integrity
+
+Events are only emitted **if the handler succeeds**:
+
+```typescript
+// ✅ Success - events are processed
+handler: async (ctx, args) => {
+  await ctx.db.users.create(args)
+  ctx.send("user.created", { userId: user.id })
+
+  return ok(user)
+}
+
+// ❌ Failure - pending events are cancelled
+handler: async (ctx, args) => {
+  await ctx.db.users.create(args)
+  ctx.send("user.created", { userId: user.id })
+
+  throw new Error("DB Crash")
+}
+```
+
+This prevents inconsistent states where an event is emitted but the action wasn't completed.
 
 ## Event Types
 

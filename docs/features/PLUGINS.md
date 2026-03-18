@@ -106,6 +106,57 @@ type PluginHooks<Ctx> = {
 }
 ```
 
+### Execution Order
+
+The framework executes hooks in a specific order:
+
+```
+Request Flow:
+┌─────────────────────────────────────────────────────────────┐
+│  onInvoke (plugins 1→2→3)                               │
+│      │                                                     │
+│      ▼                                                     │
+│  ┌─────────────┐                                          │
+│  │   Handler   │                                          │
+│  └─────────────┘                                          │
+│      │                                                     │
+│      ├──► onSuccess (plugins 3→2→1)  ◄── Reverse order  │
+│      │                                                     │
+│      └──► onError (plugins 3→2→1)    ◄── Reverse order  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why reverse order for onSuccess/onError?**
+- If Plugin 1 is Logger and Plugin 2 is Metrics:
+  - `onInvoke`: Logger sees raw input first, then Metrics
+  - `onSuccess`: Metrics sees processed result first, then Logger sees final result
+
+### Guard (Stopping Execution)
+
+The `onInvoke` hook can stop request execution by throwing an error:
+
+```typescript
+// Plugin: Maintenance Mode
+const maintenancePlugin = plugin({
+  name: "maintenance",
+  hooks: {
+    onInvoke: async (ctx, args) => {
+      const isInMaintenance = await ctx.db.config.get("maintenance_mode")
+      if (isInMaintenance) {
+        throw new Error("SERVICE_IN_MAINTENANCE")
+      }
+    }
+  }
+})
+```
+
+When `onInvoke` throws:
+1. The handler is **not** executed
+2. Other plugins' `onError` hooks are called (in reverse order)
+3. The error is returned to the client
+
+This allows plugins to act as **Global Middleware**.
+
 ### Example: Logging Plugin
 
 ```typescript
@@ -321,7 +372,7 @@ export const loggerPlugin = plugin<LoggerContext>({
 ### Using Multiple Plugins
 
 ```typescript
-import { defineContext, Plugin } from "@deessejs/server"
+import { defineContext, plugin } from "@deessejs/server"
 import { authPlugin } from "./plugins/auth"
 import { cachePlugin } from "./plugins/cache"
 import { loggerPlugin } from "./plugins/logger"
@@ -346,6 +397,27 @@ const api = createAPI({
 })
 
 // Context now has: db, userId, isAuthenticated, cache, logger
+```
+
+### Plugin Order Matters
+
+The order of plugins in the array matters:
+
+```typescript
+// CORRECT: authPlugin runs first, loggerPlugin can use ctx.userId
+plugins: [
+  authPlugin,      // Adds userId to context
+  loggerPlugin,   // Can access ctx.userId in hooks
+]
+
+// INCORRECT: loggerPlugin runs first, ctx.userId not available
+plugins: [
+  loggerPlugin,   // Cannot access ctx.userId yet
+  authPlugin,     // Adds userId after
+]
+```
+
+**Why?** Plugins that add properties to context must be declared **before** plugins that need those properties in their hooks.
 ```
 
 ### Using Extended Context
@@ -699,6 +771,66 @@ export const authPlugin = plugin({
 export const everythingPlugin = plugin({
   name: "everything",
   extend: () => ({ cache: ..., logger: ..., userId: ..., analytics: ... })
+})
+```
+
+## Publishing Plugins to NPM
+
+Plugins can be packaged and published to NPM for reuse across projects:
+
+```typescript
+// @my-org/logger-plugin/package.json
+{
+  "name": "@my-org/logger-plugin",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "peerDependencies": {
+    "@deessejs/server": ">=1.0.0"
+  }
+}
+
+// src/index.ts
+import { plugin } from "@deessejs/server"
+
+type LoggerContext = {
+  logger: {
+    info: (msg: string, meta?: Record<string, unknown>) => void
+    error: (msg: string, error?: Error, meta?: Record<string, unknown>) => void
+  }
+}
+
+export const loggerPlugin = plugin<LoggerContext>({
+  name: "logger",
+  extend: () => ({
+    logger: {
+      info: (msg, meta) => console.log("[INFO]", msg, meta),
+      error: (msg, error, meta) => console.error("[ERROR]", msg, error, meta),
+    },
+  }),
+})
+```
+
+### Generic Plugins for Maximum Reuse
+
+For maximum compatibility, use `any` as the context type to work with any project:
+
+```typescript
+import { plugin } from "@deessejs/server"
+
+// Works with any project regardless of context type
+export const genericLoggerPlugin = plugin<any>({
+  name: "logger",
+  hooks: {
+    onInvoke: (ctx, args) => {
+      console.log(`[INVOKE] ${ctx.operation}`, args)
+    },
+    onSuccess: (ctx, args, result) => {
+      console.log(`[SUCCESS] ${ctx.operation}`)
+    },
+    onError: (ctx, args, error) => {
+      console.error(`[ERROR] ${ctx.operation}`, error)
+    }
+  }
 })
 ```
 
