@@ -354,7 +354,8 @@ function CreateUserForm() {
 - [MIDDLEWARE.md](MIDDLEWARE.md) - Middleware system details
 - [LIFECYCLE.md](LIFECYCLE.md) - Lifecycle hooks (beforeInvoke, afterInvoke, onSuccess, onError)
 - [REACT_HOOKS.md](REACT_HOOKS.md) - React hooks integration
-- [NEXTJS.md](NEXTJS.md) - Next.js integration with automatic cache revalidation
+- [NEXTJS.md](NEXTJS.md) - Next.js cache revalidation
+- [NEXTJS_INTEGRATION.md](NEXTJS_INTEGRATION.md) - Complete Next.js integration guide
 
 ## Installation
 
