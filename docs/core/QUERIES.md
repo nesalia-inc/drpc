@@ -492,6 +492,5 @@ const listUsers = t.query({
 
 ## Related
 
-- [Mutations](MUTATIONS.md) - Write operations
 - [Cache](CACHE.md) - Cache system with keys and invalidation
-- [Context](SPEC.md#defineContext) - Context definition
+- [Context](../SPEC.md#defineContext) - Context definition

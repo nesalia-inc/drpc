@@ -322,7 +322,7 @@ const { t, createAPI } = defineContext({
 
 ## React Integration
 
-See [REACT_HOOKS.md](REACT_HOOKS.md) for the `@deessejs/server/react` package.
+See [integration/REACT_HOOKS.md](integration/REACT_HOOKS.md) for the `@deessejs/server/react` package.
 
 ```typescript
 import { useQuery, useMutation } from "@deessejs/server/react"
@@ -344,24 +344,31 @@ function CreateUserForm() {
 
 ## Documentation
 
+### Getting Started
 - [SPEC.md](SPEC.md) - Full API specification
-- [QUERIES.md](QUERIES.md) - Complete guide to queries
-- [MUTATIONS.md](MUTATIONS.md) - Complete guide to mutations
-- [CACHE.md](CACHE.md) - Cache system with keys and invalidation
-- [PLUGINS.md](PLUGINS.md) - Plugin system details
-- [EXTENSIONS.md](EXTENSIONS.md) - Extension system (auth, cache, logging, jobs)
-- [EVENTS.md](EVENTS.md) - Event system details
-- [MIDDLEWARE.md](MIDDLEWARE.md) - Middleware system details
-- [LIFECYCLE.md](LIFECYCLE.md) - Lifecycle hooks (beforeInvoke, afterInvoke, onSuccess, onError)
-- [REACT_HOOKS.md](REACT_HOOKS.md) - React hooks integration
-- [NEXTJS.md](NEXTJS.md) - Next.js cache revalidation
-- [NEXTJS_INTEGRATION.md](NEXTJS_INTEGRATION.md) - Complete Next.js integration guide
-- [SERIALIZATION.md](SERIALIZATION.md) - Handling Dates, BigInt, Map, Set
-- [ERROR_HTTP_STATUS.md](ERROR_HTTP_STATUS.md) - Mapping errors to HTTP status codes
-- [ASYNC_CONTEXT.md](ASYNC_CONTEXT.md) - AsyncLocalStorage for context access
-- [VALIDATION.md](VALIDATION.md) - Multi-engine validation (Zod, Valibot, ArkType)
-- [METADATA.md](METADATA.md) - OpenAPI, documentation, SDK generation
-- [BATCHING.md](BATCHING.md) - Request batching for performance
+
+### Core
+- [core/QUERIES.md](core/QUERIES.md) - Complete guide to queries
+- [core/CACHE.md](core/CACHE.md) - Cache system with keys and invalidation
+- [core/MIDDLEWARE.md](core/MIDDLEWARE.md) - Middleware system details
+
+### Features
+- [features/EVENTS.md](features/EVENTS.md) - Event system details
+- [features/LIFECYCLE.md](features/LIFECYCLE.md) - Lifecycle hooks (beforeInvoke, afterInvoke, onSuccess, onError)
+- [features/PLUGINS.md](features/PLUGINS.md) - Plugin system details
+- [features/VALIDATION.md](features/VALIDATION.md) - Multi-engine validation (Zod, Valibot, ArkType)
+
+### Integrations
+- [integration/NEXTJS.md](integration/NEXTJS.md) - Next.js cache revalidation
+- [integration/NEXTJS_INTEGRATION.md](integration/NEXTJS_INTEGRATION.md) - Complete Next.js integration guide
+- [integration/REACT_HOOKS.md](integration/REACT_HOOKS.md) - React hooks integration
+
+### Advanced
+- [advanced/SERIALIZATION.md](advanced/SERIALIZATION.md) - Handling Dates, BigInt, Map, Set
+- [advanced/ERROR_HTTP_STATUS.md](advanced/ERROR_HTTP_STATUS.md) - Mapping errors to HTTP status codes
+- [advanced/ASYNC_CONTEXT.md](advanced/ASYNC_CONTEXT.md) - AsyncLocalStorage for context access
+- [advanced/METADATA.md](advanced/METADATA.md) - OpenAPI, documentation, SDK generation
+- [advanced/BATCHING.md](advanced/BATCHING.md) - Request batching for performance
 
 ## Installation
 
