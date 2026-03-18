@@ -174,31 +174,33 @@ const api = createAPI({
 
 ### Define Query
 
-The handler can return a `Result` (with `ok`/`err`), but it's not required. This gives flexibility for future changes.
+The handler can return a `Result` (with `ok`/`err`), but for queries that return cache metadata, use `withMetadata`.
 
 ```typescript
-import { ok, err, Result } from "@deessejs/core"
+import { ok, err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+import { keys } from "./cache/keys"
 
 const getUser = t.query({
   args: z.object({
     id: z.number()
   }),
-  handler: async (ctx, args): Result<WithCacheKeys<User, ["users", { id: number }]>, NotFound> => {
+  handler: async (ctx, args) => {
     const user = await ctx.db.users.find(args.id)
 
     if (!user) {
       return err({ code: "NOT_FOUND", message: "User not found" })
     }
 
-    return ok(user, { keys: [["users", { id: args.id }]] })
+    return withMetadata(user, { keys: [keys.users.byId(args.id)] })
   }
 })
 
-// Handler can also return plain value (Result is optional)
+// Handler can also return plain ok() (Result is optional)
 const getUserSimple = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
-    return ctx.db.users.find(args.id)
+    return ok(await ctx.db.users.find(args.id))
   }
 })
 ```
@@ -222,21 +224,23 @@ const getAdminStats = t.internalQuery({
 ### Define Mutation
 
 ```typescript
-import { ok, err, Result } from "@deessejs/core"
+import { ok, err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+import { keys } from "./cache/keys"
 
 const createUser = t.mutation({
   args: z.object({
     name: z.string().min(2),
     email: z.string().email(),
   }),
-  handler: async (ctx, args): Result<User, DuplicateEmail> => {
+  handler: async (ctx, args) => {
     const existing = await ctx.db.users.findByEmail(args.email)
     if (existing) {
       return err({ code: "DUPLICATE", message: "Email already exists" })
     }
 
     const user = await ctx.db.users.create(args)
-    return ok(user, { invalidate: ["users:list", "users:count"] })
+    return withMetadata(user, { invalidate: [keys.users.list(), keys.users.count()] })
   }
 })
 ```

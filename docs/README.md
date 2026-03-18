@@ -83,19 +83,19 @@ const { t, createAPI } = defineContext({
 
 ### Define Query
 
-The handler return type is flexible - `Result` is optional to give room for future changes.
-
 ```typescript
-import { ok, err, Result } from "@deessejs/core"
+import { ok, err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+import { keys } from "./cache/keys"
 
 const getUser = t.query({
   args: z.object({ id: z.number() }),
-  handler: async (ctx, args): Result<WithCacheKeys<User, ["users", { id: number }]>, NotFound> => {
+  handler: async (ctx, args) => {
     const user = await ctx.db.users.find(args.id)
     if (!user) {
       return err({ code: "NOT_FOUND", message: "User not found" })
     }
-    return ok(user, { keys: [["users", { id: args.id }]] })
+    return withMetadata(user, { keys: [keys.users.byId(args.id)] })
   }
 })
 ```
@@ -103,11 +103,15 @@ const getUser = t.query({
 ### Define Mutation
 
 ```typescript
+import { ok } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+import { keys } from "./cache/keys"
+
 const createUser = t.mutation({
   args: z.object({ name: z.string(), email: z.string().email() }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
-    return ok(user, { invalidate: ["users:list", "users:count"] })
+    return withMetadata(user, { invalidate: [keys.users.list(), keys.users.count()] })
   }
 })
 ```
@@ -275,12 +279,15 @@ const stats = await api.users.getAdminStats({}) // Works - internal
 ### Emit Events
 
 ```typescript
+import { ok } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+
 const createUser = t.mutation({
   args: z.object({ name: z.string() }),
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
     ctx.send("user.created", { userId: user.id, email: user.email })
-    return ok(user, { invalidate: ["users"] })
+    return withMetadata(user, { invalidate: ["users"] })
   }
 })
 ```

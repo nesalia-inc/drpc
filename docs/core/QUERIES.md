@@ -108,10 +108,12 @@ handler: async (ctx, args) => {
 Queries can return cache keys to enable automatic cache invalidation:
 
 ```typescript
+import { withMetadata } from "@deessejs/server"
+
 handler: async (ctx, args) => {
   const user = await ctx.db.users.find(args.id)
 
-  return ok(user, {
+  return withMetadata(user, {
     // Cache keys - used for invalidation
     keys: [
       ["users", "list"],                    // Invalidate all user lists
@@ -130,7 +132,7 @@ You can specify a time-to-live for cached results:
 handler: async (ctx, args) => {
   const settings = await ctx.db.settings.find()
 
-  return ok(settings, {
+  return withMetadata(settings, {
     keys: ["settings"],
     ttl: 60000 // 1 minute cache
   })
@@ -463,6 +465,9 @@ handler: async (ctx, args) => {
 7. **Use pagination** - Always limit results for list queries
 
 ```typescript
+import { err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+
 // Good: Explicit error handling with cache keys
 const getUser = t.query({
   args: z.object({ id: z.number() }),
@@ -471,7 +476,7 @@ const getUser = t.query({
     if (!user) {
       return err({ code: "NOT_FOUND", message: "User not found" })
     }
-    return ok(user, { keys: ["users", { id: args.id }] })
+    return withMetadata(user, { keys: ["users", { id: args.id }] })
   }
 })
 
@@ -483,7 +488,7 @@ const listUsers = t.query({
   }),
   handler: async (ctx, args) => {
     // ... implementation
-    return ok({ items, total }, {
+    return withMetadata({ items, total }, {
       keys: ["users", "list", { page: args.page }]
     })
   }

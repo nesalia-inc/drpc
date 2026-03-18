@@ -60,6 +60,8 @@ export { keys }
 ### Use in Queries
 
 ```typescript
+import { ok, err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
 import { t } from "../context"
 import { keys } from "./cache/keys"
 
@@ -73,7 +75,7 @@ const getUser = t.query({
     }
 
     // Type-safe cache keys
-    return ok(user, {
+    return withMetadata(user, {
       keys: [keys.users.byId(args.id)]
     })
   }
@@ -87,7 +89,7 @@ const listUsers = t.query({
   handler: async (ctx, args) => {
     const users = await ctx.db.users.findMany({ ... })
 
-    return ok(users, {
+    return withMetadata(users, {
       keys: [
         keys.users.list({ page: args.page, limit: args.limit }),
         keys.users.count(),
@@ -100,6 +102,8 @@ const listUsers = t.query({
 ### Use in Mutations
 
 ```typescript
+import { ok } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
 const createUser = t.mutation({
@@ -110,7 +114,7 @@ const createUser = t.mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
 
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [
         keys.users.list(),
         keys.users.count(),
@@ -130,7 +134,7 @@ const updateUser = t.mutation({
       data: { name: args.name }
     })
 
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [
         keys.users.byId(args.id),
         keys.users.list(),
@@ -144,7 +148,7 @@ const deleteUser = t.mutation({
   handler: async (ctx, args) => {
     await ctx.db.users.delete({ where: { id: args.id } })
 
-    return ok({ id: args.id }, {
+    return withMetadata({ id: args.id }, {
       invalidate: [
         keys.users.byId(args.id),
         keys.users.list(),
@@ -193,11 +197,13 @@ keys.users.list({ page: 1, limit: 10 })
 
 ### Query Result
 
-Queries return a result with metadata:
+Queries return a result with metadata using `withMetadata`:
 
 ```typescript
+import { withMetadata } from "@deessejs/server"
+
 // Handler returns
-return ok(user, { keys: [["users", { id: 1 }]] })
+withMetadata(user, { keys: [["users", { id: 1 }]] })
 
 // Result type is
 {
@@ -211,11 +217,11 @@ return ok(user, { keys: [["users", { id: 1 }]] })
 
 ### Cache Invalidation
 
-Mutations return invalidation instructions:
+Mutations return invalidation instructions using `withMetadata`:
 
 ```typescript
 // Handler returns
-return ok(user, { invalidate: ["users:list"] })
+withMetadata(user, { invalidate: ["users:list"] })
 
 // Result type is
 {
@@ -232,6 +238,9 @@ return ok(user, { invalidate: ["users:list"] })
 ### Basic Query with Cache Keys
 
 ```typescript
+import { err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+
 const getUser = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -241,7 +250,7 @@ const getUser = t.query({
       return err({ code: "NOT_FOUND", message: "User not found" })
     }
 
-    return ok(user, {
+    return withMetadata(user, {
       keys: [["users", { id: args.id }]]
     })
   }
@@ -262,7 +271,7 @@ const listUsers = t.query({
       skip: (args.page - 1) * args.limit,
     })
 
-    return ok(users, {
+    return withMetadata(users, {
       keys: [
         ["users", "list"],
         ["users", "list", { page: args.page }],
@@ -280,7 +289,7 @@ const getConfig = t.query({
   handler: async (ctx) => {
     const config = await ctx.db.config.findUnique()
 
-    return ok(config, {
+    return withMetadata(config, {
       keys: ["config"],
       ttl: 60000 // 1 minute cache
     })
@@ -301,7 +310,7 @@ const createUser = t.mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
 
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: ["users:list", "users:count"]
     })
   }
@@ -322,7 +331,7 @@ const updateUser = t.mutation({
       data: { name: args.name }
     })
 
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [
         ["users", { id: args.id }],
         ["users", "list"]
@@ -340,7 +349,7 @@ const deleteUser = t.mutation({
   handler: async (ctx, args) => {
     await ctx.db.users.delete({ where: { id: args.id } })
 
-    return ok({ id: args.id }, {
+    return withMetadata({ id: args.id }, {
       invalidate: [
         ["users", { id: args.id }],
         ["users", "list"],
@@ -415,10 +424,10 @@ Best practice: Use consistent key patterns
 
 ```typescript
 // Mutation invalidates list
-return ok(user, { invalidate: ["users"] })
+withMetadata(user, { invalidate: ["users"] })
 
 // Query uses list key
-return ok(users, { keys: [["users"]] })
+withMetadata(users, { keys: [["users"]] })
 
 // Or use prefix matching
 // "users" would match "users", "users.list", "users.1", etc.
@@ -473,6 +482,9 @@ class CacheService {
 ### Using in Query
 
 ```typescript
+import { err } from "@deessejs/core"
+import { withMetadata } from "@deessejs/server"
+
 const getUser = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -481,7 +493,7 @@ const getUser = t.query({
     const cached = await ctx.cache.get<User>(cacheKey)
 
     if (cached) {
-      return ok(cached, { keys: [[cacheKey]] })
+      return withMetadata(cached, { keys: [[cacheKey]] })
     }
 
     // Fetch from DB
@@ -494,7 +506,7 @@ const getUser = t.query({
     // Cache the result
     await ctx.cache.set(cacheKey, user)
 
-    return ok(user, { keys: [[cacheKey]] })
+    return withMetadata(user, { keys: [[cacheKey]] })
   }
 })
 ```
@@ -513,7 +525,7 @@ const updateUser = t.mutation({
       data: { name: args.name }
     })
 
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [
         `users.${args.id}`,
         "users.list"
@@ -544,7 +556,7 @@ const keys = defineCacheKeys({
 const updateUser = t.mutation({
   handler: async (ctx, args) => {
     await ctx.db.users.update(args)
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [keys.users.list()]  // Also calls revalidateTag("users.list")
     })
   }
@@ -630,7 +642,7 @@ Use prefix to invalidate all related keys:
 ```typescript
 const updateUser = t.mutation({
   handler: async (ctx, args) => {
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [
         keys.users.byId(args.id),      // Exact: ["users", { id: 1 }]
         { prefix: keys.users._root }   // Prefix: all "users" keys
@@ -737,7 +749,7 @@ TTL propagates to HTTP response headers for edge caching.
 ```typescript
 const getConfig = t.query({
   handler: async (ctx) => {
-    return ok(config, {
+    return withMetadata(config, {
       keys: ["config"],
       ttl: 60000  // 1 minute
     })
@@ -777,7 +789,7 @@ This enables:
 
 ```typescript
 // Good: Clear both specific and list
-return ok(user, {
+return withMetadata(user, {
   invalidate: [
     ["users", { id: args.id }],
     ["users", "list"]
@@ -785,7 +797,7 @@ return ok(user, {
 })
 
 // Good: Use TTL for config
-return ok(config, {
+return withMetadata(config, {
   keys: ["config"],
   ttl: 300000 // 5 minutes
 })
