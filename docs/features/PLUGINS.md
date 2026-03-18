@@ -15,8 +15,21 @@ Plugins can provide:
 
 ## Plugin Type
 
+Plugins are declared using the `plugin()` helper function:
+
 ```typescript
-type Plugin<Ctx, PluginRouter extends Router = {}> = {
+const myPlugin = plugin<Ctx>({
+  name: "myPlugin",
+  extend: (ctx) => ({ ... }),
+  router: (t) => ({ ... }),
+  hooks: { ... }
+})
+```
+
+### Plugin Definition
+
+```typescript
+type PluginDefinition<Ctx, PluginRouter extends Router = {}> = {
   name: string
   extend: (ctx: Ctx) => Partial<Ctx>
   router?: (t: QueryBuilder<Ctx>) => PluginRouter
@@ -96,7 +109,7 @@ type PluginHooks<Ctx> = {
 ### Example: Logging Plugin
 
 ```typescript
-const loggerPlugin: Plugin<Ctx> = {
+const loggerPlugin = plugin<Ctx>({
   name: "logger",
   extend: (ctx) => ({
     logger: {
@@ -115,13 +128,13 @@ const loggerPlugin: Plugin<Ctx> = {
       console.error(`[ERROR] ${ctx.operation}`, error)
     }
   }
-}
+})
 ```
 
 ### Example: Metrics Plugin
 
 ```typescript
-const metricsPlugin: Plugin<Ctx> = {
+const metricsPlugin = plugin<Ctx>({
   name: "metrics",
   extend: (ctx) => ({
     metrics: {
@@ -153,7 +166,7 @@ const metricsPlugin: Plugin<Ctx> = {
 Plugins can access HTTP headers and cookies from the request:
 
 ```typescript
-const authPlugin: Plugin<Ctx> = {
+const authPlugin = plugin<Ctx>({
   name: "auth",
   extend: async (ctx) => {
     // Access headers (Next.js)
@@ -174,7 +187,7 @@ const authPlugin: Plugin<Ctx> = {
       isAuthenticated: !!user
     }
   }
-}
+})
 ```
 
 > **Note:** The `extend` function can be `async` to support awaiting headers/cookies.
@@ -184,11 +197,11 @@ const authPlugin: Plugin<Ctx> = {
 Plugin routes are automatically namespaced under the plugin name:
 
 ```typescript
-const notificationPlugin: Plugin<Ctx, {
+const notificationPlugin = plugin<Ctx, {
   list: Query
   send: Mutation
   markRead: Mutation
-}> = {
+}>({
   name: "notifications",
   extend: (ctx) => ({ sendNotification: (...args) => { ... } }),
   router: (t) => ({
@@ -196,7 +209,7 @@ const notificationPlugin: Plugin<Ctx, {
     send: t.mutation({ ... }),
     markRead: t.mutation({ ... })
   })
-}
+})
 
 // Usage: api.notifications.list()
 // NOT: api.list()
@@ -220,14 +233,14 @@ type AuthContext = {
   isAuthenticated: boolean
 }
 
-export const authPlugin: Plugin<AuthContext> = {
+export const authPlugin = plugin<AuthContext>({
   name: "auth",
 
   extend: () => ({
     userId: null,
     isAuthenticated: false,
   }),
-}
+})
 ```
 
 ### Plugin with Runtime Initialization
@@ -247,7 +260,7 @@ type CacheContext = {
 
 const memoryCache = new Map<string, { value: unknown; expiry: number }>()
 
-export const cachePlugin: Plugin<CacheContext> = {
+export const cachePlugin = plugin<CacheContext>({
   name: "cache",
 
   extend: () => ({
@@ -275,7 +288,7 @@ export const cachePlugin: Plugin<CacheContext> = {
       },
     },
   }),
-}
+})
 ```
 
 ### Plugin with Context Access
@@ -292,7 +305,7 @@ type LoggerContext = {
   }
 }
 
-export const loggerPlugin: Plugin<LoggerContext> = {
+export const loggerPlugin = plugin<LoggerContext>({
   name: "logger",
 
   extend: () => ({
@@ -302,7 +315,7 @@ export const loggerPlugin: Plugin<LoggerContext> = {
       error: (msg, error, meta) => console.error("[ERROR]", msg, error, meta),
     },
   }),
-}
+})
 ```
 
 ### Using Multiple Plugins
@@ -372,7 +385,7 @@ type SessionContext = {
   }
 }
 
-export const sessionPlugin: Plugin<SessionContext> = {
+export const sessionPlugin = plugin<SessionContext>({
   name: "session",
 
   extend: (ctx) => {
@@ -408,7 +421,7 @@ type NotificationRouter = {
   send: ReturnType<typeof t.mutation>
 }
 
-export const notificationPlugin: Plugin<NotificationContext, NotificationRouter> = {
+export const notificationPlugin = plugin<NotificationContext, NotificationRouter>({
   name: "notifications",
 
   // Extend context with notification helper
@@ -483,7 +496,7 @@ const api = createAPI({
 Plugins can also include internal queries and mutations:
 
 ```typescript
-export const analyticsPlugin: Plugin<Ctx, AnalyticsRouter> = {
+export const analyticsPlugin = plugin<Ctx, AnalyticsRouter>({
   name: "analytics",
 
   extend: (ctx) => ({}),
@@ -527,7 +540,7 @@ export const analyticsPlugin: Plugin<Ctx, AnalyticsRouter> = {
 ### Extending Context Types
 
 ```typescript
-import { Plugin } from "@deessejs/server"
+import { plugin } from "@deessejs/server"
 
 // Define your full context type
 type MyContext = {
@@ -539,7 +552,7 @@ type MyContext = {
 }
 
 // Create plugins with full type safety
-export const authPlugin: Plugin<MyContext> = {
+export const authPlugin = plugin<MyContext>({
   name: "auth",
   extend: () => ({
     userId: null,
@@ -671,16 +684,22 @@ The framework **throws an error** at startup to prevent silent bugs.
 
 ```typescript
 // Good: Focused plugin
-export const cachePlugin = { name: "cache", extend: () => ({ cache: ... }) }
+export const cachePlugin = plugin({
+  name: "cache",
+  extend: () => ({ cache: ... })
+})
 
 // Good: Descriptive name
-export const authPlugin = { name: "auth", extend: () => ({ userId: ... }) }
+export const authPlugin = plugin({
+  name: "auth",
+  extend: () => ({ userId: ... })
+})
 
 // Avoid: Do everything in one plugin
-export const everythingPlugin = {
+export const everythingPlugin = plugin({
   name: "everything",
   extend: () => ({ cache: ..., logger: ..., userId: ..., analytics: ... })
-}
+})
 ```
 
 ## Future Considerations
