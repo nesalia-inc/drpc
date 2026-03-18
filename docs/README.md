@@ -356,6 +356,12 @@ function CreateUserForm() {
 - [REACT_HOOKS.md](REACT_HOOKS.md) - React hooks integration
 - [NEXTJS.md](NEXTJS.md) - Next.js cache revalidation
 - [NEXTJS_INTEGRATION.md](NEXTJS_INTEGRATION.md) - Complete Next.js integration guide
+- [SERIALIZATION.md](SERIALIZATION.md) - Handling Dates, BigInt, Map, Set
+- [ERROR_HTTP_STATUS.md](ERROR_HTTP_STATUS.md) - Mapping errors to HTTP status codes
+- [ASYNC_CONTEXT.md](ASYNC_CONTEXT.md) - AsyncLocalStorage for context access
+- [VALIDATION.md](VALIDATION.md) - Multi-engine validation (Zod, Valibot, ArkType)
+- [METADATA.md](METADATA.md) - OpenAPI, documentation, SDK generation
+- [BATCHING.md](BATCHING.md) - Request batching for performance
 
 ## Installation
 
