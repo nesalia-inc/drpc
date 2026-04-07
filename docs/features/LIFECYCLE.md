@@ -192,46 +192,6 @@ const getUser = t.query({
   })
 ```
 
-### Metrics Collection
-
-```typescript
-import { z } from "zod"
-
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  handler: async (ctx, args) => {
-    const user = await ctx.db.users.find(args.id)
-    if (!user) {
-      return err({ code: "NOT_FOUND", message: "User not found" })
-    }
-    return ok(user)
-  }
-})
-  .beforeInvoke((ctx, args) => {
-    // Use ctx.meta for temporary data between hooks
-    ctx.meta.startTime = Date.now()
-  })
-  .onSuccess((ctx, args, data) => {
-    const duration = Date.now() - ctx.meta.startTime
-    ctx.metrics.increment("query.getUser.success")
-    ctx.metrics.timing("query.getUser.duration", duration)
-  })
-  .onError((ctx, args, error) => {
-    const duration = Date.now() - ctx.meta.startTime
-    ctx.metrics.increment("query.getUser.error")
-    ctx.metrics.timing("query.getUser.duration", duration)
-  })
-  .afterInvoke((ctx, args, result) => {
-    // Always runs - for cleanup or final metrics
-    ctx.metrics.increment("query.getUser.total")
-    delete ctx.meta.startTime
-  })
-```
-
-> **Note:** Use `ctx.meta` (a built-in `Record<string, any>`) to share temporary data between hooks. This avoids polluting the typed context with internal variables.
-
 ### Cache Invalidation
 
 ```typescript
@@ -378,47 +338,6 @@ const getUser = t.query({
   })
   .onSuccess((ctx, args, user) => {
     ctx.analytics.track("user_viewed", { userId: user.id })
-  })
-```
-
-## Chaining with Middleware
-
-Middleware and lifecycle hooks can be used together. Middleware runs first, then lifecycle hooks:
-
-```typescript
-// Middleware runs first (wraps the entire operation)
-const authMiddleware = t.middleware({
-  name: "auth",
-  args: z.object({}),
-  handler: async (ctx, next) => {
-    ctx.userId = Number(ctx.headers.get("x-user-id"))
-    return next()
-  }
-})
-
-// Then lifecycle hooks
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: authMiddleware,
-  handler: async (ctx, args) => {
-    const user = await ctx.db.users.find(args.id)
-    if (!user) {
-      return err({ code: "NOT_FOUND" })
-    }
-    return ok(user)
-  }
-})
-  .beforeInvoke((ctx, args) => {
-    console.log("User access:", ctx.userId, args.id)
-  })
-  .onSuccess((ctx, args, user) => {
-    // ctx.userId is available here from middleware
-    ctx.analytics.track("user_viewed", {
-      userId: user.id,
-      accessedBy: ctx.userId
-    })
   })
 ```
 

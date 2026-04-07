@@ -206,12 +206,11 @@ import { api } from "@/server/api"
 export async function getUser(id: number) {
   const result = await api.users.get({ id })
 
-  return result.match({
-    isSuccess: (user) => user,
-    isError: (error) => null,
-    isLoading: () => null,
-    isStale: (user) => user,
-  })
+  if (result.ok) {
+    return result.value
+  } else {
+    return null
+  }
 }
 ```
 
@@ -500,4 +499,4 @@ const listUsers = t.query({
 ## Related
 
 - [Cache](CACHE.md) - Cache system with keys and invalidation
-- [Context](../SPEC.md#defineContext) - Context definition
+- [Context](../API.md#defineContext) - Context definition

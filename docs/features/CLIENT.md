@@ -8,7 +8,7 @@ The client system enables React components to interact with the server API with 
 |---------|-------------|
 | `@deessejs/drpc` | Server-side API definitions |
 | `@deessejs/drpc/react` | React hooks for client-side usage |
-| `@deessejs/drpc/next` | Next.js integration utilities |
+| `@deessejs/drpc-next` | Next.js integration utilities |
 
 ## Architecture
 
@@ -385,7 +385,7 @@ export default async function UsersPage() {
 ```typescript
 // components/TaskList.tsx
 "use client"
-import { clientComponent } from "@deessejs/drpc/next"
+import { clientComponent } from "@deessejs/drpc-next"
 
 export const TaskList = clientComponent({
   query: api.tasks.list,

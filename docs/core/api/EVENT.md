@@ -115,6 +115,6 @@ t.on("user.created", async (ctx, evt) => {
 
 ## See Also
 
-- [t.on()](./T_QUERY_BUILDER.md#tonevent-handler) - Register event listeners
-- [ctx.send()](./T_QUERY_BUILDER.md#ctxsend) - Emit events from handlers
+- [t.on()](./T_QUERY_BUILDER.md) - Register event listeners
+- [ctx.send()](./T_QUERY_BUILDER.md) - Emit events from handlers
 - [DEFINING_CONTEXT.md](./DEFINING_CONTEXT.md) - Using events with defineContext

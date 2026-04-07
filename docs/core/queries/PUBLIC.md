@@ -252,12 +252,11 @@ import { api } from "@/server/api"
 export async function getUser(id: number) {
   const result = await api.users.get({ id })
 
-  return result.match({
-    isSuccess: (user) => user,
-    isError: (error) => null,
-    isLoading: () => null,
-    isStale: (user) => user,
-  })
+  if (result.ok) {
+    return result.value
+  } else {
+    return null
+  }
 }
 ```
 
@@ -322,13 +321,13 @@ const listUsers = t.query({
       ctx.db.users.count()
     ])
 
-    return ok({
+    return withMetadata(ok({
       items: users,
       page: args.page,
       limit: args.limit,
       total,
       hasMore: args.page * args.limit < total
-    }, {
+    }), {
       keys: ["users", "list", { page: args.page }]
     })
   }

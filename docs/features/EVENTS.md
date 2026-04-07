@@ -319,12 +319,12 @@ t.on("user.deleted", async (ctx, args, event) => {
 ```typescript
 const orderCreated = t.mutation({
   args: z.object({ items: z.array(z.string()) }),
-  handler: async (ctx, args): AsyncOutcome<Order> => {
+  handler: async (ctx, args) => {
     const order = await ctx.db.orders.create(args)
 
     ctx.send("order.created", { orderId: order.id }, { namespace: "ecommerce" })
 
-    return success(order)
+    return ok(order)
   }
 })
 
@@ -379,7 +379,7 @@ const scheduledNotification = t.mutation({
     message: z.string(),
     sendAt: z.string()
   }),
-  handler: async (ctx, args): AsyncOutcome<void> => {
+  handler: async (ctx, args) => {
     const delay = new Date(args.sendAt).getTime() - Date.now()
 
     ctx.send("notification.send", {
@@ -387,7 +387,7 @@ const scheduledNotification = t.mutation({
       message: args.message,
     }, { delay: Math.max(0, delay) })
 
-    return success(undefined)
+    return ok(undefined)
   }
 })
 ```
@@ -402,7 +402,7 @@ const configUpdated = t.mutation({
     key: z.string(),
     value: z.any()
   }),
-  handler: async (ctx, args): AsyncOutcome<void> => {
+  handler: async (ctx, args) => {
     await ctx.db.config.set(args.key, args.value)
 
     // Broadcast to all instances/clients
@@ -411,7 +411,7 @@ const configUpdated = t.mutation({
       value: args.value,
     }, { broadcast: true })
 
-    return success(undefined)
+    return ok(undefined)
   }
 })
 ```
@@ -425,7 +425,7 @@ export const createUser = t.mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.users.create(args)
     ctx.send("user.created", { user })
-    return success(user)
+    return ok(user)
   }
 })
 
@@ -470,23 +470,6 @@ handler: async (ctx, args) => {
   // Listeners may never execute or be cut off mid-execution
 }
 ```
-
-### Solution: `waitUntil` Support
-
-The framework uses `waitUntil` (Cloudflare/Vercel standard) to ensure events are processed after the response but before the function freezes:
-
-```typescript
-// Internal implementation
-const result = await handler(ctx, args)
-
-// Wait for event listeners to complete (up to timeout)
-await ctx.waitUntil(processEventQueue())
-```
-
-This guarantees:
-1. HTTP response is sent to the client
-2. Event listeners execute in the background
-3. Lambda doesn't freeze until processing completes
 
 ### Delay Requires a Queue Plugin
 

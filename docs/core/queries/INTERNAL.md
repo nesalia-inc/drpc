@@ -297,4 +297,4 @@ const cleanupExpiredSessions = t.internalMutation({
 
 - [Public Queries](PUBLIC.md) - Public queries exposed via HTTP
 - [Mutations](MUTATIONS.md) - Public mutations
-- [Context](../SPEC.md#defineContext) - Context definition
+- [Context](../API.md#defineContext) - Context definition

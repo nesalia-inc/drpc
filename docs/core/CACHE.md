@@ -720,44 +720,6 @@ const updateUser = useMutation({
 // No useEffect, no invalidateQueries, no manual refetch!
 ```
 
-## Auto-Cache Middleware
-
-For simple queries, generate cache keys automatically.
-
-### Usage
-
-```typescript
-import { z } from "zod"
-
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  autoCache: true,  // Generates key: ["getUser", { id: 1 }]
-  handler: async (ctx, args) => {
-    return ok(await ctx.db.users.find(args.id))
-  }
-})
-```
-
-### Key Generation
-
-```typescript
-// autoCache: true generates
-["getUser", { id: 1 }]
-
-// Equivalent to manually:
-keys: [keys.getUser(args.id)]
-```
-
-### When to Use
-
-| Use Auto-Cache | Use Manual Keys |
-|----------------|-----------------|
-| Simple CRUD operations | Complex relationships |
-| Single record lookups | Multiple cache entries |
-| Default TTL | Custom TTL per query |
-
 ## TTL and HTTP Headers
 
 TTL propagates to HTTP response headers for edge caching.

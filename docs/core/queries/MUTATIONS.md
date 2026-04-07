@@ -363,12 +363,11 @@ import { api } from "@/server/api"
 export async function createPost(title: string, content: string) {
   const result = await api.posts.create({ title, content })
 
-  return result.match({
-    isSuccess: (post) => ({ success: true, post }),
-    isError: (error) => ({ success: false, error: error.message }),
-    isLoading: () => null,
-    isStale: () => null,
-  })
+  if (result.ok) {
+    return { success: true, post: result.value }
+  } else {
+    return { success: false, error: result.error.message }
+  }
 }
 ```
 

@@ -236,7 +236,7 @@ t.internalQuery({
 
 ## See Also
 
-- [API.md](./API.md) - Complete API reference
+- [API.md](../API.md) - Complete API reference
 - [T_QUERY_BUILDER.md](./T_QUERY_BUILDER.md) - Query builder methods
 - [CREATE_API.md](./CREATE_API.md) - API creation functions
 - [../features/PLUGINS.md](../features/PLUGINS.md) - Plugin system

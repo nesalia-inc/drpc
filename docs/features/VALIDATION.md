@@ -129,11 +129,10 @@ export default defineConfig({
 
 ## Type Inference
 
-Types are automatically inferred from schemas - no manual configuration needed:
+Types are automatically inferred from schemas - no manual configuration needed.
 
 ```typescript
 import { z } from "zod"
-import { InferArgs, InferOutput } from "@deessejs/drpc"
 
 const createUser = t.mutation({
   args: z.object({
@@ -146,11 +145,6 @@ const createUser = t.mutation({
     return ok(args)
   }
 })
-
-// Extract types for reuse
-type CreateUserArgs = InferArgs<typeof createUser>
-type CreateUserOutput = InferOutput<typeof createUser>
-// CreateUserArgs = { name: string; email: string }
 ```
 
 ## Partial Validation

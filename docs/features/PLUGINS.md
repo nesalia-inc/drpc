@@ -439,11 +439,11 @@ const getUser = t.query({
     const cached = await ctx.cache.get<User>(`user:${args.id}`)
     if (cached) {
       ctx.logger.info("Cache hit", { userId: args.id })
-      return success(cached)
+      return ok(cached)
     }
 
     await ctx.cache.set(`user:${args.id}`, user, 300000)
-    return success(user)
+    return ok(user)
   }
 })
 ```

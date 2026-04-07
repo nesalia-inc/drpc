@@ -261,7 +261,7 @@ Create a route handler to expose only public operations via HTTP:
 
 ```typescript
 // app/(deesse)/api/[...slug]/route.ts
-import { createRouteHandler } from "@deessejs/drpc/next"
+import { createRouteHandler } from "@deessejs/drpc-next"
 import { api, client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -275,7 +275,7 @@ You can combine multiple route handlers in the same route group:
 
 ```typescript
 // app/(deesse)/api/[...slug]/route.ts - @deessejs/drpc
-import { createRouteHandler } from "@deessejs/drpc/next"
+import { createRouteHandler } from "@deessejs/drpc-next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)

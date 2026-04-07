@@ -2,18 +2,17 @@
 
 ## Overview
 
-The middleware system in `@deessejs/drpc` allows intercepting and modifying requests before they reach handlers. Middleware can be applied globally or to specific routes, enabling cross-cutting concerns like authentication, authorization, logging, and rate limiting.
+The middleware system in `@deessejs/drpc` allows intercepting and modifying requests before they reach handlers. Middleware is applied **globally** via `createAPI()`, enabling cross-cutting concerns like authentication, authorization, logging, and rate limiting.
 
 ## Core Concepts
 
 ### Middleware Function
 
-Middleware is a function that wraps a handler execution. It receives the context, arguments, and a `next` function that continues execution to the next middleware or the handler itself.
+Middleware is a function that wraps handler execution. It receives the context, arguments, and a `next` function that continues execution to the next middleware or the handler itself.
 
-### Middleware Types
+### Global Middleware
 
-1. **Operation Middleware** - Applied to specific queries or mutations
-2. **Global Middleware** - Applied to all operations in the API
+All middleware is applied globally via `createAPI()`. This ensures consistent behavior across all operations and keeps the API definition clean.
 
 ## API Reference
 
@@ -56,7 +55,7 @@ Middleware receives an extended context with access to:
 
 ## Usage Examples
 
-### Basic Middleware
+### Basic Global Middleware
 
 ```typescript
 const { t, createAPI } = defineContext({
@@ -82,32 +81,72 @@ const authMiddleware = t.middleware({
   }
 })
 
-// Apply to specific query
-const getUser = t.query({
-  args: z.object({ id: z.number() }),
-  middleware: authMiddleware,
-  handler: async (ctx, args) => {
-    // ctx.userId is available here
-    const user = await ctx.db.users.find(args.id)
-    return ok(user)
-  }
+// Apply globally via createAPI
+const api = createAPI({
+  router: t.router({
+    users: {
+      get: t.query({ ... }),
+      create: t.mutation({ ... }),
+    },
+  }),
+  middleware: [authMiddleware]
 })
 ```
 
-### Global Middleware
+### Logging Middleware
 
-Apply middleware to all operations in the API:
+```typescript
+const loggingMiddleware = t.middleware({
+  name: "logger",
+  handler: async (ctx, next) => {
+    const start = Date.now()
+    const result = await next()
+    const duration = Date.now() - start
+    console.log(`${ctx.operation} completed in ${duration}ms`)
+    return result
+  }
+})
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [loggingMiddleware]
+})
+```
+
+### Error Handling Middleware
+
+```typescript
+const errorHandlerMiddleware = t.middleware({
+  name: "errorHandler",
+  handler: async (ctx, next) => {
+    try {
+      return await next()
+    } catch (error) {
+      return err({ code: "INTERNAL_ERROR", message: error.message })
+    }
+  }
+})
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [errorHandlerMiddleware]
+})
+```
+
+### Multiple Global Middleware
+
+Apply multiple middleware to all operations:
 
 ```typescript
 const api = createAPI({
   router: t.router({
-    users: t.router({
-      get: getUser,
-      create: createUser,
-    }),
+    users: {
+      get: t.query({ ... }),
+      create: t.mutation({ ... }),
+    },
   }),
   middleware: [
-    // Logging middleware
+    // Logging middleware (runs first)
     t.middleware({
       name: "logger",
       handler: async (ctx, next) => {
@@ -119,7 +158,7 @@ const api = createAPI({
       }
     }),
 
-    // Error handling middleware
+    // Error handling middleware (runs second)
     t.middleware({
       name: "errorHandler",
       handler: async (ctx, next) => {
@@ -128,6 +167,19 @@ const api = createAPI({
         } catch (error) {
           return err({ code: "INTERNAL_ERROR", message: error.message })
         }
+      }
+    }),
+
+    // Auth middleware (runs third)
+    t.middleware({
+      name: "auth",
+      handler: async (ctx, next) => {
+        const userId = ctx.headers.get("x-user-id")
+        if (!userId) {
+          return err({ code: "UNAUTHORIZED", message: "Missing user ID" })
+        }
+        ctx.userId = Number(userId)
+        return next()
       }
     }),
   ]
@@ -141,113 +193,7 @@ Create configurable middleware with args:
 ```typescript
 import { z } from "zod"
 
-const requireRole = (role: string) => t.middleware({
-  name: `require-${role}`,
-  args: z.object({
-    requiredRole: z.string()
-  }),
-  handler: async (ctx, next) => {
-    const hasRole = ctx.userRoles.includes(ctx.args.requiredRole)
-
-    if (!hasRole) {
-      return err({ code: "FORBIDDEN", message: `Required role: ${ctx.args.requiredRole}` })
-    }
-
-    return next()
-  }
-})
-
-// Use with args
-const deleteUser = t.mutation({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: requireRole("admin"),
-  handler: async (ctx, args) => { ... }
-})
-```
-
-### Middleware Chain
-
-Apply multiple middleware to a single operation:
-
-```typescript
-// Multiple middleware on single operation
-const secureGetUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: [authMiddleware, rateLimitMiddleware, loggingMiddleware],
-  handler: async (ctx, args) => { ... }
-})
-```
-
-### Context Enhancement
-
-Use middleware to add resources to context:
-
-```typescript
-// Extend context with database connection
-const withDatabase = t.middleware({
-  name: "withDatabase",
-  handler: async (ctx, next) => {
-    const db = await connectToDatabase()
-    ctx.db = db
-    try {
-      return await next()
-    } finally {
-      await db.disconnect()
-    }
-  }
-})
-
-const getUser = t.query({
-  args: z.object({ id: z.number() }),
-  middleware: withDatabase,
-  handler: async (ctx, args) => {
-    // ctx.db is connected
-    const user = await ctx.db.users.find(args.id)
-    return ok(user)
-  }
-})
-```
-
-### Authentication Middleware
-
-```typescript
-// middleware/auth.ts
-export const authMiddleware = t.middleware({
-  name: "auth",
-  handler: async (ctx, next) => {
-    const authHeader = ctx.headers.get("authorization")
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return err({ code: "UNAUTHORIZED", message: "Missing or invalid token" })
-    }
-
-    const token = authHeader.substring(7)
-
-    try {
-      // Verify token and get user
-      const user = await verifyToken(token)
-      ctx.userId = user.id
-      ctx.userRoles = user.roles
-
-      return next()
-    } catch (error) {
-      return err({ code: "UNAUTHORIZED", message: "Invalid token" })
-    }
-  }
-})
-```
-
-### Rate Limiting Middleware
-
-```typescript
-// middleware/rateLimit.ts
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
-
-export const rateLimitMiddleware = t.middleware({
+const rateLimitMiddleware = t.middleware({
   name: "rateLimit",
   args: z.object({
     maxRequests: z.number().default(100),
@@ -274,42 +220,16 @@ export const rateLimitMiddleware = t.middleware({
       })
     }
 
-    // Add rate limit info to headers
     ctx.headers.set("x-rate-limit-remaining", String(maxRequests - record.count))
     ctx.headers.set("x-rate-limit-reset", String(record.resetAt))
 
     return next()
   }
 })
-```
 
-### Validation Middleware
-
-```typescript
-import { z } from "zod"
-
-// middleware/validation.ts
-export const validateRequestMiddleware = t.middleware({
-  name: "validateRequest",
-  args: z.object({
-    schema: z.object({})
-  }),
-  handler: async (ctx, next) => {
-    const { schema } = ctx.args
-
-    try {
-      // Validate args using Zod
-      const result = schema.safeParse(ctx.args)
-      ctx.args = result
-      return next()
-    } catch (error) {
-      return err({
-        code: "VALIDATION_ERROR",
-        message: "Invalid request parameters",
-        details: error,
-      })
-    }
-  }
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [rateLimitMiddleware]
 })
 ```
 
@@ -333,10 +253,14 @@ const serverOnlyMiddleware = t.middleware({
   }
 })
 
-// Apply to internal operations
-const deleteAllUsers = t.internalMutation({
-  middleware: serverOnlyMiddleware,
-  handler: async (ctx, args) => { ... }
+const api = createAPI({
+  router: t.router({
+    users: {
+      get: t.query({ ... }),
+      deleteAll: t.internalMutation({ ... }),
+    },
+  }),
+  middleware: [serverOnlyMiddleware]
 })
 ```
 
@@ -345,7 +269,7 @@ const deleteAllUsers = t.internalMutation({
 In Serverless environments (Vercel, Cloudflare), middleware latency directly affects response time.
 
 ```typescript
-// ❌ Avoid: Multiple async DB calls in middleware
+// Avoid: Multiple async DB calls in middleware
 const slowMiddleware = t.middleware({
   name: "slow",
   handler: async (ctx, next) => {
@@ -355,7 +279,7 @@ const slowMiddleware = t.middleware({
   }
 })
 
-// ✅ Better: Use Plugins to inject resources, not middleware
+// Better: Use Plugins to inject resources, not middleware
 // Middleware should only be for CONTROL logic (auth, rate limit)
 // Heavy operations belong in Plugins or the handler itself
 ```
@@ -390,63 +314,48 @@ export const withLogging = t.middleware({
   }
 })
 
-// Combine for specific operations
-const protectedAndLogged = [withAuth, withLogging]
-
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: protectedAndLogged,
-  handler: async (ctx, args) => { ... }
+// Apply all global middleware at once
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [withAuth, withLogging]
 })
 ```
 
 ### Execution Order
 
-Middleware executes in a predictable order:
-
-1. **Global middleware** - Runs first, in order
-2. **Operation middleware** - Runs after global, in order
+Middleware executes in the order they are defined:
 
 ```typescript
-// Global middleware (runs first)
-const globalMiddleware = t.middleware({
-  name: "global",
-  handler: async (ctx, next) => {
-    console.log("1. Global middleware")
-    return next()
-  }
-})
-
-// Operation middleware (runs after)
-const operationMiddleware = t.middleware({
-  name: "operation",
-  handler: async (ctx, next) => {
-    console.log("2. Operation middleware")
-    return next()
-  }
-})
-
 const api = createAPI({
-  router: t.router({ ... }),
-  middleware: [globalMiddleware]
-})
-
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
+  router: t.router({
+    users: {
+      get: t.query({ ... }),
+    },
   }),
-  middleware: operationMiddleware,
-  handler: async (ctx, args) => {
-    console.log("3. Handler")
-    return ok({ id: args.id })
-  }
+  middleware: [
+    // 1. First middleware
+    t.middleware({
+      name: "first",
+      handler: async (ctx, next) => {
+        console.log("1. First middleware")
+        return next()
+      }
+    }),
+
+    // 2. Second middleware
+    t.middleware({
+      name: "second",
+      handler: async (ctx, next) => {
+        console.log("2. Second middleware")
+        return next()
+      }
+    }),
+  ]
 })
 
-// Output when calling getUser:
-// 1. Global middleware
-// 2. Operation middleware
+// Output when calling any operation:
+// 1. First middleware
+// 2. Second middleware
 // 3. Handler
 ```
 
@@ -478,6 +387,11 @@ const cacheMiddleware = t.middleware({
 
     return result
   }
+})
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [cacheMiddleware]
 })
 ```
 
@@ -520,37 +434,6 @@ const rateLimitMiddleware = t.middleware({
     ctx.args.windowMs // number
 
     return next()
-  }
-})
-```
-
-### Applying Typed Middleware
-
-```typescript
-type Ctx = {
-  db: Database
-  userId: number | null
-}
-
-// Middleware typed with context
-const authMiddleware = t.middleware<Ctx>({
-  name: "auth",
-  handler: async (ctx, next) => {
-    ctx.userId = Number(ctx.headers.get("x-user-id"))
-    return next()
-  }
-})
-
-// Apply to query - TypeScript ensures ctx is properly extended
-const getUser = t.query<Ctx>({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: authMiddleware,
-  handler: async (ctx, args) => {
-    // ctx has all Ctx properties plus userId from middleware
-    const user = await ctx.db.users.find(args.id)
-    return ok(user)
   }
 })
 ```
@@ -634,12 +517,9 @@ const errorHandlerMiddleware = t.middleware({
 })
 
 // Use both - auth runs first, then error handler catches any errors
-const getUser = t.query({
-  args: z.object({
-    id: z.number()
-  }),
-  middleware: [authMiddleware, errorHandlerMiddleware],
-  handler: async (ctx, args) => { ... }
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [authMiddleware, errorHandlerMiddleware]
 })
 ```
 
@@ -712,16 +592,6 @@ describe("API with Middleware", () => {
 
     // Check that logging middleware ran
     expect(console.log).toHaveBeenCalled()
-  })
-
-  it("should apply operation-specific middleware", async () => {
-    const result = await executor.execute("users.create", {
-      name: "John",
-      email: "john@example.com"
-    })
-
-    // Auth middleware should have run
-    expect(result.ok).toBe(true)
   })
 })
 ```
@@ -871,6 +741,11 @@ const cacheMiddleware = t.middleware({
     return result
   }
 })
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [cacheMiddleware]
+})
 ```
 
 ### Feature Flag Pattern
@@ -896,6 +771,11 @@ const featureFlagMiddleware = t.middleware({
     return next()
   }
 })
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [featureFlagMiddleware]
+})
 ```
 
 ### Metrics Pattern
@@ -920,6 +800,11 @@ const metricsMiddleware = t.middleware({
       throw error
     }
   }
+})
+
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [metricsMiddleware]
 })
 ```
 
