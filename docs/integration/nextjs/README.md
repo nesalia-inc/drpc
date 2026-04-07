@@ -10,6 +10,19 @@
 
 ## Quick Start
 
+### 1. Create Client-Safe API
+
+```typescript
+// server/drpc.ts
+import { drpc, createClient } from "@deessejs/drpc"
+
+// drpc: full API (server-only operations + public operations)
+// client: public operations only (filtered by createClient)
+export const client = createClient(drpc)
+```
+
+### 2. Expose via Route Handler
+
 ```typescript
 // app/api/drpc/route.ts
 import { client } from "@/server/drpc"
@@ -45,13 +58,26 @@ The handler automatically:
 ## Architecture
 
 ```
-Client ──────► Next.js Route Handler ──────► @deessejs/drpc
-                  toNextJsHandler()             │
-                                              ▼
-                                    query() / mutation()
-                                    internalQuery() / internalMutation() (server-only)
-                                              │
-                                              ▼
-                                         Your Handlers
-                                    async (ctx, args) => Result<T>
+┌────────────────────────────────────────────────────────────────────┐
+│                         Browser                                      │
+│  fetch("/api/drpc", { procedure: "users.get", args: { id: 1 } })    │
+└────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│              Next.js Route Handler                                  │
+│        app/api/drpc/route.ts - toNextJsHandler(client)             │
+└────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                     @deessejs/drpc                                   │
+│                                                                      │
+│  createAPI() ──────► drpc ──────► Full API (all operations)        │
+│                            │                                        │
+│  createClient(drpc) ───────┘                                        │
+│         │                                                             │
+│         ▼                                                             │
+│     client ──────► Public API (query + mutation only)               │
+└────────────────────────────────────────────────────────────────────┘
 ```

@@ -1,10 +1,32 @@
 # API Reference
 
-## `toNextJsHandler`
+## `createClient`
 
-Creates Next.js route handlers from a drpc API instance.
+Creates a client-safe API from the full API. Filters out internal operations (`internalQuery`, `internalMutation`) so they cannot be called via HTTP.
 
 ```typescript
+import { drpc, createClient } from "@deessejs/drpc"
+
+// drpc contains all operations (including internal ones)
+// client only contains public operations (query, mutation)
+export const client = createClient(drpc)
+```
+
+### When to Use
+
+| API | Use Case |
+|-----|----------|
+| `drpc` | Server Components, Server Actions, internal calls |
+| `client` | Passed to `toNextJsHandler()` for HTTP exposure |
+
+---
+
+## `toNextJsHandler`
+
+Creates Next.js route handlers from a client API instance.
+
+```typescript
+import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 
 export const { POST, GET } = toNextJsHandler(client)
@@ -97,14 +119,16 @@ GET /api/drpc?procedure=users.get&args={"id":123}
 
 ## Type Safety
 
-The client maintains full type safety:
+The API maintains full type safety for both server and client usage:
 
 ```typescript
-// Procedure name autocomplete
-const result = await client.users.get({ id: 1 })
-//    ^? Result<User>
+// Server-side: drpc has all operations including internal ones
+const stats = await drpc.users.getAdminStats({})  // ✅ Works
 
-// Wrong arguments caught by TypeScript
+// Server-side: client only has public operations
+const user = await client.users.get({ id: 1 })     // ✅ Works
+
+// TypeScript catches invalid arguments
 client.users.get({ name: "John" })
 //    ^? TypeScript error: 'name' does not exist
 ```

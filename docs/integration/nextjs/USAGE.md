@@ -1,8 +1,37 @@
 # Usage Patterns
 
-## Server vs Client API
+## Architecture Overview
 
-### Server Components
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Browser                                │
+│                  fetch("/api/drpc", {...})                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Next.js Route Handler                          │
+│         toNextJsHandler(client) - app/api/drpc/route.ts    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  @deessejs/drpc                              │
+│                                                             │
+│  drpc = createAPI({...})     - Full API (server-only)       │
+│  client = createClient(drpc) - Public API (exposed via HTTP) │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Functions
+
+| Function | Purpose |
+|----------|---------|
+| `createAPI()` | Creates full API with all operations (internal + public) |
+| `createClient()` | Creates client-safe API (filters internal operations) |
+| `toNextJsHandler()` | Exposes client API via Next.js route handler |
+
+## Server Components
 
 Use the full `drpc` API to access all operations including internal ones:
 
@@ -11,7 +40,7 @@ Use the full `drpc` API to access all operations including internal ones:
 import { drpc } from "@/server/drpc"
 
 export default async function AdminPage() {
-  // Can call ALL operations
+  // Can call ALL operations directly
   const user = await drpc.users.get({ id: 1 })
   const users = await drpc.users.list({ limit: 10 })
   const stats = await drpc.users.getAdminStats({})  // ✅ Internal works
@@ -21,27 +50,28 @@ export default async function AdminPage() {
 }
 ```
 
-### Client Components
+## Client Components (Browser)
 
-Use the `client` API for public operations only:
+From the browser, call procedures via HTTP through the route handler:
 
 ```typescript
 // app/components/UserList.tsx (Client Component)
 "use client"
-import { client } from "@/server/drpc"
 
-export function UserList() {
-  // Can only call PUBLIC operations
-  const user = await client.users.get({ id: 1 })       // ✅ Works
-  await client.users.create({ name: "John" })           // ✅ Works
-  await client.users.update({ id: 1, name: "Jane" })   // ✅ Works
-  await client.users.delete({ id: 1 })                  // ✅ Works
+// Browser-side: call via HTTP fetch
+const result = await fetch("/api/drpc/users.get", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ args: { id: 1 } }),
+})
 
-  // TypeScript error - internal operations not available
-  const stats = await client.users.getAdminStats({})     // ❌ TS Error
-  await client.users.deleteUserAdmin({ id: 1, reason: "spam" }) // ❌ TS Error
-}
+const response = await result.json()
+// response: { ok: true, value: { id: 1, name: "John", ... } }
 ```
+
+The `client` API is passed to `toNextJsHandler()` in the route handler, which:
+- Exposes public operations (`query`, `mutation`) via HTTP
+- Filters out internal operations (`internalQuery`, `internalMutation`)
 
 ## With Authentication
 

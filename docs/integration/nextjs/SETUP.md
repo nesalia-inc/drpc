@@ -6,7 +6,7 @@ Complete guide to setting up `@deessejs/drpc` with Next.js.
 
 ```typescript
 // server/drpc.ts
-import { defineContext, createAPI, createPublicAPI } from "@deessejs/drpc"
+import { defineContext, createAPI, createClient } from "@deessejs/drpc"
 import { ok, err } from "@deessejs/core"
 import { z } from "zod"
 
@@ -132,8 +132,8 @@ export const drpc = createAPI({
   }),
 })
 
-// Client-safe API (only public operations exposed via HTTP)
-export const client = createPublicAPI(drpc)
+// Client-safe API - filters internal operations, passed to route handler
+export const client = createClient(drpc)
 ```
 
 ## 2. Expose via Route Handler
