@@ -139,7 +139,7 @@ export const client = createClient(drpc)
 ## 2. Expose via Route Handler
 
 ```typescript
-// app/api/drpc/route.ts
+// app/api/drpc/[...slug]/route.ts - Catch-all route
 import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 
@@ -170,7 +170,8 @@ my-app/
 ├── app/
 │   ├── api/
 │   │   └── drpc/
-│   │       └── route.ts      # Route handler (exposes client via HTTP)
+│   │       └── [...slug]/
+│   │           └── route.ts  # Catch-all route handler
 │   └── admin/
 │       └── page.tsx          # Server Component (uses drpc directly)
 ├── components/

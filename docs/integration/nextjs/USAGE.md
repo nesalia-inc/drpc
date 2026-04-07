@@ -3,24 +3,28 @@
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser                                │
-│                  fetch("/api/drpc", {...})                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Next.js Route Handler                          │
-│         toNextJsHandler(client) - app/api/drpc/route.ts    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  @deessejs/drpc                              │
-│                                                             │
-│  drpc = createAPI({...})     - Full API (server-only)       │
-│  client = createClient(drpc) - Public API (exposed via HTTP) │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                         Browser                                      │
+│  fetch("/api/drpc/users/get?args={\"id\":1}", { method: "GET" })   │
+└────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│           Next.js Catch-All Route                                   │
+│      app/api/drpc/[...slug]/route.ts - toNextJsHandler(client)     │
+└────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                     @deessejs/drpc                                   │
+│                                                                      │
+│  createAPI() ──────► drpc ──────► Full API (all operations)        │
+│                            │                                        │
+│  createClient(drpc) ───────┘                                        │
+│         │                                                             │
+│         ▼                                                             │
+│     client ──────► Public API (query + mutation only)               │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Functions
@@ -59,10 +63,8 @@ From the browser, call procedures via HTTP through the route handler:
 "use client"
 
 // Browser-side: call via HTTP fetch
-const result = await fetch("/api/drpc/users/get", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ args: { id: 1 } }),
+const result = await fetch("/api/drpc/users/get?args={\"id\":1}", {
+  method: "GET",
 })
 
 const response = await result.json()
@@ -86,7 +88,7 @@ export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(auth)
 ```
 
 ```typescript
-// app/api/drpc/route.ts - drpc
+// app/api/drpc/[...slug]/route.ts - drpc
 import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 

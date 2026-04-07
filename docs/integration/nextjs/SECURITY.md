@@ -17,7 +17,7 @@
 
 ### Public vs Internal Operations
 
-**Public operations** (`query()`, `mutation()`) are exposed via HTTP and can be called by anyone.
+**Public operations** (`query()`, `mutation()`) are exposed via HTTP and can be called by anyone unless you add authentication.
 
 **Internal operations** (`internalQuery()`, `internalMutation()`) are never exposed via HTTP and can only be called from server-side code.
 
@@ -62,35 +62,35 @@ const getUserAdmin = t.internalQuery({
 })
 ```
 
-### 3. Validate Input in Route Handlers
+### 3. Never Expose Internal Error Details
+
+The handler returns error messages to clients. Make sure your handlers don't leak sensitive information:
 
 ```typescript
-// app/api/drpc/route.ts
-import { client } from "@/server/drpc"
-import { toNextJsHandler } from "@deessejs/drpc-next"
+// Bad - leaks internal error
+handler: async (ctx, args) => {
+  try {
+    return ok(await ctx.db.query(sql))
+  } catch (e) {
+    return err({ code: "ERROR", message: e.message }) // ❌ Leaks DB error
+  }
+}
 
-// The handler already validates:
-// - Procedure name exists
-// - Args match the schema
-// - User is authenticated (if using auth middleware)
-export const { POST, GET } = toNextJsHandler(client)
-```
-
-### 4. Use Authentication Middleware
-
-```typescript
-// For protected routes, use middleware
-import { client, withAuth } from "@/server/drpc"
-import { toNextJsHandler } from "@deessejs/drpc-next"
-
-const authClient = withAuth(client, {
-  requireAuth: true,
-})
-
-export const { POST, GET } = toNextJsHandler(authClient)
+// Good - generic error message
+handler: async (ctx, args) => {
+  try {
+    return ok(await ctx.db.query(sql))
+  } catch (e) {
+    return err({ code: "INTERNAL_ERROR", message: "An error occurred" }) // ✅ Safe
+  }
+}
 ```
 
 ## Authentication
+
+Public operations can be called by anyone. To protect them, add authentication at the middleware level or use a separate auth layer.
+
+### Using better-auth
 
 Combine with better-auth for full authentication:
 
@@ -99,20 +99,31 @@ Combine with better-auth for full authentication:
 import { auth } from "@/lib/auth"
 import { toNextJsHandler } from "better-auth/next-js"
 
-export const { POST, GET } = toNextJsHandler(auth)
+export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(auth)
 ```
 
-```typescript
-// app/api/drpc/route.ts
-import { client } from "@/server/drpc"
-import { toNextJsHandler } from "@deessejs/drpc-next"
+### Protected Routes
 
-export const { POST, GET } = toNextJsHandler(client)
+For protected drpc routes, you would typically:
+
+1. Add authentication middleware to your API
+2. Check `ctx.user` or similar in protected procedures
+
+```typescript
+// server/drpc.ts
+const getProfile = t.query({
+  handler: async (ctx, args) => {
+    if (!ctx.user) {
+      return err({ code: "UNAUTHORIZED", message: "Not logged in" })
+    }
+    return ok(await ctx.db.users.find(ctx.user.id))
+  },
+})
 ```
 
 ## Error Handling
 
-Errors are serialized and returned to clients:
+Errors returned from handlers are serialized and returned to clients:
 
 ```typescript
 // Handler returns error
@@ -123,25 +134,6 @@ return err({ code: "UNAUTHORIZED", message: "Not logged in" })
   "ok": false,
   "error": { "code": "UNAUTHORIZED", "message": "Not logged in" }
 }
-```
-
-Never expose internal error details (stack traces, database errors) to clients.
-
-## Rate Limiting
-
-Consider adding rate limiting middleware for public endpoints:
-
-```typescript
-import { client } from "@/server/drpc"
-import { toNextJsHandler } from "@deessejs/drpc-next"
-import { rateLimit } from "@/lib/rate-limit"
-
-const rateLimitedClient = withRateLimit(client, {
-  limit: 100,
-  window: 60, // 100 requests per minute
-})
-
-export const { POST, GET } = toNextJsHandler(rateLimitedClient)
 ```
 
 ## See Also

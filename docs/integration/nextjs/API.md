@@ -2,22 +2,34 @@
 
 ## `createClient`
 
-Creates a client-safe API from the full API. Filters out internal operations (`internalQuery`, `internalMutation`) so they cannot be called via HTTP.
+Creates a client-safe API from the full API. Filters out internal operations (`internalQuery`, `internalMutation`) at runtime so they cannot be called via HTTP.
 
 ```typescript
-import { drpc, createClient } from "@deessejs/drpc"
+import { defineContext, createAPI, createClient } from "@deessejs/drpc"
 
-// drpc contains all operations (including internal ones)
-// client only contains public operations (query, mutation)
-export const client = createClient(drpc)
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+})
+
+const api = createAPI({
+  router: t.router({
+    users: {
+      list: t.query({ ... }),
+      get: t.query({ ... }),
+    },
+  }),
+})
+
+// client only exposes public operations
+export const client = createClient(api)
 ```
 
 ### When to Use
 
 | API | Use Case |
 |-----|----------|
-| `drpc` | Server Components, Server Actions, internal calls |
-| `client` | Passed to `toNextJsHandler()` for HTTP exposure |
+| `drpc` (from `createAPI`) | Server Components, Server Actions, internal calls |
+| `client` (from `createClient`) | Passed to `toNextJsHandler()` for HTTP exposure |
 
 ---
 
@@ -26,11 +38,25 @@ export const client = createClient(drpc)
 Creates Next.js route handlers from a client API instance.
 
 ```typescript
+// app/api/drpc/[...slug]/route.ts
 import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 
 export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
 ```
+
+### Route Structure
+
+Use a **catch-all route** `[...slug]` to capture the full procedure path:
+
+```
+app/api/drpc/[...slug]/route.ts
+```
+
+This allows URLs like:
+- `/api/drpc/users/list`
+- `/api/drpc/users/get`
+- `/api/drpc/users/create`
 
 ### Supported Methods
 
@@ -42,23 +68,21 @@ export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
 | `PATCH` | Mutation operations (partial update) - args via JSON body |
 | `DELETE` | Mutation operations (delete) - args via JSON body |
 
-All methods extract the procedure name from the URL path (e.g., `/api/users/get` → `users.get` procedure).
-
-### Example
+### Options
 
 ```typescript
-// app/api/drpc/route.ts
-import { client } from "@/server/drpc"
-import { toNextJsHandler } from "@deessejs/drpc-next"
-
-export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
+toNextJsHandler(client, {
+  basePath: "api/drpc", // default
+})
 ```
 
 ---
 
 ## `createRouteHandler`
 
-For more control over the route handler configuration. Returns only POST handler.
+**Deprecated.** Use `toNextJsHandler` instead.
+
+Returns only the POST handler for backwards compatibility.
 
 ```typescript
 import { createRouteHandler } from "@deessejs/drpc-next"
@@ -71,13 +95,13 @@ export const POST = createRouteHandler(client)
 
 ## Request/Response Format
 
-### Request (GET)
+### GET Request (Query)
 
 ```bash
 GET /api/drpc/users/get?args={"id":123}
 ```
 
-### Request (POST)
+### POST Request (Mutation)
 
 ```bash
 POST /api/drpc/users/create
@@ -88,7 +112,7 @@ Content-Type: application/json
 }
 ```
 
-### Response (Success)
+### Success Response
 
 ```json
 {
@@ -97,7 +121,7 @@ Content-Type: application/json
 }
 ```
 
-### Response (Error)
+### Error Response
 
 ```json
 {
@@ -123,11 +147,11 @@ Content-Type: application/json
 
 ## Type Safety
 
-The API maintains full type safety for both server and client usage:
+The API provides type safety for procedure calls:
 
 ```typescript
 // Server-side: drpc has all operations including internal ones
-const stats = await drpc.users.getAdminStats({})  // ✅ Works
+const stats = await drpc.users.getAdminStats({})  // ✅ Works (server-only)
 
 // Server-side: client only has public operations
 const user = await client.users.get({ id: 1 })     // ✅ Works

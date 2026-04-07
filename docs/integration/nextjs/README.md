@@ -10,25 +10,52 @@
 
 ## Quick Start
 
-### 1. Create Client-Safe API
+### 1. Create API and Client
 
 ```typescript
 // server/drpc.ts
-import { drpc, createClient } from "@deessejs/drpc"
+import { defineContext, createAPI, createClient } from "@deessejs/drpc"
+import { ok, err } from "@deessejs/core"
+import { z } from "zod"
 
-// drpc: full API (server-only operations + public operations)
-// client: public operations only (filtered by createClient)
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+})
+
+// Define procedures
+const listUsers = t.query({
+  args: z.object({ limit: z.number().optional().default(10) }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.findMany({ limit: args.limit }))
+  },
+})
+
+// Create APIs
+export const drpc = createAPI({
+  router: t.router({ users: { list: listUsers } }),
+})
 export const client = createClient(drpc)
 ```
 
 ### 2. Expose via Route Handler
 
 ```typescript
-// app/api/drpc/route.ts
+// app/api/drpc/[...slug]/route.ts - Catch-all route for procedure calls
 import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 
 export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
+```
+
+### 3. Call from Browser
+
+```typescript
+// Procedure name in URL path, args in query string or body
+const response = await fetch("/api/drpc/users/list?args={\"limit\":10}", {
+  method: "GET",
+})
+
+const { ok, value, error } = await response.json()
 ```
 
 The handler automatically:
@@ -36,7 +63,7 @@ The handler automatically:
 - Supports all standard HTTP methods (GET, POST, PUT, PATCH, DELETE)
 - Protects `internalQuery()` and `internalMutation()` (server-only)
 - Handles JSON serialization/deserialization
-- Returns typed responses
+- Returns correct DRPC result format
 
 ## Documentation
 
@@ -61,13 +88,13 @@ The handler automatically:
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                         Browser                                      │
-│  fetch("/api/drpc", { procedure: "users.get", args: { id: 1 } })    │
+│  fetch("/api/drpc/users/get?args={\"id\":1}", { method: "GET" })    │
 └────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│              Next.js Route Handler                                  │
-│        app/api/drpc/route.ts - toNextJsHandler(client)             │
+│           Next.js Catch-All Route                                   │
+│      app/api/drpc/[...slug]/route.ts - toNextJsHandler(client)     │
 └────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
