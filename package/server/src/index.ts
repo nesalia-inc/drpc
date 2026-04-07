@@ -36,10 +36,10 @@ export function ok<T, Keys extends CacheKey[] = CacheKey[]>(
   return result as Result<T> & { keys?: Keys; ttl?: number }
 }
 
-export function err<E = { code: string; message: string }>(
-  error: E
-): Result<never, E> {
-  return coreErr(error)
+export function err(
+  error: { code: string; message: string }
+): Result<never> {
+  return coreErr(error as any) as Result<never>
 }
 
 export function withMetadata<T, Keys extends CacheKey[] = CacheKey[]>(
@@ -74,30 +74,75 @@ export type EventPayload<T = unknown> = {
   source?: string
 }
 
+// Event System Implementation
+type EventListener<Ctx = any, Args = unknown, EventData = unknown> = {
+  handler: EventHandler<Ctx, Args, EventData>
+  namespace: string
+}
+
 export function defineEvents<Events extends EventRegistry>(schema: Events) {
   type EventName = string
-  type EventData = unknown
 
   const events: Events = schema
+
+  // Global event listeners registry
+  const listeners: Map<string, Set<EventListener>> = new Map()
 
   function getEventName(path: string[]): string {
     return path.join(".")
   }
 
-  const handler = {
-    on<EventName extends string>(
-      eventName: EventName,
-      handler: EventHandler<any, any, any>
-    ): void {
-      // Global event listener registration
-    },
+  function on<EventName extends string, EventData>(
+    eventName: EventName,
+    handler: EventHandler<any, any, EventData>
+  ): void {
+    if (!listeners.has(eventName)) {
+      listeners.set(eventName, new Set())
+    }
+    // Extract namespace from eventName (e.g., "user.created" -> "user")
+    const namespace = eventName.split(".")[0]
+    listeners.get(eventName)!.add({ handler: handler as EventHandler<any, any, any>, namespace })
+  }
+
+  function send<EventData>(
+    ctx: { send?: (eventName: string, data: EventData) => void },
+    eventName: string,
+    data: EventData,
+    options?: { source?: string }
+  ): void {
+    const payload: EventPayload<EventData> = {
+      name: eventName,
+      data,
+      timestamp: new Date().toISOString(),
+      namespace: eventName.split(".")[0],
+      source: options?.source,
+    }
+
+    // Get listeners for this event
+    const eventListeners = listeners.get(eventName)
+    if (eventListeners) {
+      for (const listener of eventListeners) {
+        // Call the handler with ctx, args (undefined), and event
+        listener.handler(ctx, undefined, {
+          data: payload.data,
+          name: payload.name,
+          namespace: payload.namespace,
+        })
+      }
+    }
   }
 
   return {
     events,
-    on: handler.on,
+    on,
+    send,
     getEventName,
   }
+}
+
+// Context with send method
+export type ContextWithSend<Ctx> = Ctx & {
+  send: <EventData>(eventName: string, data: EventData) => void
 }
 
 // =============================================================================
@@ -114,7 +159,7 @@ export function defineCacheKeys<T extends Record<string, any>>(schema: T) {
 
 export type Plugin<Ctx> = {
   name: string
-  extend: (ctx: Ctx) => Partial<Ctx>
+  extend: (ctx: Ctx) => Partial<Ctx> & Record<string, unknown>
   router?: (t: QueryBuilder<Ctx>) => Record<string, any>
   hooks?: PluginHooks<Ctx>
 }
@@ -125,17 +170,21 @@ export type PluginHooks<Ctx> = {
   onError?: (ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>
 }
 
-export function plugin<Ctx, PluginRouter extends Router = {}>(
-  config: PluginDefinition<Ctx, PluginRouter>
-): Plugin<Ctx> & { router?: (t: QueryBuilder<Ctx>) => PluginRouter } {
-  return config as Plugin<Ctx> & { router?: (t: QueryBuilder<Ctx>) => PluginRouter }
+export interface MergedPluginHooks<Ctx> {
+  onInvoke: Array<(ctx: Ctx, args: unknown) => void | Promise<void>>
+  onSuccess: Array<(ctx: Ctx, args: unknown, result: unknown) => void | Promise<void>>
+  onError: Array<(ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>>
 }
 
-type PluginDefinition<Ctx, PluginRouter extends Router> = {
-  name: string
-  extend: (ctx: Ctx) => Partial<Ctx>
-  router?: (t: QueryBuilder<Ctx>) => PluginRouter
-  hooks?: PluginHooks<Ctx>
+export function plugin<Ctx, PluginRouter extends Router = {}>(
+  config: {
+    name: string
+    extend: (ctx: Ctx) => Partial<Ctx>
+    router?: (t: QueryBuilder<Ctx>) => PluginRouter
+    hooks?: PluginHooks<Ctx>
+  }
+): Plugin<Ctx> & { router?: (t: QueryBuilder<Ctx>) => PluginRouter } {
+  return config as Plugin<Ctx> & { router?: (t: QueryBuilder<Ctx>) => PluginRouter }
 }
 
 // =============================================================================
@@ -176,12 +225,28 @@ export type Mutation<Ctx, Args = unknown, Output = unknown> = {
   onError?: Array<(ctx: Ctx, args: Args, error: unknown) => void | Promise<void>>
 }
 
-export type InternalQuery<Ctx, Args = unknown, Output = unknown> = Query<Ctx, Args, Output> & {
+export type InternalQuery<Ctx, Args = unknown, Output = unknown> = {
   type: "internalQuery"
+  name?: string
+  args?: unknown
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  middleware?: Middleware<Ctx>[]
+  beforeInvoke?: Array<(ctx: Ctx, args: Args) => void | Promise<void>>
+  afterInvoke?: Array<(ctx: Ctx, args: Args, result: Result<Output>) => void | Promise<void>>
+  onSuccess?: Array<(ctx: Ctx, args: Args, data: Output) => void | Promise<void>>
+  onError?: Array<(ctx: Ctx, args: Args, error: unknown) => void | Promise<void>>
 }
 
-export type InternalMutation<Ctx, Args = unknown, Output = unknown> = Mutation<Ctx, Args, Output> & {
+export type InternalMutation<Ctx, Args = unknown, Output = unknown> = {
   type: "internalMutation"
+  name?: string
+  args?: unknown
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  middleware?: Middleware<Ctx>[]
+  beforeInvoke?: Array<(ctx: Ctx, args: Args) => void | Promise<void>>
+  afterInvoke?: Array<(ctx: Ctx, args: Args, result: Result<Output>) => void | Promise<void>>
+  onSuccess?: Array<(ctx: Ctx, args: Args, data: Output) => void | Promise<void>>
+  onError?: Array<(ctx: Ctx, args: Args, error: unknown) => void | Promise<void>>
 }
 
 export type Router = Record<string, any>
@@ -285,7 +350,11 @@ export interface APIInstance<Ctx, TRoutes extends Router = Router> {
 function createQueryBuilder<Ctx>(options: {
   plugins: Array<Plugin<Ctx>>
   globalMiddleware: Middleware<Ctx>[]
+  eventHandlers?: Map<string, Set<EventHandler<Ctx, unknown, any>>>
 }): QueryBuilder<Ctx> {
+  // Event handlers storage - shared across all builder operations
+  const eventHandlers = options.eventHandlers || new Map()
+
   const queryBuilder: QueryBuilder<Ctx> = {
     query<Args, Output>(config: QueryConfig<Ctx, Args, Output>): Query<Ctx, Args, Output> {
       const middlewareArray = config.middleware
@@ -358,10 +427,13 @@ function createQueryBuilder<Ctx>(options: {
     },
 
     on<EventName extends string, EventData>(
-      _event: EventName,
-      _handler: EventHandler<Ctx, unknown, EventData>
+      event: EventName,
+      handler: EventHandler<Ctx, unknown, EventData>
     ): void {
-      // Global event listener - to be implemented with event system
+      if (!eventHandlers.has(event)) {
+        eventHandlers.set(event, new Set())
+      }
+      eventHandlers.get(event)!.add(handler as EventHandler<Ctx, unknown, any>)
     },
 
     createQuery<Args, Output>(config: QueryConfig<Ctx, Args, Output>): Query<Ctx, Args, Output> {
@@ -430,7 +502,7 @@ function withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, 
 // defineContext
 // =============================================================================
 
-export function defineContext<Ctx, Plugins extends Plugin<Ctx>[]>(
+export function defineContext<Ctx, const Plugins extends Plugin<Ctx>[] = Plugin<Ctx>[]>(
   config: {
     context: Ctx
     plugins?: Plugins
@@ -452,36 +524,50 @@ export function defineContext<Ctx, Plugins extends Plugin<Ctx>[]>(
 
   const t = createQueryBuilder<Ctx>({ plugins, globalMiddleware })
 
-  const createAPI = (apiConfig: { router: Router; middleware?: Middleware<Ctx>[] }) => {
-    const allMiddleware = [...globalMiddleware, ...(apiConfig.middleware || [])]
-
-    // Merge plugin routers
-    let mergedRouter = { ...apiConfig.router }
+  // Merge plugin hooks from all plugins
+    const mergedPluginHooks: MergedPluginHooks<Ctx> = {
+      onInvoke: [],
+      onSuccess: [],
+      onError: [],
+    }
     for (const plugin of plugins) {
-      if (plugin.router) {
-        const pluginRoutes = plugin.router(t)
-        mergedRouter = { ...mergedRouter, ...pluginRoutes }
+      if (plugin.hooks) {
+        if (plugin.hooks.onInvoke) mergedPluginHooks.onInvoke.push(plugin.hooks.onInvoke)
+        if (plugin.hooks.onSuccess) mergedPluginHooks.onSuccess.push(plugin.hooks.onSuccess)
+        if (plugin.hooks.onError) mergedPluginHooks.onError.push(plugin.hooks.onError)
       }
     }
 
-    const api: APIInstance<Ctx> = {
-      router: mergedRouter,
-      ctx: extendedContext,
-      plugins,
-      globalMiddleware: allMiddleware,
-      async execute(route, args) {
-        // Find the operation in the router
-        const operation = findOperation(api.router, String(route))
-        if (!operation) {
-          return err({ code: "NOT_FOUND", message: `Route not found: ${route}` })
+    const createAPI = (apiConfig: { router: Router; middleware?: Middleware<Ctx>[] }) => {
+      const allMiddleware = [...globalMiddleware, ...(apiConfig.middleware || [])]
+
+      // Merge plugin routers
+      let mergedRouter = { ...apiConfig.router }
+      for (const plugin of plugins) {
+        if (plugin.router) {
+          const pluginRoutes = plugin.router(t)
+          mergedRouter = { ...mergedRouter, ...pluginRoutes }
         }
+      }
 
-        return executeOperation(operation, extendedContext, args, allMiddleware)
-      },
+      const api: APIInstance<Ctx> = {
+        router: mergedRouter,
+        ctx: extendedContext,
+        plugins,
+        globalMiddleware: allMiddleware,
+        async execute(route, args) {
+          // Find the operation in the router
+          const operation = findOperation(api.router, String(route))
+          if (!operation) {
+            return err({ code: "NOT_FOUND", message: `Route not found: ${route}` })
+          }
+
+          return executeOperation(operation, extendedContext, args, allMiddleware, mergedPluginHooks)
+        },
+      }
+
+      return api
     }
-
-    return api
-  }
 
   return { t, createAPI }
 }
@@ -517,7 +603,7 @@ export function createPublicAPI<Ctx, TRoutes extends Router>(
 
   return {
     ...api,
-    router: publicRouter,
+    router: publicRouter as TRoutes,
   }
 }
 
@@ -633,57 +719,54 @@ async function executeOperation<Ctx>(
   operation: Query<Ctx, any, any> | Mutation<Ctx, any, any> | InternalQuery<Ctx, any, any> | InternalMutation<Ctx, any, any>,
   ctx: Ctx,
   args: any,
-  middleware: Middleware<Ctx>[]
+  globalMiddleware: Middleware<Ctx>[],
+  pluginHooks?: MergedPluginHooks<Ctx>
 ): Promise<Result<any>> {
   try {
-    // Run beforeInvoke hooks
+    // Run plugin onInvoke hooks
+    if (pluginHooks?.onInvoke) {
+      for (const hook of pluginHooks.onInvoke) {
+        try {
+          await hook(ctx, args)
+        } catch (e) {
+          console.error("Plugin onInvoke hook error:", e)
+        }
+      }
+    }
+
+    // Run operation beforeInvoke hooks
     if (operation.beforeInvoke) {
       for (const hook of operation.beforeInvoke) {
         await hook(ctx, args)
       }
     }
 
-    // Build middleware chain
-    const allMiddleware = [...(operation.middleware || []), async () => {
-      return await operation.handler(ctx, args)
-    }]
+    // Build middleware chain: [...globalMiddleware, ...operationMiddleware]
+    // Each middleware receives (ctx, next) and must call next() to continue
+    const chain = [...globalMiddleware, ...(operation.middleware || [])]
 
+    // Final handler that executes the actual operation
+    const finalHandler = async () => operation.handler(ctx, args)
+
+    // Build the chain by wrapping from end to beginning
+    // Each middleware wraps the next, so when called, middleware can intercept
+    // and must explicitly call next() to continue the chain
+    let next = finalHandler
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const mw = chain[i]
+      const currentNext = next
+      next = () => mw.handler({ ...ctx, args, meta: {} } as any, currentNext)
+    }
+
+    // Execute the chain starting from the first middleware
     let result: Result<any>
-    for (let i = allMiddleware.length - 1; i >= 0; i--) {
-      const mw = allMiddleware[i]
-      const next = allMiddleware[i + 1]
-
-      if (i === allMiddleware.length - 1) {
-        // Last middleware calls the handler directly
-        result = await mw.handler(ctx as any, next)
-      } else {
-        result = await mw.handler(ctx as any, next)
-      }
+    try {
+      result = await next()
+    } catch (error) {
+      result = err({ code: "INTERNAL_ERROR", message: error instanceof Error ? error.message : String(error) })
     }
 
-    // Run onSuccess hooks
-    if (result.ok && operation.onSuccess) {
-      for (const hook of operation.onSuccess) {
-        try {
-          await hook(ctx, args, result.value)
-        } catch (e) {
-          console.error("onSuccess hook error:", e)
-        }
-      }
-    }
-
-    // Run onError hooks
-    if (!result.ok && operation.onError) {
-      for (const hook of operation.onError) {
-        try {
-          await hook(ctx, args, result.error)
-        } catch (e) {
-          console.error("onError hook error:", e)
-        }
-      }
-    }
-
-    // Run afterInvoke hooks
+    // Run operation afterInvoke hooks (always runs after operation completes)
     if (operation.afterInvoke) {
       for (const hook of operation.afterInvoke) {
         try {
@@ -694,9 +777,64 @@ async function executeOperation<Ctx>(
       }
     }
 
+    // Run plugin onSuccess hooks
+    if (result.ok && pluginHooks?.onSuccess) {
+      for (const hook of pluginHooks.onSuccess) {
+        try {
+          await hook(ctx, args, result.value)
+        } catch (e) {
+          console.error("Plugin onSuccess hook error:", e)
+        }
+      }
+    }
+
+    // Run plugin onError hooks
+    if (!result.ok && pluginHooks?.onError) {
+      for (const hook of pluginHooks.onError) {
+        try {
+          await hook(ctx, args, result.error)
+        } catch (e) {
+          console.error("Plugin onError hook error:", e)
+        }
+      }
+    }
+
+    // Run operation onSuccess hooks
+    if (result.ok && operation.onSuccess) {
+      for (const hook of operation.onSuccess) {
+        try {
+          await hook(ctx, args, result.value)
+        } catch (e) {
+          console.error("onSuccess hook error:", e)
+        }
+      }
+    }
+
+    // Run operation onError hooks
+    if (!result.ok && operation.onError) {
+      for (const hook of operation.onError) {
+        try {
+          await hook(ctx, args, result.error)
+        } catch (e) {
+          console.error("onError hook error:", e)
+        }
+      }
+    }
+
     return result
   } catch (error) {
-    // Run onError hooks for unhandled errors
+    // Run plugin onError hooks for unhandled errors
+    if (pluginHooks?.onError) {
+      for (const hook of pluginHooks.onError) {
+        try {
+          await hook(ctx, args, error)
+        } catch (e) {
+          console.error("Plugin onError hook error:", e)
+        }
+      }
+    }
+
+    // Run operation onError hooks for unhandled errors
     if (operation.onError) {
       for (const hook of operation.onError) {
         try {
@@ -716,12 +854,3 @@ async function executeOperation<Ctx>(
 // =============================================================================
 
 export type { Result } from "@deessejs/core"
-
-// =============================================================================
-// Export everything
-// =============================================================================
-
-export { defineContext, createAPI, createPublicAPI, createClient, createLocalExecutor }
-export { defineCacheKeys, defineEvents, plugin }
-export { ok, err, withMetadata }
-export type { Query, Mutation, InternalQuery, InternalMutation, Router, Middleware, Plugin, QueryBuilder, API, APIInstance, CacheKey, WithMetadata, EventRegistry, EventPayload }
