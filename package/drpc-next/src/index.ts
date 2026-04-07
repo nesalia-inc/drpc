@@ -35,7 +35,13 @@ function getProcedure(
   let current: unknown = api
   for (const part of parts) {
     if (current === null || current === undefined) return undefined
+    // Support both dot notation (users.get) and slash notation (users/get)
     current = (current as Record<string, unknown>)[part]
+    // If not found, try with underscore (users_get -> users.get)
+    if (current === undefined) {
+      const underscorePart = part.replace(/-/g, "_")
+      current = (current as Record<string, unknown>)[underscorePart]
+    }
   }
   return current
 }
@@ -84,9 +90,9 @@ async function executeProcedure(
  * | DELETE | Mutation operations (delete) |
  *
  * The procedure name is extracted from the URL path:
- * - /api/users.list → users.list procedure
- * - /api/users.get → users.get procedure
- * - /api/users.create → users.create procedure
+ * - /api/users/list → users.list procedure
+ * - /api/users/get → users.get procedure
+ * - /api/users/create → users.create procedure
  *
  * All methods accept JSON body: { args: { ... } }
  *
@@ -118,7 +124,8 @@ export function toNextJsHandler(api: DRPCClient): {
       }
     }
 
-    const slugParts = slugStr.split(".")
+    // Support both slash notation (users/get) and dot notation (users.get)
+    const slugParts = slugStr.split("/").map(part => part.replace(/_/g, "."))
     const procedure = getProcedure(api, slugParts)
 
     let args = {}

@@ -59,7 +59,7 @@ From the browser, call procedures via HTTP through the route handler:
 "use client"
 
 // Browser-side: call via HTTP fetch
-const result = await fetch("/api/drpc/users.get", {
+const result = await fetch("/api/drpc/users/get", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ args: { id: 1 } }),
@@ -101,7 +101,7 @@ All procedure calls from the browser use fetch to the route handler.
 
 ```typescript
 // GET request - procedure name in URL path
-const response = await fetch("/api/drpc/users.list?args={\"limit\":10,\"offset\":0}", {
+const response = await fetch("/api/drpc/users/list?args={\"limit\":10,\"offset\":0}", {
   method: "GET",
 })
 
@@ -115,7 +115,7 @@ if (ok) {
 
 ```typescript
 // GET request
-const response = await fetch("/api/drpc/users.get?args={\"id\":1}", {
+const response = await fetch("/api/drpc/users/get?args={\"id\":1}", {
   method: "GET",
 })
 
@@ -131,7 +131,7 @@ if (ok) {
 
 ```typescript
 // POST request - args in JSON body
-const response = await fetch("/api/drpc/users.create", {
+const response = await fetch("/api/drpc/users/create", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -149,7 +149,7 @@ if (ok) {
 
 ```typescript
 // PUT or PATCH request
-const response = await fetch("/api/drpc/users.update", {
+const response = await fetch("/api/drpc/users/update", {
   method: "PUT",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -167,7 +167,7 @@ if (ok) {
 
 ```typescript
 // DELETE request
-const response = await fetch("/api/drpc/users.delete", {
+const response = await fetch("/api/drpc/users/delete", {
   method: "DELETE",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -185,7 +185,7 @@ if (ok) {
 
 ```typescript
 // GET request with query params
-const response = await fetch("/api/drpc/users.search?args={\"query\":\"john\",\"limit\":5}", {
+const response = await fetch("/api/drpc/users/search?args={\"query\":\"john\",\"limit\":5}", {
   method: "GET",
 })
 
@@ -198,7 +198,7 @@ if (ok) {
 ## Error Handling
 
 ```typescript
-const response = await fetch("/api/drpc/users.create", {
+const response = await fetch("/api/drpc/users/create", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({

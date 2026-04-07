@@ -150,7 +150,7 @@ export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
 
 ```typescript
 // Client-side RPC call - procedure name in URL path
-const response = await fetch("/api/drpc/users.get?args={\"id\":1}", {
+const response = await fetch("/api/drpc/users/get?args={\"id\":1}", {
   method: "GET",
 })
 

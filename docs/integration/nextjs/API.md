@@ -42,7 +42,7 @@ export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
 | `PATCH` | Mutation operations (partial update) - args via JSON body |
 | `DELETE` | Mutation operations (delete) - args via JSON body |
 
-All methods extract the procedure name from the URL path (e.g., `/api/users.get` → `users.get` procedure).
+All methods extract the procedure name from the URL path (e.g., `/api/users/get` → `users.get` procedure).
 
 ### Example
 
@@ -51,7 +51,7 @@ All methods extract the procedure name from the URL path (e.g., `/api/users.get`
 import { client } from "@/server/drpc"
 import { toNextJsHandler } from "@deessejs/drpc-next"
 
-export const { POST, GET } = toNextJsHandler(client)
+export const { GET, POST, PUT, PATCH, DELETE } = toNextJsHandler(client)
 ```
 
 ---
@@ -71,22 +71,21 @@ export const POST = createRouteHandler(client)
 
 ## Request/Response Format
 
-### Request (POST)
-
-```bash
-POST /api/drpc
-Content-Type: application/json
-
-{
-  "procedure": "users.get",
-  "args": { "id": 123 }
-}
-```
-
 ### Request (GET)
 
 ```bash
-GET /api/drpc?procedure=users.get&args={"id":123}
+GET /api/drpc/users/get?args={"id":123}
+```
+
+### Request (POST)
+
+```bash
+POST /api/drpc/users/create
+Content-Type: application/json
+
+{
+  "args": { "name": "John", "email": "john@example.com" }
+}
 ```
 
 ### Response (Success)
