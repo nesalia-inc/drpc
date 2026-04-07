@@ -1,15 +1,15 @@
-# @deessejs/server Specification
+# @deessejs/drpc Specification
 
 ## Overview
 
-`@deessejs/server` is the core API package for the `@deessejs` multi-package architecture (RFC #57). It provides a unified way to define queries and mutations with local execution capabilities, designed for server actions, lambdas, workers, and any in-process function calls.
+`@deessejs/drpc` is a **modern functional-first RPC protocol** implementation. It provides type-safe remote procedure calls with a clean, composable API designed for performance and developer experience. Define your procedures once, call them locally or remotely with the same typed interface.
 
 ## Project Context
 
 This package is part of a multi-package architecture:
-- **@deessejs/core** - Core types and utilities (dependency)
-- **@deessejs/server** - This package: local execution and API definitions
-- **@deessejs/api** - HTTP layer (future package that will consume this)
+- **@deessejs/core** - Core types and utilities (`Result`, `ok()`, `err()`)
+- **@deessejs/drpc** - This package: functional RPC protocol implementation
+- **@deessejs/drpc/react** - React hooks integration
 
 ## Scope
 
@@ -142,15 +142,15 @@ type Plugin<Ctx> = {
 ### Installation
 
 ```bash
-pnpm add @deessejs/server @deessejs/core
+pnpm add @deessejs/drpc @deessejs/core
 # or
-npm install @deessejs/server @deessejs/core
+npm install @deessejs/drpc @deessejs/core
 ```
 
 ### Define Context
 
 ```typescript
-import { defineContext } from "@deessejs/server"
+import { defineContext } from "@deessejs/drpc"
 
 type Context = {
   db: Database
@@ -178,7 +178,7 @@ The handler can return a `Result` (with `ok`/`err`), but for queries that return
 
 ```typescript
 import { ok, err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { keys } from "./cache/keys"
 
 const getUser = t.query({
@@ -225,7 +225,7 @@ const getAdminStats = t.internalQuery({
 
 ```typescript
 import { ok, err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { keys } from "./cache/keys"
 
 const createUser = t.mutation({
@@ -317,7 +317,7 @@ Create a route handler to expose only public operations via HTTP:
 
 ```typescript
 // app/(deesse)/api/[...slug]/route.ts
-import { createRouteHandler } from "@deessejs/server/next"
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -328,8 +328,8 @@ export const POST = createRouteHandler(client)
 You can combine multiple route handlers:
 
 ```typescript
-// app/(deesse)/api/[...slug]/route.ts - @deessejs/server
-import { createRouteHandler } from "@deessejs/server/next"
+// app/(deesse)/api/[...slug]/route.ts - @deessejs/drpc
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -348,7 +348,7 @@ export const { POST, GET } = toNextJsHandler(auth)
 For TypeScript safety, create a separate client API that only exposes public operations:
 
 ```typescript
-import { createPublicAPI } from "@deessejs/server"
+import { createPublicAPI } from "@deessejs/drpc"
 
 // Full API for server usage
 const api = createAPI({
@@ -431,7 +431,7 @@ const getUser = t.query({
 ### Cache Invalidation
 
 ```typescript
-import { createCacheStream } from "@deessejs/server"
+import { createCacheStream } from "@deessejs/drpc"
 
 const cacheStream = createCacheStream()
 
@@ -462,7 +462,7 @@ type Plugin<Ctx> = {
 
 ```typescript
 // plugins/auth.ts
-import { Plugin } from "@deessejs/server"
+import { Plugin } from "@deessejs/drpc"
 
 export const authPlugin: Plugin<Context> = {
   name: "auth",
@@ -481,7 +481,7 @@ export const authPlugin: Plugin<Context> = {
 
 ```typescript
 // plugins/cache.ts
-import { Plugin } from "@deessejs/server"
+import { Plugin } from "@deessejs/drpc"
 
 export const cachePlugin: Plugin<Context> = {
   name: "cache",
@@ -499,7 +499,7 @@ export const cachePlugin: Plugin<Context> = {
 **Using Plugins**
 
 ```typescript
-import { defineContext, Plugin } from "@deessejs/server"
+import { defineContext, Plugin } from "@deessejs/drpc"
 import { authPlugin } from "./plugins/auth"
 import { cachePlugin } from "./plugins/cache"
 
@@ -532,7 +532,7 @@ const api = createAPI({
 ### Local Executor (for Testing)
 
 ```typescript
-import { createLocalExecutor } from "@deessejs/server"
+import { createLocalExecutor } from "@deessejs/drpc"
 
 const executor = createLocalExecutor(api)
 
@@ -549,21 +549,23 @@ const stats = await executor.execute("users.getAdminStats", {})
 @deessejs/core (peer dependency)
        │
        ▼
-@deessejs/server (this package)
+@deessejs/drpc (functional RPC protocol)
        │
-       ▼ (exports types)
-@deessejs/api (future - HTTP layer)
+       ├── Local Transport (direct function calls)
+       │
+       └── HTTP Transport (JSON over HTTP)
 ```
 
 ## Why This Package?
 
-This is the heart of the `@deessejs` ecosystem:
+Drpc reimagines RPC for the modern stack:
 
-- Define queries and mutations once
-- Use locally (server actions) or expose via HTTP (route handler)
+- **Functional First** - Pure functions as procedures, no classes or configuration objects
+- **Dual Execution** - Same API for local calls (server actions, lambdas, workers) and remote calls (HTTP)
+- **Type Safety** - Full TypeScript inference from schema definition to client call
 - **Security**: Separate public vs internal operations
-- Plugin system for extensibility (queries, mutations, context)
-- Built on @deessejs/core patterns (AsyncOutcome<T, Cause, ExceptionData>)
+- Plugin system for extensibility (context, lifecycle hooks)
+- Built on @deessejs/core patterns (Result type with `ok`/`err`)
 
 ## Security Model
 

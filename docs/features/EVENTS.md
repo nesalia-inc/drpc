@@ -2,7 +2,7 @@
 
 ## Overview
 
-The event system provides a publish-subscribe mechanism integrated into `@deessejs/server`. It allows queries and mutations to emit events that other parts of the application can listen to, enabling loose coupling between components.
+The event system provides a publish-subscribe mechanism integrated into `@deessejs/drpc`. It allows queries and mutations to emit events that other parts of the application can listen to, enabling loose coupling between components.
 
 ## Core Concepts
 
@@ -26,7 +26,7 @@ Events are typed via a registry for autocomplete and type safety, using `defineE
 
 ```typescript
 // events/registry.ts
-import { defineEvents } from "@deessejs/server"
+import { defineEvents } from "@deessejs/drpc"
 
 // Define all events for your app
 const events = defineEvents({
@@ -112,7 +112,7 @@ events.user.creatdd    // ❌ TypeScript error
 Pass the registry to `defineContext` for automatic type inference across your app:
 
 ```typescript
-import { defineContext, defineEvents } from "@deessejs/server"
+import { defineContext, defineEvents } from "@deessejs/drpc"
 import { events } from "./events/registry"
 
 const { t, createAPI } = defineContext({
@@ -334,7 +334,7 @@ t.on("ecommerce.order.created", async (ctx, args, event) => {
 Events emitted from plugins are automatically prefixed with the plugin name:
 
 ```typescript
-import { plugin } from "@deessejs/server"
+import { plugin } from "@deessejs/drpc"
 
 // Plugin: notifications
 const notificationPlugin = plugin({
@@ -619,7 +619,7 @@ t.on("user.created", async (ctx, args, event) => {
 ## Testing Events
 
 ```typescript
-import { createLocalExecutor } from "@deessejs/server"
+import { createLocalExecutor } from "@deessejs/drpc"
 
 const executor = createLocalExecutor(api)
 

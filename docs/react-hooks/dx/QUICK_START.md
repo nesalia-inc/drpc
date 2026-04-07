@@ -1,21 +1,21 @@
 # Quick Start
 
-This guide shows how to use `@deessejs/server/react` with the magic wrapper - zero configuration, automatic everything.
+This guide shows how to use `@deessejs/drpc/react` with the magic wrapper - zero configuration, automatic everything.
 
 ## Setup
 
 ### 1. Install
 
 ```bash
-pnpm add @deessejs/server @deessejs/server/react
+pnpm add @deessejs/drpc @deessejs/drpc/react
 ```
 
 ### 2. Create API (Server)
 
 ```typescript
 // server/api.ts
-import { defineContext, createAPI, createPublicAPI } from "@deessejs/server"
-import { ok } from "@deessejs/server"
+import { defineContext, createAPI, createPublicAPI } from "@deessejs/drpc"
+import { ok } from "@deessejs/drpc"
 
 const { t, createAPI } = defineContext({
   context: { db }
@@ -61,7 +61,7 @@ export const client = createPublicAPI(api)
 ```tsx
 // app/providers.tsx
 "use client"
-import { QueryClientProvider } from "@deessejs/server/react"
+import { QueryClientProvider } from "@deessejs/drpc/react"
 import { client } from "./server/api"
 
 export function Providers({ children }) {
@@ -123,7 +123,7 @@ The mutation automatically:
 
 ```tsx
 // app/page.tsx
-import { useQuery, useMutation } from "@deessejs/server/react"
+import { useQuery, useMutation } from "@deessejs/drpc/react"
 import { client } from "./server/api"
 
 export default function Dashboard() {

@@ -66,7 +66,7 @@ async function sendAnalytics(user: User) {
 ### Basic Access
 
 ```typescript
-import { getContext } from "@deessejs/server"
+import { getContext } from "@deessejs/drpc"
 
 // In any function called from a handler
 async function someUtility() {
@@ -302,7 +302,7 @@ async function withTransaction(fn: () => Promise<void>) {
 ### Unit Testing
 
 ```typescript
-import { runWithContext, getContext } from "@deessejs/server"
+import { runWithContext, getContext } from "@deessejs/drpc"
 
 describe("Utility Functions", () => {
   it("can access context", async () => {
@@ -324,7 +324,7 @@ describe("Utility Functions", () => {
 ### Mocking Context
 
 ```typescript
-import { setContext, getContext } from "@deessejs/server"
+import { setContext, getContext } from "@deessejs/drpc"
 
 describe("Handlers", () => {
   beforeEach(() => {

@@ -76,10 +76,10 @@ const createUser = t.mutation({
 
 ```typescript
 // Client: That's ALL the code needed!
-import { createMagicQueryClient } from "@deessejs/server/react"
+import { createMagicQueryClient } from "@deessejs/drpc/react"
 
 const queryClient = createMagicQueryClient({
-  api: client, // The client API from @deessejs/server
+  api: client, // The client API from @deessejs/drpc
 })
 
 // No configuration needed - magic happens automatically
@@ -112,7 +112,7 @@ import { QueryClient } from '@tanstack/query-core'
 import { MutationObserver, QueryObserver } from '@tanstack/query-core'
 
 interface MagicQueryClientOptions {
-  api: DeesseAPI // The client API from @deessejs/server
+  api: DeesseAPI // The client API from @deessejs/drpc
   queryClient?: QueryClient
   defaultOptions?: {
     queries?: QueryObserverOptions
@@ -374,7 +374,7 @@ function useMagicMutation<TMutation extends Mutation>(
 ```typescript
 // providers.tsx
 "use client"
-import { QueryClientProvider } from "@deessejs/server/react"
+import { QueryClientProvider } from "@deessejs/drpc/react"
 import { client } from "./api"
 
 const { queryClient, queries, mutations } = createMagicQueryClient({

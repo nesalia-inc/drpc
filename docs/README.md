@@ -1,29 +1,44 @@
-# @deessejs/server Documentation
+# @deessejs/drpc Documentation
 
-`@deessejs/server` is the core API package for the `@deessejs` multi-package architecture. It provides a unified way to define queries and mutations with secure execution capabilities.
+`@deessejs/drpc` is a **modern functional-first RPC protocol** implementation. It provides type-safe remote procedure calls with a clean, composable API designed for performance and developer experience.
 
-## Security Note
+## Philosophy
 
-**Server Actions in Next.js are not secure** - they are exposed via HTTP and can be called by anyone. This package solves this by separating:
+**Functional First RPC** - Every operation is a first-class function. No classes, no configuration objects, just pure intent:
 
-- **`query` / `mutation`** - Public operations, exposed via HTTP through a Next.js route handler
+```typescript
+// Define once, call anywhere
+const getUser = t.query({ args: z.object({ id: z.number() }), handler: async (ctx, args) => ... })
+
+// Local call (server actions, lambdas, workers)
+const user = await api.users.get({ id: 1 })
+
+// Remote call (HTTP)
+const user = await client.users.get({ id: 1 })
+```
+
+## Security Model
+
+Drpc separates operations by security level:
+
+- **`query` / `mutation`** - Public operations, callable via HTTP
 - **`internalQuery` / `internalMutation`** - Internal operations, only callable from server-side code
 
-This ensures that sensitive operations (admin actions, privileged mutations) remain secure.
+This ensures sensitive operations (admin actions, privileged mutations) remain protected.
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Your Next.js App                         │
+│                        Your Application                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │   ┌─────────────────────┐         ┌─────────────────────┐      │
-│   │   Server Code       │         │   HTTP Exposure     │      │
-│   │   (components,       │         │   (route handler)   │      │
-│   │    server actions)  │         │                     │      │
-│   │                     │         │   POST /api/users   │      │
-│   │   api.users.get()   │────────►│   POST /api/tasks   │      │
+│   │   Local Calls       │         │   HTTP Transport     │      │
+│   │   (Server Actions,  │         │   (Route Handler)   │      │
+│   │    Lambdas, Workers)│         │                     │      │
+│   │                     │         │   POST /rpc/users   │      │
+│   │   api.users.get()   │────────►│   POST /rpc/tasks   │      │
 │   │   api.tasks.list()  │         │                     │      │
 │   │                     │         │   Only PUBLIC      │      │
 │   │   Can call PUBLIC   │         │   routes exposed   │      │
@@ -31,13 +46,13 @@ This ensures that sensitive operations (admin actions, privileged mutations) rem
 │   └─────────────────────┘         └─────────────────────┘      │
 │                                                                 │
 │   ┌─────────────────────────────────────────────────────────┐   │
-│   │              @deessejs/server                           │   │
+│   │                   @deessejs/drpc                       │   │
 │   │                                                         │   │
 │   │   query() ──────────────► Exposed via HTTP             │   │
-│   │   mutation() ──────────► Exposed via HTTP             │   │
+│   │   mutation() ───────────► Exposed via HTTP              │   │
 │   │                                                         │   │
-│   │   internalQuery() ──────► Only callable from server   │   │
-│   │   internalMutation() ────► Only callable from server   │   │
+│   │   internalQuery() ──────► Only callable locally        │   │
+│   │   internalMutation() ───► Only callable locally        │   │
 │   └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -45,30 +60,32 @@ This ensures that sensitive operations (admin actions, privileged mutations) rem
 
 ## Features
 
-- **Queries & Mutations** - Define typed API operations with `t.query()` and `t.mutation()`
+- **Functional RPC** - Pure functions as first-class RPC procedures
+- **Dual Execution** - Same API for local (in-process) and remote (HTTP) calls
 - **Internal Operations** - Secure server-only operations with `t.internalQuery()` and `t.internalMutation()`
+- **Type Safety** - Full TypeScript inference from schema to client
 - **Context Management** - Define typed context with `defineContext()`
-- **Router System** - Hierarchical routing for organized APIs
+- **Router System** - Hierarchical routing: `api.users.get()`, `api.posts.create()`
 - **Lifecycle Hooks** - `beforeInvoke`, `onSuccess`, `onError`
-- **Cache Invalidation** - Built-in cache management
+- **Cache Invalidation** - Built-in cache key registry with invalidation
 - **Plugin System** - Extend context with plugins
 - **Event System** - `ctx.send()` for emitting events, `t.on()` for listening
-- **HTTP Exposure** - Expose public routes via Next.js route handler
+- **Multi-Transport** - HTTP/JSON out of the box, pluggable transports
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `@deessejs/core` | Core types (`Result`) |
-| `@deessejs/server` | This package: local API definitions |
-| `@deessejs/server/react` | React hooks with cache sync |
+| `@deessejs/core` | Core types (`Result`, `ok()`, `err()`) |
+| `@deessejs/drpc` | This package: functional RPC definitions |
+| `@deessejs/drpc/react` | React hooks integration |
 
 ## Quick Start
 
 ### Define Context
 
 ```typescript
-import { defineContext } from "@deessejs/server"
+import { defineContext } from "@deessejs/drpc"
 import { authPlugin } from "./plugins/auth"
 import { cachePlugin } from "./plugins/cache"
 
@@ -85,7 +102,7 @@ const { t, createAPI } = defineContext({
 
 ```typescript
 import { ok, err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { keys } from "./cache/keys"
 
 const getUser = t.query({
@@ -104,7 +121,7 @@ const getUser = t.query({
 
 ```typescript
 import { ok } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { keys } from "./cache/keys"
 
 const createUser = t.mutation({
@@ -168,7 +185,7 @@ export { api }
 Create a separate API that only exposes public operations. This provides TypeScript safety to prevent calling internal operations from client code:
 
 ```typescript
-import { createPublicAPI } from "@deessejs/server"
+import { createPublicAPI } from "@deessejs/drpc"
 
 // Creates a client-safe API with only query and mutation
 const client = createPublicAPI(api)
@@ -225,7 +242,7 @@ Create a route handler to expose only public operations via HTTP:
 
 ```typescript
 // app/(deesse)/api/[...slug]/route.ts
-import { createRouteHandler } from "@deessejs/server/next"
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { api, client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -238,8 +255,8 @@ This creates an HTTP endpoint that only exposes `query` and `mutation` operation
 You can combine multiple route handlers in the same route group:
 
 ```typescript
-// app/(deesse)/api/[...slug]/route.ts - @deessejs/server
-import { createRouteHandler } from "@deessejs/server/next"
+// app/(deesse)/api/[...slug]/route.ts - @deessejs/drpc
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -280,7 +297,7 @@ const stats = await api.users.getAdminStats({}) // Works - internal
 
 ```typescript
 import { ok } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 
 const createUser = t.mutation({
   args: z.object({ name: z.string() }),
@@ -310,7 +327,7 @@ Plugins extend the context with additional properties:
 
 ```typescript
 // plugins/auth.ts
-import { plugin } from "@deessejs/server"
+import { plugin } from "@deessejs/drpc"
 
 export const authPlugin = plugin({
   name: "auth",
@@ -329,10 +346,10 @@ const { t, createAPI } = defineContext({
 
 ## React Integration
 
-See [integration/REACT_HOOKS.md](integration/REACT_HOOKS.md) for the `@deessejs/server/react` package.
+See [integration/REACT_HOOKS.md](integration/REACT_HOOKS.md) for the `@deessejs/drpc/react` package.
 
 ```typescript
-import { useQuery, useMutation } from "@deessejs/server/react"
+import { useQuery, useMutation } from "@deessejs/drpc/react"
 
 function UserList() {
   const { data } = useQuery(api.users.list, { args: { limit: 10 } })
@@ -380,7 +397,7 @@ function CreateUserForm() {
 ## Installation
 
 ```bash
-pnpm add @deessejs/server @deessejs/core
+pnpm add @deessejs/drpc @deessejs/core
 # or
-npm install @deessejs/server @deessejs/core
+npm install @deessejs/drpc @deessejs/core
 ```

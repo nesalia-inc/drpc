@@ -48,7 +48,7 @@ const toggleLike = t.mutation({
 ```tsx
 // LikeButton.tsx - ZERO BOILERPLATE
 "use client"
-import { useMutation, useQuery } from "@deessejs/server/react"
+import { useMutation, useQuery } from "@deessejs/drpc/react"
 import { client, keys } from "@/server/api"
 
 export function LikeButton({ postId }: { postId: number }) {
@@ -79,7 +79,7 @@ For cases needing explicit control, use the combined hook with React 19's useOpt
 ```tsx
 // LikeButton.tsx
 "use client"
-import { useOptimisticMutation, useQuery } from "@deessejs/server/react"
+import { useOptimisticMutation, useQuery } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function LikeButton({ postId }: { postId: number }) {

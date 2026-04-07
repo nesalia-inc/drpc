@@ -6,7 +6,7 @@ The validation system supports multiple validation libraries through the **Stand
 
 ## Zero-Dependency Core
 
-`@deessejs/server` core has **zero validation dependencies**. You choose which library to use:
+`@deessejs/drpc` core has **zero validation dependencies**. You choose which library to use:
 
 ```typescript
 // No validator configured = use any Standard Schema compatible library
@@ -185,7 +185,7 @@ export default defineConfig({
 Types are automatically inferred from schemas - no manual configuration needed:
 
 ```typescript
-import { InferArgs, InferOutput } from "@deessejs/server"
+import { InferArgs, InferOutput } from "@deessejs/drpc"
 import { z } from "zod"
 
 const createUser = t.mutation({
@@ -302,7 +302,7 @@ Different libraries have different error formats:
 The framework handles normalization automatically:
 
 ```typescript
-// What happens inside @deessejs/server
+// What happens inside @deessejs/drpc
 const validate = async (schema, data) => {
   const standardSchema = schema["~standard"]
   if (!standardSchema) {

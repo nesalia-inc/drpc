@@ -18,7 +18,7 @@ useQuery({
 })
 ```
 
-## Proposed @deessejs/server/react Implementation
+## Proposed @deessejs/drpc/react Implementation
 
 ### Basic Options
 

@@ -26,7 +26,7 @@ data.pages.map((page) => page.posts.map(post => <Post key={post.id} {...post} />
 </button>
 ```
 
-## Proposed @deessejs/server/react Implementation
+## Proposed @deessejs/drpc/react Implementation
 
 ### Server Side
 
@@ -60,7 +60,7 @@ const listPosts = t.query({
 ### Client Side
 
 ```typescript
-import { useInfiniteQuery } from "@deessejs/server/react"
+import { useInfiniteQuery } from "@deessejs/drpc/react"
 
 function PostList() {
   const {

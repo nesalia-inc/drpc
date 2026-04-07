@@ -90,7 +90,7 @@ const deleteUser = t.mutation({
 ```tsx
 // components/UserList.tsx
 "use client"
-import { useQuery } from "@deessejs/server/react"
+import { useQuery } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function UserList() {
@@ -114,7 +114,7 @@ export function UserList() {
 ```tsx
 // components/UserDetail.tsx
 "use client"
-import { useQuery } from "@deessejs/server/react"
+import { useQuery } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function UserDetail({ userId }: { userId: number }) {
@@ -132,7 +132,7 @@ export function UserDetail({ userId }: { userId: number }) {
 // components/UserForm.tsx
 "use client"
 import { useState } from "react"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function CreateUserForm() {
@@ -170,7 +170,7 @@ export function CreateUserForm() {
 ```tsx
 // components/EditUser.tsx
 "use client"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function EditUserButton({ userId }: { userId: number }) {
@@ -188,7 +188,7 @@ export function EditUserButton({ userId }: { userId: number }) {
 ```tsx
 // components/DeleteUser.tsx
 "use client"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function DeleteUserButton({ userId }: { userId: number }) {
@@ -284,7 +284,7 @@ const publishPost = t.mutation({
 ```tsx
 // components/PostList.tsx
 "use client"
-import { useQuery } from "@deessejs/server/react"
+import { useQuery } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function PostList({ status }: { status?: "draft" | "published" }) {
@@ -307,7 +307,7 @@ export function PostList({ status }: { status?: "draft" | "published" }) {
 // components/PostEditor.tsx
 "use client"
 import { useState } from "react"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function PostEditor() {
@@ -356,7 +356,7 @@ Even though invalidation is automatic, you often need to run code after a mutati
 ```tsx
 // components/CreateUser.tsx
 "use client"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function CreateUserForm() {
@@ -381,7 +381,7 @@ export function CreateUserForm() {
 ```tsx
 // components/EditUser.tsx
 "use client"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { useRouter } from "next/navigation"
 import { client } from "@/server/api"
 
@@ -406,7 +406,7 @@ export function EditUserForm({ userId }: { userId: number }) {
 // components/RegisterForm.tsx
 "use client"
 import { useState } from "react"
-import { useMutation } from "@deessejs/server/react"
+import { useMutation } from "@deessejs/drpc/react"
 import { client } from "@/server/api"
 
 export function RegisterForm() {

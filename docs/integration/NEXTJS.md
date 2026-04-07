@@ -2,7 +2,7 @@
 
 ## Overview
 
-`@deessejs/server/next` provides a higher-level integration for Next.js that enables:
+`@deessejs/drpc/next` provides a higher-level integration for Next.js that enables:
 1. Automatic cache revalidation across components
 2. HTTP exposure of public queries and mutations via route handler
 
@@ -16,7 +16,7 @@ Next.js Server Actions are exposed via HTTP and can be called by anyone. Use thi
 ## Imports
 
 ```typescript
-import { page, layout, serverComponent, clientComponent, createRouteHandler } from "@deessejs/server/next"
+import { page, layout, serverComponent, clientComponent, createRouteHandler } from "@deessejs/drpc/next"
 ```
 
 ## Core Concept
@@ -142,7 +142,7 @@ The API methods automatically handle cache registration and invalidation.
 
 ```tsx
 // app/tasks/[id]/page.tsx
-import { page } from "@deessejs/server/next"
+import { page } from "@deessejs/drpc/next"
 import { TaskDetail } from "./TaskDetail"
 
 export const Page = page({
@@ -166,7 +166,7 @@ export const Page = page({
 // app/TaskList.tsx (Client Component)
 "use client"
 
-import { clientComponent } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/drpc/next"
 
 export const TaskList = clientComponent({
   props: z.object({}),
@@ -193,7 +193,7 @@ export const TaskList = clientComponent({
 // app/CreateTask.tsx (Client Component)
 "use client"
 
-import { clientComponent } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/drpc/next"
 import { z } from "zod"
 
 const CreateTask = clientComponent({
@@ -227,7 +227,7 @@ const CreateTask = clientComponent({
 
 ### With Cache Keys
 
-Cache keys are automatically handled by the API from `@deessejs/server`. No manual key management needed.
+Cache keys are automatically handled by the API from `@deessejs/drpc`. No manual key management needed.
 
 ```tsx
 // Component that queries a specific task
@@ -318,7 +318,7 @@ Expose your public API via HTTP:
 
 ```typescript
 // app/(deesse)/api/[...slug]/route.ts
-import { createRouteHandler } from "@deessejs/server/next"
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -334,8 +334,8 @@ This route handler:
 You can combine multiple route handlers in the same route group:
 
 ```typescript
-// app/(deesse)/api/[...slug]/route.ts - @deessejs/server
-import { createRouteHandler } from "@deessejs/server/next"
+// app/(deesse)/api/[...slug]/route.ts - @deessejs/drpc
+import { createRouteHandler } from "@deessejs/drpc/next"
 import { client } from "@/server/api"
 
 export const POST = createRouteHandler(client)
@@ -368,7 +368,7 @@ For TypeScript safety, create a separate client API that only exposes public ope
 
 ```typescript
 // server/api.ts
-import { defineContext, createAPI, createPublicAPI } from "@deessejs/server"
+import { defineContext, createAPI, createPublicAPI } from "@deessejs/drpc"
 
 const { t, createAPI } = defineContext({
   context: { db: myDatabase },
@@ -472,8 +472,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ```tsx
 // app/tasks/page.tsx
-import { clientComponent } from "@deessejs/server/next"
-import { dehydrate, HydrationBoundary } from "@deessejs/server/next"
+import { clientComponent } from "@deessejs/drpc/next"
+import { dehydrate, HydrationBoundary } from "@deessejs/drpc/next"
 import { TaskList } from "./TaskList"
 
 export default async function TasksPage() {

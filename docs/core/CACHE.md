@@ -26,7 +26,7 @@ To ensure type safety, define your cache keys as a registry type. This prevents 
 
 ```typescript
 // cache/keys.ts
-import { defineCacheKeys } from "@deessejs/server"
+import { defineCacheKeys } from "@deessejs/drpc"
 
 // Define all cache keys for your app
 const keys = defineCacheKeys({
@@ -61,7 +61,7 @@ export { keys }
 
 ```typescript
 import { ok, err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { t } from "../context"
 import { keys } from "./cache/keys"
 
@@ -103,7 +103,7 @@ const listUsers = t.query({
 
 ```typescript
 import { ok } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 import { keys } from "./cache/keys"
 
 const createUser = t.mutation({
@@ -200,7 +200,7 @@ keys.users.list({ page: 1, limit: 10 })
 Queries return a result with metadata using `withMetadata`:
 
 ```typescript
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 
 // Handler returns
 withMetadata(user, { keys: [["users", { id: 1 }]] })
@@ -239,7 +239,7 @@ withMetadata(user, { invalidate: ["users:list"] })
 
 ```typescript
 import { err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 
 const getUser = t.query({
   args: z.object({ id: z.number() }),
@@ -483,7 +483,7 @@ class CacheService {
 
 ```typescript
 import { err } from "@deessejs/core"
-import { withMetadata } from "@deessejs/server"
+import { withMetadata } from "@deessejs/drpc"
 
 const getUser = t.query({
   args: z.object({ id: z.number() }),
@@ -604,7 +604,7 @@ Cache keys must serialize deterministically regardless of object property order.
 The framework includes a stable serialization utility:
 
 ```typescript
-import { serializeCacheKey } from "@deessejs/server"
+import { serializeCacheKey } from "@deessejs/drpc"
 
 // Deterministic output
 serializeCacheKey(["users", { id: 1 }])           // "users:1"

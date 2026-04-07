@@ -29,12 +29,12 @@ mutationState.forEach((state) => {
 })
 ```
 
-## Proposed @deessejs/server/react Implementation
+## Proposed @deessejs/drpc/react Implementation
 
 ### Basic Mutation State
 
 ```typescript
-import { useMutationState } from "@deessejs/server/react"
+import { useMutationState } from "@deessejs/drpc/react"
 
 function CreatePostForm() {
   const [title, setTitle] = useState('')

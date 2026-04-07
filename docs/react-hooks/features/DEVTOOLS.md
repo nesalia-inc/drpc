@@ -19,12 +19,12 @@ function App() {
 }
 ```
 
-## Proposed @deessejs/server/react DevTools
+## Proposed @deessejs/drpc/react DevTools
 
 ### Basic Setup
 
 ```typescript
-import { QueryClient, DeesseQueryDevtools } from "@deessejs/server/react"
+import { QueryClient, DeesseQueryDevtools } from "@deessejs/drpc/react"
 
 const queryClient = new QueryClient()
 

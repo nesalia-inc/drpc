@@ -2,7 +2,7 @@
 
 ## Overview
 
-The middleware system in `@deessejs/server` allows intercepting and modifying requests before they reach handlers. Middleware can be applied globally or to specific routes, enabling cross-cutting concerns like authentication, authorization, logging, and rate limiting.
+The middleware system in `@deessejs/drpc` allows intercepting and modifying requests before they reach handlers. Middleware can be applied globally or to specific routes, enabling cross-cutting concerns like authentication, authorization, logging, and rate limiting.
 
 ## Core Concepts
 
@@ -632,7 +632,7 @@ const getUser = t.query({
 ### Unit Testing Middleware
 
 ```typescript
-import { defineContext, createAPI, t } from "@deessejs/server"
+import { defineContext, createAPI, t } from "@deessejs/drpc"
 import { ok, err } from "@deessejs/core"
 
 describe("authMiddleware", () => {
@@ -686,7 +686,7 @@ describe("authMiddleware", () => {
 ### Integration Testing with Middleware
 
 ```typescript
-import { createLocalExecutor } from "@deessejs/server"
+import { createLocalExecutor } from "@deessejs/drpc"
 
 describe("API with Middleware", () => {
   const executor = createLocalExecutor(api)
