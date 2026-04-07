@@ -174,7 +174,7 @@ export interface MergedPluginHooks<Ctx> {
   onError: Array<(ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>>
 }
 
-export function plugin<Ctx, PluginRouter extends Router = {}>(
+export function plugin<Ctx, PluginRouter extends Router = object>(
   config: {
     name: string
     extend: (ctx: Ctx) => Partial<Ctx>
@@ -322,7 +322,7 @@ type MiddlewareConfig<Ctx, Args> = {
 // API Types
 // =============================================================================
 
-export type API<Ctx, TRoutes extends Router = Router> = {
+export type API<_Ctx, TRoutes extends Router = Router> = {
   router: TRoutes
   execute<TRoute extends keyof TRoutes>(
     route: TRoute,
@@ -450,7 +450,7 @@ function createQueryBuilder<Ctx>(options: {
 // Hook Chain Methods (for Query and Mutation)
 // =============================================================================
 
-function withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, any>>(
+function __withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, any>>(
   operation: TOperation
 ): TOperation & {
   beforeInvoke: (handler: (ctx: any, args: any) => void | Promise<void>) => TOperation
@@ -467,28 +467,28 @@ function withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, 
     ...operation,
     beforeInvoke: (handler: (ctx: any, args: any) => void | Promise<void>) => {
       beforeInvokeStack.push(handler)
-      return withHooks({
+      return _withHooks({
         ...operation,
         beforeInvoke: beforeInvokeStack,
       }) as TOperation
     },
     afterInvoke: (handler: (ctx: any, args: any, result: Result<any>) => void | Promise<void>) => {
       afterInvokeStack.push(handler)
-      return withHooks({
+      return _withHooks({
         ...operation,
         afterInvoke: afterInvokeStack,
       }) as TOperation
     },
     onSuccess: (handler: (ctx: any, args: any, data: any) => void | Promise<void>) => {
       onSuccessStack.push(handler)
-      return withHooks({
+      return _withHooks({
         ...operation,
         onSuccess: onSuccessStack,
       }) as TOperation
     },
     onError: (handler: (ctx: any, args: any, error: unknown) => void | Promise<void>) => {
       onErrorStack.push(handler)
-      return withHooks({
+      return _withHooks({
         ...operation,
         onError: onErrorStack,
       }) as TOperation
@@ -581,7 +581,7 @@ export function createAPI<Ctx, TRoutes extends Router>(
     plugins?: Plugin<Ctx>[]
   }
 ): APIInstance<Ctx, TRoutes> {
-  const { t, createAPI: makeAPI } = defineContext<Ctx, Plugin<Ctx>[]>({
+  const { createAPI: makeAPI } = defineContext<Ctx, Plugin<Ctx>[]>({
     context: {} as Ctx,
     plugins: config.plugins || [],
   })
