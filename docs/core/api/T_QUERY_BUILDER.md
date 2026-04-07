@@ -286,6 +286,59 @@ t.on("user.created", async (ctx, event) => {
 
 ---
 
+## `ctx.send(event, data)`
+
+Emits an event to the event system. The `event` parameter is typed based on the events defined in `defineContext()`.
+
+### Signature
+
+```typescript
+ctx.send<EventName extends keyof Events>(
+  event: EventName,
+  data: Events[EventName]["data"]
+): void
+```
+
+### Example
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+
+    // Emit event with typed data
+    ctx.send("user.created", { id: user.id, email: user.email })
+
+    return ok(user)
+  },
+})
+```
+
+### Type Safety
+
+The `ctx.send()` method is fully typed based on your event registry:
+
+```typescript
+// Events defined in defineContext:
+events: {
+  "user.created": event({
+    name: "user.created",
+    args: z.object({ id: z.number(), email: z.string() }),
+  }),
+}
+
+// TypeScript will infer:
+// ctx.send("user.created", { id: number, email: string })  // ✅ Valid
+// ctx.send("user.created", { id: string })                 // ❌ Error - wrong type
+// ctx.send("user.deleted", { id: number })                 // ❌ Error - wrong event name
+```
+
+---
+
 ## Lifecycle Hooks
 
 Query and mutation operations support chaining lifecycle hooks.
