@@ -450,7 +450,8 @@ function createQueryBuilder<Ctx>(options: {
 // Hook Chain Methods (for Query and Mutation)
 // =============================================================================
 
-function __withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, any>>(
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function withHooks<TOperation extends Query<any, any, any> | Mutation<any, any, any>>(
   operation: TOperation
 ): TOperation & {
   beforeInvoke: (handler: (ctx: any, args: any) => void | Promise<void>) => TOperation
@@ -467,28 +468,28 @@ function __withHooks<TOperation extends Query<any, any, any> | Mutation<any, any
     ...operation,
     beforeInvoke: (handler: (ctx: any, args: any) => void | Promise<void>) => {
       beforeInvokeStack.push(handler)
-      return _withHooks({
+      return withHooks({
         ...operation,
         beforeInvoke: beforeInvokeStack,
       }) as TOperation
     },
     afterInvoke: (handler: (ctx: any, args: any, result: Result<any>) => void | Promise<void>) => {
       afterInvokeStack.push(handler)
-      return _withHooks({
+      return withHooks({
         ...operation,
         afterInvoke: afterInvokeStack,
       }) as TOperation
     },
     onSuccess: (handler: (ctx: any, args: any, data: any) => void | Promise<void>) => {
       onSuccessStack.push(handler)
-      return _withHooks({
+      return withHooks({
         ...operation,
         onSuccess: onSuccessStack,
       }) as TOperation
     },
     onError: (handler: (ctx: any, args: any, error: unknown) => void | Promise<void>) => {
       onErrorStack.push(handler)
-      return _withHooks({
+      return withHooks({
         ...operation,
         onError: onErrorStack,
       }) as TOperation
