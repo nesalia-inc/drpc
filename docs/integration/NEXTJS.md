@@ -2,388 +2,119 @@
 
 ## Overview
 
-`@deessejs/drpc/next` provides a higher-level integration for Next.js that enables:
-1. Automatic cache revalidation across components
-2. HTTP exposure of public queries and mutations via route handler
+`@deessejs/drpc-next` provides a Next.js integration for `@deessejs/drpc` that enables:
+1. HTTP exposure of public queries and mutations via route handlers
+2. Automatic cache revalidation across components (with `@deessejs/drpc/react`)
+3. Type-safe RPC calls between client and server
 
-## Security Note
+## Quick Start
 
-Next.js Server Actions are exposed via HTTP and can be called by anyone. Use this package's architecture to protect sensitive operations:
+The simplest way to expose your drpc API in Next.js:
+
+```typescript
+// app/api/drpc/route.ts
+import { drpc } from "@/server/drpc"
+import { toNextJsHandler } from "@deessejs/drpc-next"
+
+export const { POST, GET } = toNextJsHandler(drpc)
+```
+
+That's it. The handler automatically:
+- Exposes all `query()` and `mutation()` operations via HTTP
+- Protects `internalQuery()` and `internalMutation()` (server-only)
+- Handles JSON serialization/deserialization
+- Returns typed responses
+
+## Security Model
+
+Next.js route handlers are exposed via HTTP and can be called by anyone. Use this package's architecture to protect sensitive operations:
 
 - Use `query()` / `mutation()` for public operations (exposed via HTTP)
 - Use `internalQuery()` / `internalMutation()` for private operations (server-only)
 
-## Imports
-
-```typescript
-import { page, layout, serverComponent, clientComponent, createRouteHandler } from "@deessejs/drpc/next"
-```
-
-## Core Concept
-
-- **`clientComponent`** - Wraps a component with automatic cache management
-- **`page`** - Creates a Next.js page with cache management
-- **`layout`** - Creates a Next.js layout with cache management
-- **`serverComponent`** - Marks a component as server component
-- **Reactive Queries** - Queries within a component are automatically refetched when related mutations occur
-- **Shared Cache** - Components share a cache context, enabling cross-component invalidation
-
-```
-Component A                              Component B
-┌─────────────────────┐                ┌─────────────────────┐
-│ api.tasks.list()    │                │ api.tasks.update()  │
-│ (subscribed to      │                │ (mutates data)      │
-│  "tasks:list")      │                │                     │
-└──────────┬──────────┘                └──────────┬──────────┘
-           │                                        │
-           │         ┌─────────────────────┐         │
-           └────────►│  Shared Cache       │◄────────┘
-                     │  (context)         │
-                     │                     │
-                     │  When "tasks:list" │
-                     │  is invalidated,    │
-                     │  refetch Component A│
-                     └─────────────────────┘
-```
+| Operation Type | Callable via HTTP | Callable from Server |
+|---------------|-------------------|---------------------|
+| `query()` | Yes | Yes |
+| `mutation()` | Yes | Yes |
+| `internalQuery()` | No | Yes |
+| `internalMutation()` | No | Yes |
 
 ## API Reference
 
-### clientComponent
+### toNextJsHandler
 
-Wraps a client component with automatic cache management.
-
-```typescript
-import { z } from "zod"
-
-type ClientComponentProps<Props extends z.ZodType, Ctx extends ApiContext> = {
-  props: Props
-  component: (ctx: Ctx, props: z.infer<Props>) => React.ReactNode
-  fallback?: React.ReactNode
-}
-
-function clientComponent<Props extends z.ZodType, Ctx extends ApiContext>(
-  config: ClientComponentProps<Props, Ctx>
-): React.ComponentType<z.infer<Props>>
-```
-
-### page
-
-Creates a Next.js page with automatic cache management.
+Creates Next.js route handlers from a drpc API instance.
 
 ```typescript
-import { z } from "zod"
+import { toNextJsHandler } from "@deessejs/drpc-next"
 
-function page<Params extends z.ZodType, Ctx extends ApiContext>(
-  config: {
-    params: Params
-    component: (ctx: Ctx, params: z.infer<Params>) => React.ReactNode
-    fallback?: React.ReactNode
-  }
-): React.ComponentType<z.infer<Params>>
-
-// params contains both route params and search params
-// { route: { id: "123" }, search: { tab: "details" } }
+export const { POST, GET } = toNextJsHandler(drpc)
 ```
 
-### layout
+The handler supports both POST and GET requests:
+- **POST** - JSON body with `{ procedure: "namespace.name", args: { ... } }`
+- **GET** - Query params with `?procedure=namespace.name&args=...`
 
-Creates a Next.js layout with automatic cache management.
+### createRouteHandler (Alternative)
+
+For more control over the route handler configuration:
 
 ```typescript
-import { z } from "zod"
+import { createRouteHandler } from "@deessejs/drpc-next"
+import { drpc } from "@/server/drpc"
 
-function layout<Props extends z.ZodType, Ctx extends ApiContext>(
-  config: {
-    props: Props
-    component: (ctx: Ctx, props: z.infer<Props>, children: React.ReactNode) => React.ReactNode
-  }
-): React.ComponentType<z.infer<Props>>
-```
-
-### serverComponent
-
-Marks a component as a server component (no client-side cache).
-
-```typescript
-import { z } from "zod"
-
-function serverComponent<Props extends z.ZodType>(
-  config: {
-    props: Props
-    component: (props: z.infer<Props>) => React.ReactNode
-  }
-): React.ComponentType<z.infer<Props>>
-```
-
-### ApiContext
-
-```typescript
-type ApiContext = {
-  api: API
-}
-```
-
-The API methods return a result with `.match()` for rendering:
-
-```typescript
-ctx.api.tasks.list().match({
-  isLoading: () => <Loading />,
-  isStale: (data) => <StaleData data={data} />,
-  isSuccess: (data) => <Data data={data} />,
-  isError: (error) => <Error message={error.message} />,
-})
-```
-
-The API methods automatically handle cache registration and invalidation.
-
-## Usage Examples
-
-### Basic Usage
-
-```tsx
-// app/tasks/[id]/page.tsx
-import { page } from "@deessejs/drpc/next"
-import { TaskDetail } from "./TaskDetail"
-
-export const Page = page({
-  params: z.object({
-    route: z.object({
-      id: z.string()
-    }),
-    search: z.object({
-      tab: z.enum(["details", "history"]).optional()
-    })
-  }),
-  component: (ctx, params) => {
-    // params.route = { id: "123" }
-    // params.search = { tab: "details" }
-    return <TaskDetail id={params.route.id} tab={params.search.tab} />
-  }
-})
-```
-
-```tsx
-// app/TaskList.tsx (Client Component)
-"use client"
-
-import { clientComponent } from "@deessejs/drpc/next"
-
-export const TaskList = clientComponent({
-  props: z.object({}),
-  component: (ctx) => {
-    return ctx.api.tasks.list().match({
-      isLoading: () => <Loading />,
-      isError: (error) => <Error message={error.message} />,
-      isSuccess: (data) => data.match({
-        empty: () => <EmptyState message="No tasks yet" />,
-        nonempty: () => (
-          <ul>
-            {data.map(task => (
-              <li key={task.id}>{task.title}</li>
-            ))}
-          </ul>
-        ),
-      }),
-    })
-  }
-})
-```
-
-```tsx
-// app/CreateTask.tsx (Client Component)
-"use client"
-
-import { clientComponent } from "@deessejs/drpc/next"
-import { z } from "zod"
-
-const CreateTask = clientComponent({
-  props: z.object({
-    onSuccess: z.function().optional()
-  }),
-  component: (ctx, props) => {
-    const handleSubmit = async () => {
-      await ctx.api.tasks.create({ title: "New task" })
-      // Cache is automatically invalidated, related queries will refetch
-      props.onSuccess?.()
-    }
-
-    return (
-      <form onSubmit={handleSubmit}>
-        <input name="title" />
-        <button type="submit">Create</button>
-      </form>
-    )
-  }
-})
-```
-
-### How It Works
-
-1. **Query Registration** - When `ctx.api.tasks.list()` is called (or any API method), it registers the cache key with the shared cache context
-
-2. **Mutation Detection** - When `ctx.api.tasks.create()` is called, it automatically invalidates related cache keys
-
-3. **Automatic Refetch** - Components that registered matching cache keys are automatically re-rendered with fresh data
-
-### With Cache Keys
-
-Cache keys are automatically handled by the API from `@deessejs/drpc`. No manual key management needed.
-
-```tsx
-// Component that queries a specific task
-const TaskDetail = clientComponent({
-  props: z.object({ taskId: z.number() }),
-  component: (ctx, props) => {
-    const { data } = ctx.api.tasks.get({ id: props.taskId })
-    return <TaskDetail task={data} />
-  }
-})
-
-// Component that creates a task
-const CreateTask = clientComponent({
-  props: z.object({}),
-  component: (ctx) => {
-    const handleCreate = async () => {
-      await ctx.api.tasks.create({ title: "New task" })
-      // Automatically invalidates related cache keys:
-      // - ["tasks", "list"]
-      // - ["tasks", { id: ... }]
-    })
-    return <button onClick={mutate}>Create Task</button>
-  }
-})
-```
-
-### Optimistic Updates
-
-```tsx
-const EditTask = clientComponent({
-  props: z.object({ taskId: z.number() }),
-  component: (ctx, props) => {
-    const handleSave = async (data) => {
-      // Optimistic update handled automatically
-      await ctx.api.tasks.update({ id: props.taskId, data })
-    }
-
-    return <TaskEditor onSave={handleSave} />
-  }
-})
-```
-
-For more complex optimistic updates, the API returns result data directly.
-
-### With Loading States
-
-```tsx
-const TaskList = clientComponent({
-  props: z.object({}),
-  fallback: <Skeleton />,
-  component: (ctx) => {
-    return ctx.api.tasks.list().match({
-      isLoading: () => <Skeleton />,
-      isStale: (data) => (
-        <div>
-          <Badge>Refetching...</Badge>
-          <TaskItems tasks={data} />
-        </div>
-      ),
-      isSuccess: (data) => <TaskItems tasks={data} />,
-      isError: (error) => <Error message={error.message} />,
-    })
-  }
-})
-```
-
-### Error Handling
-
-```tsx
-const TaskList = clientComponent({
-  props: z.object({}),
-  fallback: <ErrorBoundary><TaskList /></ErrorBoundary>,
-  component: (ctx) => {
-    return ctx.api.tasks.list().match({
-      isLoading: () => <Loading />,
-      isError: (error) => <div>Error: {error.message}</div>,
-      isSuccess: (data) => <TaskItems tasks={data} />,
-    })
-  }
-})
+export const POST = createRouteHandler(drpc)
 ```
 
 ## Setup
 
-### Create Route Handler
-
-Expose your public API via HTTP:
+### 1. Define Your API
 
 ```typescript
-// app/(deesse)/api/[...slug]/route.ts
-import { createRouteHandler } from "@deessejs/drpc/next"
-import { client } from "@/server/api"
-
-export const POST = createRouteHandler(client)
-```
-
-This route handler:
-- Only exposes `query` and `mutation` operations
-- Does NOT expose `internalQuery` and `internalMutation`
-- Provides type-safe HTTP endpoints
-
-### With better-auth
-
-You can combine multiple route handlers in the same route group:
-
-```typescript
-// app/(deesse)/api/[...slug]/route.ts - @deessejs/drpc
-import { createRouteHandler } from "@deessejs/drpc/next"
-import { client } from "@/server/api"
-
-export const POST = createRouteHandler(client)
-```
-
-```typescript
-// app/(deesse)/api/[...route]/route.ts - better-auth
-import { auth } from "@/lib/auth"
-import { toNextJsHandler } from "better-auth/next-js"
-
-export const { POST, GET } = toNextJsHandler(auth)
-```
-
-### Call from Client
-
-```typescript
-// Call public operations from client
-const response = await fetch("/api/users.get", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ args: { id: 123 } }),
-})
-
-const result = await response.json()
-```
-
-### Client-Safe API (Recommended)
-
-For TypeScript safety, create a separate client API that only exposes public operations. This prevents accidentally calling internal operations from client code:
-
-```typescript
-// server/api.ts
+// server/drpc.ts
 import { defineContext, createAPI, createPublicAPI } from "@deessejs/drpc"
+import { z } from "zod"
 
 const { t, createAPI } = defineContext({
   context: { db: myDatabase },
 })
 
-// Public operations
-const getUser = t.query({ ... })
-const createUser = t.mutation({ ... })
+// Public operations (exposed via HTTP)
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: "NOT_FOUND", message: "User not found" })
+    return ok(user)
+  },
+})
+
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  },
+})
 
 // Internal operations (server-only)
-const deleteUser = t.internalMutation({ ... })
-const getAdminStats = t.internalQuery({ ... })
+const deleteUser = t.internalMutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true })
+  },
+})
+
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    const totalUsers = await ctx.db.users.count()
+    return ok({ totalUsers })
+  },
+})
 
 // Full API for server usage
-const api = createAPI({
+export const drpc = createAPI({
   router: t.router({
     users: t.router({
       get: getUser,
@@ -395,121 +126,195 @@ const api = createAPI({
 })
 
 // Client-safe API (only public operations)
-const client = createPublicAPI(api)
-
-export { api, client }
+export const client = createPublicAPI(drpc)
 ```
 
-### Usage: Server vs Client
+### 2. Expose via Route Handler
 
-**Server Components** - Use full `api`:
+```typescript
+// app/api/drpc/route.ts
+import { drpc } from "@/server/drpc"
+import { toNextJsHandler } from "@deessejs/drpc-next"
+
+export const { POST, GET } = toNextJsHandler(drpc)
+```
+
+### 3. Call from Client
+
+```typescript
+// Client-side RPC call
+const result = await fetch("/api/drpc", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    procedure: "users.get",
+    args: { id: 123 },
+  }),
+})
+
+const response = await result.json()
+
+if (response.ok) {
+  console.log(response.value) // typed user data
+} else {
+  console.error(response.error) // { code: "NOT_FOUND", message: "..." }
+}
+```
+
+## Usage Patterns
+
+### Server vs Client API
+
+**Server Components** - Use full `drpc` API:
 
 ```typescript
 // app/admin/page.tsx (Server Component)
-import { api } from "@/server/api"
+import { drpc } from "@/server/drpc"
 
 export default async function AdminPage() {
   // Can call ALL operations
-  const users = await api.users.get({})
-  const stats = await api.users.getAdminStats({})   // ✅ Works
-  await api.users.delete({ id: 1 })                 // ✅ Works
+  const users = await drpc.users.get({ id: 1 })
+  const stats = await drpc.users.getAdminStats({})  // Works
+  await drpc.users.delete({ id: 1 })                 // Works
 
   return <Dashboard stats={stats} />
 }
 ```
 
-**Client Components** - Use `client`:
+**Client Components** - Use `client` API:
 
 ```typescript
 // app/components/UserList.tsx (Client Component)
 "use client"
-import { client } from "@/server/api"
+import { client } from "@/server/drpc"
 
 export function UserList() {
   // Can only call PUBLIC operations
-  const users = await client.users.get({})        // ✅ Works
-  await client.users.create({ name: "John" })     // ✅ Works
+  const users = await client.users.get({ id: 1 })     // Works
+  await client.users.create({ name: "John" })          // Works
 
-  // TypeScript error - these don't exist on client!
-  const stats = await client.users.getAdminStats({})  // ❌ TS Error
-  await client.users.delete({ id: 1 })               // ❌ TS Error
+  // TypeScript error - internal operations not available
+  const stats = await client.users.getAdminStats({})   // TS Error
+  await client.users.delete({ id: 1 })                 // TS Error
 }
 ```
 
-### Call from Server
+### With Authentication
+
+You can combine multiple route handlers in the same Next.js application:
 
 ```typescript
-// Call from server components or server actions
-import { api } from "@/server/api"
+// app/api/auth/[...route]/route.ts - better-auth
+import { auth } from "@/lib/auth"
+import { toNextJsHandler } from "better-auth/next-js"
 
-export default async function Page() {
-  // Public operations
-  const users = await api.users.list({})
+export const { POST, GET } = toNextJsHandler(auth)
+```
 
-  // Internal operations (not exposed via HTTP)
-  const stats = await api.users.getAdminStats({})
+```typescript
+// app/api/drpc/route.ts - drpc
+import { drpc } from "@/server/drpc"
+import { toNextJsHandler } from "@deessejs/drpc-next"
 
-  return <Dashboard users={users} stats={stats} />
+export const { POST, GET } = toNextJsHandler(drpc)
+```
+
+### Request/Response Format
+
+**Request:**
+
+```bash
+POST /api/drpc
+Content-Type: application/json
+
+{
+  "procedure": "users.get",
+  "args": { "id": 123 }
 }
 ```
 
-No Provider needed. The API is automatically available in all components.
+**Response:**
 
-```tsx
-// app/layout.tsx
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html>
-      <body>
-        {children}
-      </body>
-    </html>
-  )
+```json
+{
+  "ok": true,
+  "value": { "id": 123, "name": "John", "email": "john@example.com" }
 }
 ```
 
-### With Server-Side Rendering
+**Error Response:**
 
-```tsx
-// app/tasks/page.tsx
-import { clientComponent } from "@deessejs/drpc/next"
-import { dehydrate, HydrationBoundary } from "@deessejs/drpc/next"
-import { TaskList } from "./TaskList"
-
-export default async function TasksPage() {
-  const queryClient = new QueryClient()
-
-  // Prefetch on server
-  await queryClient.prefetchQuery({
-    queryKey: ["tasks", "list"],
-    queryFn: () => api.tasks.list()
-  })
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <TaskList />
-    </HydrationBoundary>
-  )
+```json
+{
+  "ok": false,
+  "error": { "code": "NOT_FOUND", "message": "User not found" }
 }
+```
+
+### Cache Invalidation (with React Integration)
+
+When using `@deessejs/drpc/react`, mutations automatically invalidate related queries:
+
+```typescript
+// Mutations return invalidation keys
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  },
+  invalidate: ["users.list", "users.count"],
+})
+```
+
+Components subscribed to these cache keys will automatically refetch after the mutation.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Client                                │
+│  fetch("/api/drpc", { procedure: "users.get", args: {...} })│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Next.js Route Handler                          │
+│         toNextJsHandler(drpc) / createRouteHandler()       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    @deessejs/drpc                           │
+│                                                             │
+│  query() / mutation() ──────► Exposed via HTTP             │
+│  internalQuery() / internalMutation() ──────► Server-only  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Your Handlers                            │
+│         async (ctx, args) => Result<T, E>                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Caveats & Considerations
 
-### Server vs Client Components
+### Security
 
-- Use `clientComponent()` for Client Components (`"use client"`)
-- Use `page()`, `layout()`, or `serverComponent()` for Server Components
-- Prefetch data in Server Components and pass via `HydrationBoundary`
+- Route handlers are HTTP-exposed by default
+- Always use `internalQuery()` / `internalMutation()` for sensitive operations
+- Consider using authentication middleware for protected routes
 
 ### Performance
 
-- Avoid over-subscribing - Only query the data you need
 - Use specific cache keys to avoid unnecessary refetches
+- Avoid over-fetching - only query the data you need
 - Consider using `refetchOnWindowFocus: false` for frequently updated data
 
 ### Mental Model
 
-This is **not** a real-time subscription system. It's a cache invalidation system:
+This is a **cache invalidation system**, not a real-time subscription system:
 
 ```
 WRONG:  Component A sees Component B's mutation instantly via WebSocket
@@ -520,13 +325,13 @@ RIGHT:  Component A's query is invalidated and refetched after Component B's mut
 
 - Dashboard-like pages with multiple components
 - Forms that need to refresh lists after submission
-- Lists that need to stay in sync
+- Lists that need to stay in sync with mutations
 
 ### When NOT to Use
 
 - Real-time requirements (use WebSockets instead)
 - Highly interactive applications (consider SWR/TanStack Query directly)
-- Server Components (use standard data fetching)
+- Server Components with simple data fetching (use standard patterns)
 
 ## Future Considerations
 

@@ -1,5 +1,5 @@
 {
-  "name": "@deessejs/server",
+  "name": "@deessejs/drpc",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -34,6 +34,7 @@
     "zod": "^3.0.0"
   },
   "peerDependencies": {
+    "@deessejs/core": "workspace:*",
     "zod": "^3.0.0"
   }
 }
