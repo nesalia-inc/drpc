@@ -31,7 +31,6 @@ Defines a public read operation. Callable via HTTP and from server code.
 t.query<Args, Output>(config: {
   args?: Schema
   handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
-  middleware?: Middleware<Ctx> | Middleware<Ctx>[]
 }): Query<Ctx, Args, Output>
 ```
 
@@ -66,7 +65,6 @@ Defines a public write operation. Callable via HTTP and from server code.
 t.mutation<Args, Output>(config: {
   args?: Schema
   handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
-  middleware?: Middleware<Ctx> | Middleware<Ctx>[]
 }): Mutation<Ctx, Args, Output>
 ```
 
@@ -106,7 +104,6 @@ Defines a private read operation. Only callable from server code, NOT exposed vi
 ```typescript
 t.internalQuery<Args, Output>(config: {
   handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
-  middleware?: Middleware<Ctx> | Middleware<Ctx>[]
 }): InternalQuery<Ctx, Args, Output>
 ```
 
@@ -147,7 +144,6 @@ Defines a private write operation. Only callable from server code, NOT exposed v
 ```typescript
 t.internalMutation<Args, Output>(config: {
   handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
-  middleware?: Middleware<Ctx> | Middleware<Ctx>[]
 }): InternalMutation<Ctx, Args, Output>
 ```
 
@@ -224,7 +220,7 @@ t.router({
 
 ## `t.middleware(config)`
 
-Creates a middleware for intercepting requests.
+Creates a middleware for intercepting requests. Middleware is applied globally via `createAPI()`.
 
 ### Signature
 
@@ -249,9 +245,13 @@ const authMiddleware = t.middleware({
   },
 })
 
-const getUser = t.query({
-  args: z.object({ id: z.number() }),
-  handler: async (ctx, args) => { ... },
+// Apply globally via createAPI
+const api = createAPI({
+  router: t.router({
+    users: {
+      get: t.query({ ... }),
+    },
+  }),
   middleware: [authMiddleware],
 })
 ```
