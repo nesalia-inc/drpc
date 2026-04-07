@@ -22,7 +22,7 @@ function defineContext<Ctx, Plugins extends Plugin<Ctx>[]>(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `config.context` | `Ctx` | The base context object (database, logger, etc.) |
-| `config.plugins` | `Plugin<Ctx>[]` | Optional array of plugins to extend context |
+| `config.plugins` | `Plugins` | Optional array of plugins to extend context |
 | `config.events` | `EventRegistry` | Optional event registry for typed events |
 
 ## Returns
