@@ -4,6 +4,8 @@
 
 This document outlines the implementation plan for the context-aware API system consisting of `defineContext()`, `t.query()`, `t.mutation()`, and `createAPI()`. This system builds upon the standalone `query()` and `mutation()` functions defined in [reports/query-mutations.md](./query-mutations.md) and adds a router layer similar to tRPC.
 
+This plan is based on analysis of the actual documentation in `docs/core/api/` and reflects the intended design accurately.
+
 ---
 
 ## 1. Architecture Overview
@@ -11,90 +13,85 @@ This document outlines the implementation plan for the context-aware API system 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         createAPI()                            │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │                      API Router                          │  │
-│  │  ┌─────────────────┐  ┌─────────────────────────────┐   │  │
-│  │  │ defineContext() │  │       Procedures            │   │  │
-│  │  │                 │  │  t.query() / t.mutation()   │   │  │
-│  │  │  Creates Ctx    │  │  Shares same ctx type       │   │  │
-│  │  │  factory        │  │                             │   │  │
-│  │  └─────────────────┘  └─────────────────────────────┘   │  │
-│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                      API Router                           │ │
+│  │  ┌─────────────────┐  ┌───────────────────────────────┐  │ │
+│  │  │ defineContext() │  │         t (QueryBuilder)       │  │ │
+│  │  │                 │  │  t.query() / t.mutation()    │  │ │
+│  │  │  Returns {t,    │  │  t.router() / t.middleware() │  │ │
+│  │  │   createAPI}     │  │  t.on() / t.internalQuery() │  │ │
+│  │  └─────────────────┘  └───────────────────────────────┘  │ │
+│  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌─────────────────┐
-                    │   execute(ctx)  │
-                    │  Entry point    │
+                    │   execute()      │
+                    │  Entry point     │
                     └─────────────────┘
 ```
 
-### Key Difference from Standalone Query/Mutation
+### Key Components
 
-| Aspect | Standalone `query()` | With `defineContext` + `t.query()` |
-|--------|---------------------|-------------------------------------|
-| Context | Passed to every `execute()` | Built into the procedure at definition |
-| Type safety | Explicit generics `<Ctx, Args, Output>` | Inferred from `defineContext` |
-| Usage | Direct function call | Via `createAPI()` router |
+| Component | Purpose |
+|-----------|---------|
+| `defineContext()` | Entry point - defines context and returns `t` query builder |
+| `t` (QueryBuilder) | Provides `t.query()`, `t.mutation()`, `t.router()`, etc. |
+| `createAPI()` | Creates API instance with router and execution capabilities |
+| `createPublicAPI()` | Filters out internal operations for client-safe API |
+| `createLocalExecutor()` | Creates executor for testing |
 
 ---
 
 ## 2. `defineContext()` Design
 
-### Signature
+### Signature (from docs/core/api/DEFINING_CONTEXT.md)
 
 ```typescript
-function defineContext<CtxFactory extends ContextFactory>(
-  factory: CtxFactory
-): ContextBuilder<CtxFactory>
-
-type ContextFactory = (input: unknown) => Context | Promise<Context>
-
-interface ContextBuilder<CtxFactory> {
-  build: (input?: unknown) => Promise<Context> | Context
-  procedures: ProceduresBuilder<CtxFactory>
-}
-
-interface ProceduresBuilder<CtxFactory> {
-  query<Args, Output>(
-    config: QueryConfig<CtxFactory, Args, Output>
-  ): QueryProcedure<ContextFromFactory<CtxFactory>, Args, Output>
-
-  mutation<Args, Output>(
-    config: MutationConfig<CtxFactory, Args, Output>
-  ): MutationProcedure<ContextFromFactory<CtxFactory>, Args, Output>
+function defineContext<Ctx, Plugins extends Plugin<Ctx>[]>(
+  config: {
+    context: Ctx
+    plugins?: Plugins
+    events?: EventRegistry
+  }
+): {
+  t: QueryBuilder<Ctx>
+  createAPI: (config: { router: Router; middleware?: Middleware<Ctx>[] }) => APIInstance<Ctx>
 }
 ```
+
+### Key Design Points
+
+1. **Context is provided directly**, not via a factory function
+2. **Returns `{ t, createAPI }`** - `t` is the query builder, `createAPI` is a factory
+3. **Plugins and Events are optional** - can be added later
 
 ### Usage Pattern
 
 ```typescript
 import { defineContext, t, createAPI } from "@deessejs/server";
 
-// 1. Define context factory
-const ctx = defineContext(async (input) => {
-  // input comes from API request (headers, body, etc.)
-  const user = await authenticate(input.headers.authorization);
-
-  return {
+// 1. Define context directly (not a factory)
+const ctx = defineContext({
+  context: {
     db: myDatabase,
     logger: console,
-    user,  // Automatically typed
-  };
+    user: null,  // Will be set per-request
+  }
 });
 
 // 2. Define procedures using t.query() / t.mutation()
-const appRouter = ctx.procedures.query({
-  handler: async (ctx, args: { id: number }) => {
-    // ctx is automatically typed from defineContext
-    return await ctx.db.users.find(args.id);
-  }
-});
-
-const appRouter = ctx.procedures.mutation({
-  handler: async (ctx, args: { name: string }) => {
-    return await ctx.db.users.create(args);
-  }
+const appRouter = t.router({
+  getUser: t.query({
+    handler: async (ctx, args: { id: number }) => {
+      return await ctx.db.users.find(args.id);
+    }
+  }),
+  createUser: t.mutation({
+    handler: async (ctx, args: { name: string; email: string }) => {
+      return await ctx.db.users.create(args);
+    }
+  }),
 });
 
 // 3. Create API with router
@@ -102,62 +99,142 @@ const api = createAPI({
   router: appRouter,
 });
 
-// 4. Execute via HTTP handler or direct call
-const result = await api.execute(ctx, { id: 1 });
+// 4. Execute
+const result = await api.execute({ id: 1 });
 ```
 
 ---
 
-## 3. `t.query()` and `t.mutation()` Design
+## 3. `t` (QueryBuilder) Design
 
-### Access via `ctx.procedures`
+### Available Methods (from docs/core/api/T_QUERY_BUILDER.md)
 
 ```typescript
-// Inside defineContext block
-const router = ctx.procedures;
+interface QueryBuilder<Ctx> {
+  // Procedures
+  query<Args, Output>(config: {
+    args?: Schema
+    handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  }): Query<Ctx, Args, Output>
 
-// t.query() - read operations
-const getUser = router.query({
-  args: z.object({ id: z.number() }),
+  mutation<Args, Output>(config: {
+    args?: Schema
+    handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  }): Mutation<Ctx, Args, Output>
+
+  // Internal procedures (not exposed via HTTP)
+  internalQuery<Args, Output>(config: {
+    handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  }): InternalQuery<Ctx, Args, Output>
+
+  internalMutation<Args, Output>(config: {
+    args?: Schema
+    handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+  }): InternalMutation<Ctx, Args, Output>
+
+  // Router and middleware
+  router(routes: Router): Router
+  middleware(config: {
+    name: string
+    args?: unknown
+    handler: (ctx: Ctx, args: unknown, next: () => Promise<Result<unknown>>) => Promise<Result<unknown>>
+  }): Middleware<Ctx, Args>
+
+  // Events
+  on<EventName extends string, EventData>(
+    event: EventName,
+    handler: (ctx: Ctx, data: EventData) => void | Promise<void>
+  ): void
+}
+```
+
+### Security Model (from docs/SPEC.md)
+
+| Operation | Callable via HTTP | Callable from Server |
+|-----------|-------------------|---------------------|
+| `t.query()` | Yes | Yes |
+| `t.mutation()` | Yes | Yes |
+| `t.internalQuery()` | **No** | Yes |
+| `t.internalMutation()` | **No** | Yes |
+
+### Usage Examples
+
+```typescript
+// Simple query
+const getUser = t.query({
   handler: async (ctx, args) => {
-    return await ctx.db.users.find(args.id);
+    return ok(await ctx.db.users.find(args.id));
   }
 });
 
-// t.mutation() - write operations
-const createUser = router.mutation({
-  args: z.object({ name: z.string(), email: z.string().email() }),
+// With args validation
+const getPost = t.query({
+  args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
-    const existing = await ctx.db.users.findByEmail(args.email);
-    if (existing) {
-      throw { code: "CONFLICT", message: "Email already exists" };
+    const post = await ctx.db.posts.find(args.id);
+    if (!post) {
+      return err({ code: "NOT_FOUND", message: "Post not found" });
     }
-    return await ctx.db.users.create(args);
+    return ok(post);
+  }
+});
+
+// Mutation
+const createPost = t.mutation({
+  args: z.object({ title: z.string(), content: z.string() }),
+  handler: async (ctx, args) => {
+    if (!ctx.user) {
+      return err({ code: "UNAUTHORIZED", message: "Must be logged in" });
+    }
+    return ok(await ctx.db.posts.create({ ...args, authorId: ctx.user.id }));
+  }
+});
+
+// Internal (server-only)
+const deleteAll = t.internalMutation({
+  handler: async (ctx) => {
+    await ctx.db.posts.deleteAll();
+    return ok({ deleted: true });
   }
 });
 ```
 
-### Difference from Standalone `query()`/`mutation()`
-
-| Aspect | Standalone | Via `defineContext` |
-|--------|------------|---------------------|
-| Access | `query({ handler })` | `ctx.procedures.query({ handler })` |
-| Context | Needs explicit `<Ctx, ...>` generic | Inferred from `defineContext` |
-| hooks | Chainable `.beforeInvoke()` | Same chainable hooks |
-| Composition | Manual | Via `createAPI()` |
-
-### Hooks on Procedures
+### Hierarchical Router
 
 ```typescript
-const getUser = router.query({
+const appRouter = t.router({
+  users: t.router({
+    get: t.query({ handler: async (ctx, args) => ok(await ctx.db.users.find(args.id)) }),
+    create: t.mutation({ handler: async (ctx, args) => ok(await ctx.db.users.create(args)) }),
+    list: t.query({ handler: async (ctx) => ok(await ctx.db.users.findAll()) }),
+    delete: t.internalMutation({ handler: async (ctx, args) => ok(await ctx.db.users.delete(args.id)) }),
+  }),
+  posts: t.router({
+    get: t.query({ handler: async (ctx, args) => ok(await ctx.db.posts.find(args.id)) }),
+    create: t.mutation({ handler: async (ctx, args) => ok(await ctx.db.posts.create(args)) }),
+  }),
+});
+```
+
+### Chainable Hooks
+
+All procedures support chainable hooks:
+
+```typescript
+const getUser = t.query({
   handler: async (ctx, args) => { ... }
 })
   .beforeInvoke((ctx, args) => {
-    // Check permissions
-    if (!ctx.user) throw new Error("Unauthorized");
+    // Called before handler
   })
-  .onSuccess((ctx, args, user) => {
-    ctx.logger.info(`User retrieved: ${user.id}`);
+  .afterInvoke((ctx, args, result) => {
+    // Called after handler (always)
+  })
+  .onSuccess((ctx, args, data) => {
+    // Called only on success
+  })
+  .onError((ctx, args, error) => {
+    // Called only on error
   });
 ```
 
@@ -165,42 +242,41 @@ const getUser = router.query({
 
 ## 4. `createAPI()` Design
 
-### Signature
+### Signature (from docs/core/api/CREATE_API.md)
 
 ```typescript
-function createAPI<TRouter extends APIRouter>(
+function createAPI<Ctx, TRoutes extends Router>(
   config: {
-    router: TRouter;
-    errorHandler?: ErrorHandler;
-    middlewares?: Middleware[];
+    router: TRoutes
+    middleware?: Middleware<Ctx>[]
+    plugins?: Plugin<Ctx>[]
   }
-): APIInstance<TRouter>
+): APIInstance<Ctx, TRoutes>
 
-interface APIRouter {
-  _type: 'router';
-  _procedures: Record<string, Procedure>;
-}
+interface APIInstance<Ctx, TRoutes extends Router = Router> {
+  router: TRoutes
+  ctx: Ctx
+  plugins: Array<Plugin<Ctx>>
+  globalMiddleware: Middleware<Ctx>[]
 
-interface APIInstance<TRouter> {
-  router: TRouter;
-
-  execute<TRoute extends keyof TRouter>(
-    ctx: Context,
+  execute<TRoute extends keyof TRoutes>(
     route: TRoute,
-    args: ArgumentsOf<TRouter[TRoute]>
-  ): Promise<Result<OutputOf<TRouter[TRoute]>>>;
-
-  // For HTTP server integration
-  createHandler(): Handler;
+    args: any
+  ): Promise<Result<any>>
 }
+```
 
-interface ErrorHandler {
-  (error: unknown, ctx: Context): ErrorResponse;
-}
+### Related Functions
 
-interface Middleware {
-  (ctx: Context, next: () => Promise<void>): Promise<void> | void;
-}
+```typescript
+// Filter out internal operations for client-safe API
+createPublicAPI(api: APIInstance): PublicAPIInstance
+
+// Alias for createPublicAPI
+createClient(api: APIInstance): PublicAPIInstance
+
+// Create executor for testing
+createLocalExecutor(api: APIInstance): (route: string, args: any) => Promise<Result<any>>
 ```
 
 ### Usage
@@ -208,231 +284,223 @@ interface Middleware {
 ```typescript
 const api = createAPI({
   router: appRouter,
-  errorHandler: (error, ctx) => {
-    ctx.logger.error(error);
-    return {
-      code: "INTERNAL_ERROR",
-      message: "An unexpected error occurred",
-    };
-  }
+  middleware: [
+    // Global middleware applied to all procedures
+  ],
 });
 
-// Direct execution
-const result = await api.execute(ctx, "getUser", { id: 1 });
+// Execute directly
+const result = await api.execute("users.get", { id: 1 });
 
-// HTTP handler (for Express/Fastify/H3)
+// For HTTP server integration
 const handler = api.createHandler();
 ```
 
 ---
 
-## 5. Type System
+## 5. Result Type and Helpers
 
-### Type Inference
-
-The key benefit of `defineContext` is automatic type inference:
+### Result Type
 
 ```typescript
-// Context type is automatically inferred
-const ctx = defineContext(async (input) => {
-  return {
-    db: myDatabase,
-    logger: console,
-    user: await getUser(input),
-  };
-});
-
-// Procedures automatically know the ctx type
-const getUser = ctx.procedures.query({
-  handler: async (ctx, args) => {
-    // ctx.db is typed, ctx.user is typed
-    return await ctx.db.users.find(args.id);
-  }
-});
-
-// createAPI knows all procedure types
-const api = createAPI({ router: { getUser, createUser } });
-
-// Full type safety on execute
-const result = await api.execute(ctx, "getUser", { id: 1 });
-// result is typed based on getUser handler return type
+type Result<Success, Error = { code: string; message: string }> =
+  | { ok: true; value: Success }
+  | { ok: false; error: Error };
 ```
 
-### Type Helpers
+### Helper Functions
 
 ```typescript
-type ContextFromFactory<T extends ContextFactory> =
-  T extends (input: unknown) => infer Ctx ? Ctx : never;
-
-type ArgumentsOf<T> = T extends Procedure<infer _Ctx, infer Args, infer _Output>
-  ? Args
-  : never;
-
-type OutputOf<T> = T extends Procedure<infer _Ctx, infer _Args, infer Output>
-  ? Output
-  : never;
-
-type Result<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: { code: string; message: string } };
+function ok<T>(value: T): { ok: true; value: T }
+function err<E extends { code: string; message: string }>(error: E): { ok: false; error: E }
+function withMetadata<T, Keys extends CacheKey[]>(
+  data: T,
+  metadata: { keys?: Keys; invalidate?: Keys; ttl?: number }
+): { ok: true; value: T & { keys?: Keys; invalidate?: Keys; ttl?: number } }
 ```
 
 ---
 
-## 6. Error Handling
-
-### Handler Errors
-
-```typescript
-// All handler errors are converted to ErrorResponse
-const getUser = router.query({
-  handler: async (ctx, args) => {
-    const user = await ctx.db.users.find(args.id);
-    if (!user) {
-      throw { code: "NOT_FOUND", message: "User not found" };
-    }
-    return user;
-  }
-});
-```
-
-### Error Response Structure
-
-```typescript
-interface ErrorResponse {
-  code: string;      // Error code (e.g., "NOT_FOUND", "UNAUTHORIZED")
-  message: string;   // Human-readable message
-  metadata?: unknown; // Optional additional data
-}
-```
-
----
-
-## 7. File Structure
+## 6. File Structure
 
 ```
 package/server/src/
   index.ts                    # Main exports
-  types.ts                    # Shared types (Context, Procedure, etc.)
+  types.ts                    # Shared types (Context, Procedure, Result, etc.)
   context.ts                  # defineContext() implementation
-  procedures.ts              # t.query(), t.mutation() implementations
-  api.ts                     # createAPI() implementation
+  query-builder.ts           # t (QueryBuilder) with t.query/mutation/router/etc.
+  procedures.ts              # Query, Mutation, InternalQuery, InternalMutation types
+  api.ts                     # createAPI(), createPublicAPI(), createLocalExecutor()
   router.ts                  # Router types and helpers
-  hooks.ts                   # Hook executor
+  hooks.ts                   # Hook executor (beforeInvoke, afterInvoke, etc.)
   errors.ts                  # Error types and handlers
+  events.ts                  # Event system (defineEvents, ctx.send)
 ```
 
 ### Implementation Order
 
-1. **types.ts** - Define core types (`Context`, `Procedure`, `Result`)
-2. **errors.ts** - Error handling types and default handler
-3. **context.ts** - `defineContext()` implementation
-4. **procedures.ts** - `t.query()`, `t.mutation()` via `ProceduresBuilder`
-5. **api.ts** - `createAPI()` with router and `execute()` method
+1. **types.ts** - Core types (`Result`, `Context`, `Procedure`, `Router`)
+2. **errors.ts** - Error handling types
+3. **context.ts** - `defineContext()` returns `{ t, createAPI }`
+4. **query-builder.ts** - `t` object with all methods (`query`, `mutation`, `router`, `middleware`, `on`)
+5. **procedures.ts** - Procedure types (`Query`, `Mutation`, `InternalQuery`, `InternalMutation`)
 6. **hooks.ts** - Hook execution logic
-7. **index.ts** - Update exports
+7. **api.ts** - `createAPI()`, `createPublicAPI()`, `createLocalExecutor()`
+8. **router.ts** - Router types and hierarchical routing logic
+9. **events.ts** - Event system
+10. **index.ts** - Update exports
 
 ---
 
-## 8. Design Decisions
+## 7. Key Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|---------|-----------|
-| Context factory | `async (input) => ctx` | Allows DB/auth calls during context creation |
-| Context type inference | Via `ContextFromFactory` | TypeScript generics enable automatic typing |
-| Procedure hooks | Chainable (builder pattern) | Consistent with standalone query/mutation |
-| Error format | `{ code, message }` object | Structured, type-safe errors |
-| No plugins | Deferred | Keep initial API simple |
-| No middleware in Phase 2 | Deferred to future | Hooks provide sufficient extensibility |
+| Context provided directly | `context: Ctx` | Simple, no async factory needed |
+| Returns `t` object | QueryBuilder pattern | Familiar tRPC-like API |
+| `ok()`/`err()` helpers | For returning results | Clear success/error distinction |
+| Internal procedures | Separate types | Security model (not exposed via HTTP) |
+| Hierarchical router | `t.router({ nested: t.router({}) })` | Organized procedure structure |
+| Plugins deferred | Not in initial scope | Keep initial API simple |
 
 ---
 
-## 9. Comparison with tRPC
+## 8. Comparison with tRPC
 
 | Aspect | tRPC | @deessejs/server |
 |--------|------|------------------|
-| Context | `createContext()` + AsyncLocalStorage | `defineContext()` + explicit factory |
-| Procedures | `publicProcedure.input().query()` | `t.query()` from context builder |
-| Router | `createRouter()` with merge | `createAPI()` with router object |
+| Context | `createContext()` + AsyncLocalStorage | `defineContext({ context: Ctx })` |
+| Procedures | `publicProcedure.input().query()` | `t.query()` / `t.mutation()` |
+| Internal procedures | Not exposed | `t.internalQuery()` / `t.internalMutation()` |
+| Router | `createRouter()` with merge | `t.router()` with hierarchical nesting |
 | Type inference | Via TypeScript + Zod | Via TypeScript generics |
-| Middleware | Yes | No (deferred) |
-| Plugins | Yes | No (deferred) |
+| Middleware | Yes | `t.middleware()` |
+| Events | No | `t.on()` + `ctx.send()` |
+| Plugins | Yes | Deferred |
 
 ---
 
-## 10. Usage Example: Full Flow
+## 9. Usage Example: Full Flow
 
 ```typescript
-import { defineContext, t, createAPI } from "@deessejs/server";
+import { defineContext, t, createAPI, createPublicAPI, ok, err } from "@deessejs/server";
 import { z } from "zod";
 
 // 1. Define context
-interface AuthContext {
+interface Ctx {
   db: Database;
   logger: Logger;
   user: User | null;
 }
 
-const ctx = defineContext(async (input): Promise<AuthContext> => {
-  const token = input.headers.authorization;
-  const user = token ? await auth.verify(token) : null;
-
-  return {
+const { t, createAPI } = defineContext<Ctx>({
+  context: {
     db: database,
     logger: console,
-    user,
-  };
-});
-
-// 2. Define procedures
-const router = ctx.procedures;
-
-// Public query - no auth required
-const getPost = router.query({
-  args: z.object({ id: z.number() }),
-  handler: async (ctx, args) => {
-    return await ctx.db.posts.find(args.id);
+    user: null,
   }
 });
 
-// Protected query - requires auth
-const getUserProfile = router.query({
-  args: z.object({ id: z.number() }),
-  handler: async (ctx, args) => {
-    if (!ctx.user) {
-      throw { code: "UNAUTHORIZED", message: "Must be logged in" };
-    }
-    return await ctx.db.users.find(args.id);
-  }
-});
-
-// Mutation
-const createPost = router.mutation({
-  args: z.object({ title: z.string(), content: z.string() }),
-  handler: async (ctx, args) => {
-    if (!ctx.user) {
-      throw { code: "UNAUTHORIZED", message: "Must be logged in" };
-    }
-    return await ctx.db.posts.create({ ...args, authorId: ctx.user.id });
-  }
+// 2. Define router
+const appRouter = t.router({
+  users: t.router({
+    get: t.query({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        const user = await ctx.db.users.find(args.id);
+        if (!user) {
+          return err({ code: "NOT_FOUND", message: "User not found" });
+        }
+        return ok(user);
+      }
+    }),
+    create: t.mutation({
+      args: z.object({ name: z.string(), email: z.string().email() }),
+      handler: async (ctx, args) => {
+        const existing = await ctx.db.users.findByEmail(args.email);
+        if (existing) {
+          return err({ code: "CONFLICT", message: "Email already exists" });
+        }
+        return ok(await ctx.db.users.create(args));
+      }
+    }),
+    delete: t.internalMutation({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        await ctx.db.users.delete(args.id);
+        return ok({ success: true });
+      }
+    }),
+  }),
+  posts: t.router({
+    get: t.query({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        return ok(await ctx.db.posts.find(args.id));
+      }
+    }),
+  }),
 });
 
 // 3. Create API
 const api = createAPI({
-  router: {
-    getPost,
-    getUserProfile,
-    createPost,
-  }
+  router: appRouter,
 });
 
-// 4. Execute
-const result = await api.execute(ctx, "getPost", { id: 1 });
+// 4. Create client-safe version (no internal procedures)
+const clientApi = createPublicAPI(api);
+
+// 5. Execute
+const result = await api.execute("users.get", { id: 1 });
 if (!result.ok) {
-  console.error(result.error.code); // "NOT_FOUND" etc.
+  console.error(result.error.code);
 } else {
   console.log(result.value);
 }
+```
+
+---
+
+## 10. Exports
+
+### Expected Public API
+
+```typescript
+export {
+  // Core
+  defineContext,
+  createAPI,
+  createPublicAPI,  // or createClient alias
+  createLocalExecutor,
+
+  // Query builder (t)
+  QueryBuilder,
+
+  // Procedures
+  Query,
+  Mutation,
+  InternalQuery,
+  InternalMutation,
+  Router,
+
+  // Helpers
+  ok,
+  err,
+  withMetadata,
+
+  // Middleware
+  Middleware,
+
+  // Events
+  defineEvents,
+  EventRegistry,
+  EventPayload,
+
+  // Types
+  Result,
+  CacheKey,
+  WithMetadata,
+};
 ```
 
 ---
@@ -441,19 +509,19 @@ if (!result.ok) {
 
 | Question | Recommendation |
 |----------|----------------|
-| How to handle context creation errors? | Throw early, before procedure execution |
-| Should procedures support input/output schemas? | Yes, using Standard Schema (Zod compatible) |
-| Batch execution (calling multiple procedures)? | Deferred to future version |
+| How to handle context per-request? | Context is static per `defineContext`, per-request data via request input |
+| Should `createAPI` accept context factory? | Not in initial scope - ctx is set once |
+| Batch execution? | Deferred to future version |
 | Subscriptions/streaming? | Deferred to future version |
-| Integration with HTTP frameworks? | Via `createHandler()` returning a standard Handler type |
+| Plugin system? | Deferred - separate implementation |
 
 ---
 
 ## 12. Dependencies
 
 No new runtime dependencies required. Uses:
-- `@deessejs/core` (peer dependency)
+- `@deessejs/core` (peer dependency) - for `Result` type and `ok()`/`err()` helpers
 - Existing devDependencies (vitest, eslint, typescript, typescript-eslint)
 
 Optional (when adding schema validation):
-- `zod` (peer dependency)
+- `zod` (peer dependency) - Standard Schema compatible
