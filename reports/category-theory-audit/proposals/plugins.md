@@ -1,18 +1,14 @@
-# 3.5 Category-Theoretic Plugin Architecture
+# Plugin Architecture
 
-## Mathematical Principle
+## Principle
 
-Plugins should form a **Kleisli category** where:
-- Objects are context types
-- Morphisms are plugins (Ctx₁ → Ctx₂)
-- Composition is plugin composition
-- Identity is the empty plugin
+Plugins extend context in a composable way with predictable combination rules.
+
+## Core Types
 
 ```typescript
-// Plugin as a Kleisli arrow
 type PluginK<From, To> = (ctx: From) => PluginResult<To>
 
-// Plugin composition (Kleisli composition)
 const composePlugins = <A, B, C>(
   f: PluginK<A, B>,
   g: PluginK<B, C>
@@ -25,16 +21,14 @@ const composePlugins = <A, B, C>(
 }
 ```
 
-## Practical Implementation
+## Implementation
 
 ```typescript
-// Plugin as a functor (preserves structure)
 interface Plugin<Ctx, ExtendedCtx> {
   name: string
-  extend: (ctx: Ctx) => HKT<PluginM, ExtendedCtx>  // Functorial map
+  extend: (ctx: Ctx) => HKT<PluginM, ExtendedCtx>
 }
 
-// Plugin monoid (combination)
 const combinePlugins = <Ctx>(
   ...plugins: Plugin<Ctx, any>[]
 ): Plugin<Ctx, CombinedExtended> =>
@@ -42,16 +36,14 @@ const combinePlugins = <Ctx>(
     name: 'combined',
     extend: (ctx) => pipe(
       plugins,
-      traverse((p) => p.extend(ctx)),  // Applicative traverse
+      traverse((p) => p.extend(ctx)),
       map((extended) => mergeAll(extended))
     )
   })
 
-// Natural transformation between plugin types
 type PluginNT<From extends PluginAny, To extends PluginAny> =
   <A>(p: From<A>) => To<p['extend'] extends (ctx: any) => infer R ? R : never>
 
-// Plugin morphism (transform one plugin into another)
 const pluginMapper = <From extends PluginAny, To extends PluginAny>(
   nt: PluginNT<From, To>
 ): ((plugin: From) => To) =>
@@ -61,44 +53,36 @@ const pluginMapper = <From extends PluginAny, To extends PluginAny>(
   })
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
-| **Composable plugins** | Combine plugins with known composition laws |
-| **Type-safe extension** | Extended context type computed from plugin combination |
-| **Plugin transformers** | Transform plugins (e.g., add logging to any plugin) |
+| **Composable** | Combine plugins with known laws |
+| **Type-safe** | Extended context type computed from plugins |
+| **Transformable** | Transform plugins (e.g., add logging) |
 
-## Killer Feature: Plugin Algebra
+## Plugin Combinators
 
 ```typescript
-// Plugin combinators as algebraic operations
 const Plugin: {
-  // Identity
   empty: Plugin<{}, {}>
 
-  // Product (combine two plugins)
   product: <P1 extends PluginAny, P2 extends PluginAny>(
     p1: P1,
     p2: P2
   ) => Plugin<Ctx1 & Ctx2, Extended1 & Extended2>
 
-  // Coproduct (alternative plugins)
   coproduct: <P1 extends PluginAny, P2 extends PluginAny>(
     p1: P1,
     p2: P2
   ) => Plugin<Ctx1 | Ctx2, Extended1 | Extended2>
 
-  // Exponential (plugin configuration)
   config: <P extends PluginAny, Config>(
     configSchema: Schema<Config>,
     makePlugin: (config: Config) => P
   ) => Plugin<Ctx, Extended>
-} = {
-  // ... implementation
-}
+} = { ... }
 
-// Usage:
 const authPlugin = Plugin.coproduct(
   { name: 'basic-auth', extend: (ctx) => ({ userId: null }) },
   { name: 'jwt-auth', extend: (ctx) => ({ token: null }) },

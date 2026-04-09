@@ -1,18 +1,16 @@
 # Code Patterns
 
-## 5.1 Immediate: Improve Hook Composition
+## Immediate: Composable Hooks
 
-Current hooks are not composable. This simple improvement uses monoidal structure:
+Current hooks are not composable. This pattern enables hook composition:
 
 ```typescript
-// Hook as a monoid
 type Hook<Ctx, Args, Output> = {
   beforeInvoke?: (ctx: Ctx, args: Args) => void | Promise<void>
   onSuccess?: (ctx: Ctx, args: Args, output: Output) => void | Promise<void>
   onError?: (ctx: Ctx, args: Args, error: unknown) => void | Promise<void>
 }
 
-// Monoidal combination (all hooks run, errors collected)
 const combineHooks =
   <Ctx, Args, Output>(...hooks: Hook<Ctx, Args, Output>[]): Hook<Ctx, Args, Output> => ({
     beforeInvoke: async (ctx, args) => {
@@ -32,7 +30,6 @@ const combineHooks =
     },
   })
 
-// Usage:
 const getUser = t.query({
   handler: async (ctx, args) => { ... }
 }).withHooks(
@@ -46,29 +43,24 @@ const getUser = t.query({
 
 ---
 
-## 5.2 Immediate: Add `Result` Type Safety
+## Immediate: Typed Error Codes
 
 ```typescript
-// Type-safe error codes
 type ErrorCodes = {
   NOT_FOUND: { code: 'NOT_FOUND'; message: string }
   UNAUTHORIZED: { code: 'UNAUTHORIZED'; message: string }
   VALIDATION: { code: 'VALIDATION'; message: string; field?: string }
 }
 
-// Generic error type
 type AppError = ErrorCodes[keyof ErrorCodes]
 
-// Result type using error codes
 type Result<T, E extends AppError = AppError> =
   | { ok: true; value: T }
   | { ok: false; error: E }
 
-// Smart constructors
 const ok = <T>(value: T): Result<T> => ({ ok: true, value })
 const err = <E extends AppError>(error: E): Result<never, E> => ({ ok: false, error })
 
-// Usage:
 const getUser = t.query({
   handler: async (ctx, args): Result<User, ErrorCodes['NOT_FOUND']> => {
     const user = await ctx.db.users.find(args.id)
@@ -80,10 +72,9 @@ const getUser = t.query({
 
 ---
 
-## 5.3 Short-term: Plugin as Functor
+## Short-term: Plugin Composition
 
 ```typescript
-// Plugin with functorial map
 interface Plugin<Ctx, Extended> {
   name: string
   extend: (ctx: Ctx) => Extended
@@ -99,7 +90,6 @@ const mapPlugin = <Ctx, A, B>(
   map: (g) => pipe(p, mapPlugin(g), f)
 })
 
-// Plugin composition
 const andThen = <Ctx, A, B>(
   p1: Plugin<Ctx, A>,
   p2: Plugin<A, B>

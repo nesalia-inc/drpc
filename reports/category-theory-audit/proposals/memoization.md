@@ -1,28 +1,18 @@
-# 3.4 Comonads for Query Context and Memoization
+# Query Memoization
 
-## Mathematical Principle
+## Principle
 
-A **comonad** is the dual of a monad. Where monads wrap values in effects, comonads extract values from contexts:
+Query results can be automatically cached based on context dependencies, with automatic invalidation when context changes.
 
-```typescript
-interface Comonad<W> {
-  extract: <A>(wa: W<A>) => A        // Extract the value
-  duplicate: <A>(wa: W<A>) => W<W<A>> // Nest the context
-  extend: <A, B>(wa: W<A>, f: (W<A>) => B) => W<B>  // Co-bind
-}
-```
+## Store Interface
 
-The **Store comonad** (`(S → A, S)`) provides memoization:
 ```typescript
 type Store<S, A> = (getState: (s: S) => A) & { state: S }
-// extract: (store) → store.state
-// extend: (store, f) → (s → f(store))
 ```
 
-## Practical Implementation
+## Implementation
 
 ```typescript
-// Query context as a comonad
 interface QueryEnv {
   db: Database
   cache: Cache
@@ -32,16 +22,13 @@ interface QueryEnv {
 
 type QueryContext<A> = Store<QueryEnv, A>
 
-// Create query context
 const queryContext = (env: QueryEnv): QueryContext<A> => ({
-  get: (f) => f(env),  // Access any part of context
+  get: (f) => f(env),
   state: env,
 })
 
-// Extract value from context
 const extract = <A>(qc: QueryContext<A>): A => qc.state as unknown as A
 
-// Extend (run query and store result)
 const extendQuery = <A, B>(
   qc: QueryContext<A>,
   f: (qc: QueryContext<A>) => B
@@ -50,7 +37,6 @@ const extendQuery = <A, B>(
   state: { ...qc.state },
 })
 
-// Memoized query using comonad extend
 const memoizedQuery = <A>(
   key: string,
   query: (ctx: QueryContext<A>) => Promise<A>
@@ -68,10 +54,8 @@ const memoizedQuery = <A>(
   }
 }
 
-// Usage:
 const getUser = t.query({
   handler: async (ctx, args) => {
-    // ctx automatically memoized via comonad extend
     const users = await memoizedQuery(
       `users:${args.id}`,
       (ctx) => ctx.get(c => c.db.users.find(args.id))
@@ -81,21 +65,19 @@ const getUser = t.query({
 })
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
-| **Automatic memoization** | Query results cached based on context |
-| **Dependency tracking** | Know exactly which queries need recomputation when context changes |
-| **Change propagation** | Comonadic extend computes which queries are affected |
+| **Automatic caching** | Query results cached based on context |
+| **Dependency tracking** | Know which queries need recomputation |
+| **Change propagation** | Updates propagate to affected queries |
 
-## Killer Feature: Automatic Query Invalidation via Comonad
+## Automatic Invalidation
 
 ```typescript
-// When context changes (e.g., user logs out):
 const logout = (ctx: QueryContext<UserSession>): QueryContext<UserSession> =>
-  ctx | extend((c) => ({ ...c.state, user: null }))
+  pipe(ctx, extend((c) => ({ ...c.state, user: null })))
 
 // All queries that depend on user.session are automatically invalidated
-// via comonadic duplicate/extract tracking
 ```

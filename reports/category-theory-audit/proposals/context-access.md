@@ -1,12 +1,10 @@
-# 3.3 Optics for Nested Context Access
+# Type-safe Context Access
 
-## Mathematical Principle
+## Principle
 
-**Optics** (lenses, prisms, traversals) provide bidirectional access to products and sums:
+Nested context properties can be accessed and updated in a type-safe way without string paths.
 
-- **Lens**: `s → a` with setter `s → b → t` (for product types)
-- **Prism**: `s → a` with reverse `a → s` (for sum types)
-- **Traversal**: multi-focus access (for arrays)
+## Interface
 
 ```typescript
 type Lens<S, A> = {
@@ -15,12 +13,11 @@ type Lens<S, A> = {
 }
 ```
 
-## Practical Implementation
+## Implementation
 
 ```typescript
 import { Lens, lens, compose } from 'optics-ts'
 
-// Define context shape
 interface Ctx {
   db: Database
   user: {
@@ -32,53 +29,47 @@ interface Ctx {
   logger: Logger
 }
 
-// Create optics for nested paths
 const ctxLens = lens<Ctx>()
 
-// Deep access: ctx.user.session.id
 const sessionId = compose(
   ctxLens.focusAt('user'),
   focusAt('session'),
   focusAt('id')
 )
 
-// Type-safe get/set
 const getSessionId = (ctx: Ctx): string => sessionId.get(ctx)
 const setSessionId = (ctx: Ctx, id: string): Ctx => sessionId.set(ctx, id)
 
-// Use in procedures:
 const getUser = t.query({
   handler: async (ctx, args) => {
-    // Deep access without intermediate checks
-    const sessionId = ctx |> sessionId.get
-    const permissions = ctx |> compose(
-      ctxLens.focusAt('user'),
-      focusAt('session'),
-      focusAt('permissions')
-    ).get
+    const sessionId = pipe(ctx, sessionId.get)
+    const permissions = pipe(
+      ctx,
+      compose(
+        ctxLens.focusAt('user'),
+        focusAt('session'),
+        focusAt('permissions')
+      ).get
+    )
 
-    // Type-safe update
-    const newCtx = ctx |> sessionId.set('new-session-id')
-    // newCtx.user.session.id === 'new-session-id'
-
+    const newCtx = pipe(ctx, sessionId.set('new-session-id'))
     return { sessionId, permissions }
   }
 })
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
 | **Type safety** | No string paths like `'user.session.id'` that could typo |
-| **Composability** | Lenses compose naturally |
+| **Composability** | Accessors compose naturally |
 | **Immutability** | Updates return new context, no mutation |
-| **Partial access** | Prisms for optional nested properties |
+| **Partial access** | For optional nested properties |
 
-## Killer Feature: Context Validation Optics
+## Context Validation
 
 ```typescript
-// Validate context structure with optics
 const requiredCtx: Lens<Partial<Ctx>, Ctx> = {
   get: (s) => {
     const errors: string[] = []
@@ -87,10 +78,9 @@ const requiredCtx: Lens<Partial<Ctx>, Ctx> = {
     if (errors.length > 0) throw new ContextError(errors)
     return s as Ctx
   },
-  set: (s, a) => a, // Cannot set required context
+  set: (s, a) => a,
 }
 
-// Use as a type guard in middleware
 const requireContext = (ctx: Partial<Ctx>): Ctx =>
   requiredCtx.get(ctx)
 ```

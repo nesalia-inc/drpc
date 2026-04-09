@@ -1,19 +1,14 @@
-# 3.7 Type-Level Programming for Route Safety
+# Compile-time Routes
 
-## Mathematical Principle
+## Principle
 
-**Dependent types** and **type-level computation** allow expressing properties as types:
-- `type-level strings` for route names
-- `type-level lists` for route paths
-- `type-level natural numbers` for arity
+Route existence can be verified at compile time using TypeScript's type system.
 
-## Practical Implementation
+## Type-level Routes
 
 ```typescript
-// Type-level route definition
-type Route = [string, ...Route[]]  // Non-empty tuple
+type Route = [string, ...Route[]]
 
-// Route existence proof
 type HasRoute<Routes extends Route, Path extends Route> =
   Path extends Routes ? true
   : Path extends [infer First, ...infer Rest]
@@ -22,38 +17,40 @@ type HasRoute<Routes extends Route, Path extends Route> =
       : false
     : false
 
-// Safe router access
 type SafeRouter<Routes extends Record<string, Route>> = {
   [K in keyof Routes & string]: HasRoute<Routes, [K]> extends true
     ? RouterNode<Routes[K]>
-    : never  // Type error if route doesn't exist!
+    : never
 }
+```
 
-// Usage:
+## Usage
+
+```typescript
 type AppRoutes = {
   'users.get': ['users', 'get']
   'users.create': ['users', 'create']
   'posts.get': ['posts', 'get']
 }
 
-// This works:
 type UsersGetPath = AppRoutes['users.get']  // ['users', 'get']
 
-// This causes type error:
-type Invalid = AppRoutes['invalid']  // Error: 'invalid' not in AppRoutes
-
-// Safe access:
 const getRoute = <
   Routes extends Record<string, Route>,
   Path extends Route
 >(
   router: SafeRouter<Routes>,
   path: Path & HasRoute<Routes, Path> extends true ? Path : never
-): Procedure => {
-  // Implementation
-}
+): Procedure => { ... }
 
-// Usage:
 getRoute(router, ['users', 'get'])  // ✅ Valid
-getRoute(router, ['users', 'delete'])  // ❌ Type error! 'users.delete' not in routes
+getRoute(router, ['users', 'delete'])  // ❌ Type error!
 ```
+
+## Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Compile-time checks** | Missing routes caught before runtime |
+| **Refactoring safety** | Rename routes with IDE support |
+| **Self-documenting** | Route structure explicit in types |

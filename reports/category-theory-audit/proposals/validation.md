@@ -1,17 +1,12 @@
-# 3.2 Applicative Functors for Validation Pipeline
+# Parallel Validation
 
-## Mathematical Principle
+## Principle
 
-**Applicative functors** (McBride & Paterson 2008) satisfy:
-- `pure: A → F<A>` (lifts value into the functor)
-- `<*>: F<A→B> → F<A> → F<B>` (applicative application)
+Independent validation checks can run in parallel and report all errors at once, rather than stopping at the first error.
 
-The key property: function application within the functor can be **sequential or parallel** because the function itself is already in the functor.
-
-## Practical Implementation
+## Current (Sequential)
 
 ```typescript
-// Current (sequential, stops at first error):
 const getUser = t.query({
   args: z.object({
     id: z.number(),
@@ -19,8 +14,11 @@ const getUser = t.query({
   }),
   handler: async (ctx, args) => { ... }
 })
+```
 
-// Proposed (parallel, reports ALL errors):
+## Proposed (Parallel)
+
+```typescript
 import { Applicative, Validation } from '@deessejs/fp'
 
 const validateUserQuery = pipe(
@@ -31,17 +29,15 @@ const validateUserQuery = pipe(
   )
 )
 
-// Usage:
 const getUser = t.query({
-  args: validateUserQuery, // Applicative validator
+  args: validateUserQuery,
   handler: async (ctx, args) => { ... }
 })
 ```
 
-Or with a custom applicative validation:
+Or with custom validation:
 
 ```typescript
-// Parallel validation with aggregated errors
 const UserQueryV = Applicative.sequenceS({
   id: validateNumber,
   email: validateEmail,
@@ -51,15 +47,15 @@ const UserQueryV = Applicative.sequenceS({
 // All errors collected, not just first
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
-| **Better DX** | Users get ALL validation errors at once, not just the first |
-| **Composable validators** | Easy to combine independent validations |
+| **Better DX** | Users get ALL validation errors at once |
+| **Composable** | Easy to combine independent validations |
 | **Performance** | Independent validations can run in parallel |
 
-## Killer Feature: Custom Error Code Mapping
+## Typed Error Codes
 
 ```typescript
 const validateWithCodes = <E extends Record<string, Schema>>(
@@ -84,7 +80,6 @@ const validateWithCodes = <E extends Record<string, Schema>>(
     )
   }
 
-// Usage:
 const getUser = t.query({
   args: validateWithCodes({
     id: { schema: z.number(), code: 'INVALID_ID' },
@@ -92,6 +87,4 @@ const getUser = t.query({
   }),
   handler: async (ctx, args) => { ... }
 })
-// args: { id: number, email: string }
-// error codes: 'INVALID_ID' | 'INVALID_EMAIL'
 ```

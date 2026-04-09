@@ -1,31 +1,23 @@
-# 3.6 Monad Transformers for Error Stacks
+# Effect Composition
 
-## Mathematical Principle
+## Principle
 
-**Monad transformers** stack monadic effects:
+Error handling and context injection can be composed using layered transformers.
+
+## Effect Stack
+
 - `EitherT` - error handling
 - `ReaderT` - context/dependency injection
 - `StateT` - mutable state
 - `ErrorT` - exception handling
 
-The key insight: transformers compose, allowing complex effect stacks.
+Transformers compose, allowing complex effect stacks.
 
-## Practical Implementation
+## Implementation
 
 ```typescript
-// Current error handling (ad-hoc):
-handler: async (ctx, args) => {
-  if (!ctx.user) throw new UnauthorizedError()
-  const user = await ctx.db.users.find(args.id)
-  if (!user) throw new NotFoundError()
-  return user
-}
-
-// With monad transformers:
 type ProcedureM<R> = EitherT<ErrorT<ReaderT<Ctx, Promise>, R>>
-// ^ Error   ^ Exception   ^ Context
 
-// Smart constructors:
 const liftQuery = <A>(query: (ctx: Ctx) => Promise<A>): ProcedureM<A> =>
   ReaderT((ctx: Ctx) =>
     ErrorT(Promise.resolve(query(ctx)))
@@ -40,7 +32,6 @@ const catchError = <A, E>(
 ): ProcedureM<A> =>
   EitherT.right(ErrorT.throw(m, f))
 
-// Usage:
 const getUser = t.query({
   args: z.object({ id: z.number() }),
   handler: (ctx, args) => pipe(
@@ -59,10 +50,10 @@ const getUser = t.query({
 })
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
 | **Composable errors** | Error handling composes across middleware |
-| **Type-safe error codes** | Error union types tracked by TypeScript |
-| **ReaderT for context** | Context injection becomes a transformer |
+| **Type-safe codes** | Error union types tracked by TypeScript |
+| **Context injection** | Context passed through the stack |

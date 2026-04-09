@@ -1,23 +1,23 @@
-# 3.1 Free Monads for Procedure Definition
+# Extensible Interpreters
 
-## Mathematical Principle
+## Principle
 
-**Free monads** provide the universal property: any functor `F` can be extended to a monad `Free(F)` such that interpreting a free monad is equivalent to folding over its structure.
+Procedures can be defined independently of how they are executed. This allows the same procedure definitions to work with multiple execution backends.
 
-## Practical Implementation
+## Implementation
 
 ```typescript
-// Define procedures as a functor
+// Define procedures as a structured type
 type ProcedureF<A> =
   | { type: 'query'; name: string; handler: Handler; args?: Schema }
   | { type: 'mutation'; name: string; handler: Handler; args?: Schema }
   | { type: 'internalQuery'; name: string; handler: Handler }
   | { type: 'internalMutation'; name: string; handler: Handler }
 
-// Free monad for procedures
+// Procedure wrapper
 type Procedure<A> = Free<ProcedureF, A>
 
-// Smart constructors (injectives into the functor)
+// Smart constructors
 const query = <N extends string, A, R>(
   name: N,
   config: { args?: Schema<A>; handler: (ctx: Ctx, args: A) => Promise<R> }
@@ -30,14 +30,14 @@ const mutation = <N extends string, A, R>(
 ): Procedure<{ name: N; args: A; result: R }> =>
   inj({ type: 'mutation', name, ...config })
 
-// Interpreter (natural transformation from ProcedureF to some effect)
+// Interpreter interface
 type InterpreterM<M> = <A>(fa: ProcedureF<A>) => HKT<M, A>
 
 // HTTP interpreter
 const httpInterpreter: InterpreterM<HttpM> = (fa) => {
   switch (fa.type) {
     case 'query':
-      return fa as any // Return HTTP response wrapped in HttpM
+      return fa as any
     // ...
   }
 }
@@ -46,27 +46,26 @@ const httpInterpreter: InterpreterM<HttpM> = (fa) => {
 const localInterpreter: InterpreterM<Task> = (fa) => {
   switch (fa.type) {
     case 'query':
-      return fa.handler(ctx, fa.args) // Direct execution
+      return fa.handler(ctx, fa.args)
     // ...
   }
 }
 ```
 
-## Expected Benefits
+## Benefits
 
 | Benefit | Description |
 |---------|-------------|
-| **Multiple interpreters** | Same procedure definition works for HTTP, WebSocket, batch, test |
-| **Effect fusion** | Procedures can be optimized before interpretation |
-| **Compile-time route verification** | Free monad structure catches missing routes |
+| **Multiple backends** | Same procedures work for HTTP, WebSocket, batch, test |
+| **Optimization** | Procedures can be optimized before execution |
+| **Route verification** | Structure catches missing routes at compile time |
 | **Testability** | Mock interpreters for testing |
 
-## Killer Feature: Composable Middleware as Interpreters
+## Composable Middleware
 
-Middleware becomes a natural transformation that wraps the interpretation:
+Middleware wraps interpretation:
 
 ```typescript
-// Middleware as interpreter wrapper
 const withLogging = <M>(interp: InterpreterM<M>): InterpreterM<M> =>
   (fa) => {
     console.log(`Executing: ${fa.name}`)
