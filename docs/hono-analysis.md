@@ -326,7 +326,7 @@ t.router({
 ```typescript
 import { defineContext, t } from '@deessejs/server'
 import { z } from 'zod'
-import { ok } from '@deessejs/core'
+import { ok } from '@deessejs/fp' // See /deesse-fp for Result patterns
 
 // Define context with plugins and events
 const { t, createAPI } = defineContext({
@@ -485,4 +485,4 @@ If TanStack Query integration is a hard requirement and you want a fully mature 
 - [Hono GitHub Repository](https://github.com/honojs/hono)
 - [Hono RPC Documentation](https://hono.dev/docs/rpc)
 - [Hono Middleware](https://hono.dev/docs/middleware)
-- [@deessejs/core Documentation](https://github.com/deessejs/core)
+- [@deessejs/fp Documentation](https://github.com/nesalia-inc/fp) - FP types (`Result`, `ok()`, `err()`, `Maybe`, `Try`, etc.)

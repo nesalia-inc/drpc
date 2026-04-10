@@ -101,7 +101,7 @@ const networkState = await Network.getNetworkStateAsync();
 +----------------+     HTTP/JSON-RPC      +----------------+
 |   Expo App     | <--------------------> |    Server      |
 |                |                        |                |
-| @deessejs/core | <-- Type Import Only   | @deessejs/server
+| @deessejs/fp   | <-- Type Import Only   | @deessejs/server
 | @deessejs/client                      |                |
 | @tanstack/react-query                 | AppRouter type |
 +----------------+                        +----------------+

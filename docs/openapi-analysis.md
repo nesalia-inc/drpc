@@ -127,19 +127,19 @@ For any RPC-to-OpenAPI bridge to work:
 The @deessejs architecture follows tRPC's pattern:
 
 ```
-@deessejs/core
-  - initDRPC() / initDeesse() - Creates tRPC-like instance
-  - publicProcedure - Base procedure with type inference
-  - router() - Groups procedures
-  - middleware() - Reusable procedure middleware
-
+@deessejs/fp (FP types: Result, ok, err, Maybe, Try)
+      │
+      │  export type AppRouter = typeof appRouter
+      │  (type-only, no runtime code)
+      │
+      ▼
 @deessejs/server
-  - HTTP adapters (Express, Hono, Next.js)
-  - OpenAPI spec generator
-
-@deessejs/client
-  - createClient() - Typed client
-  - Links for HTTP transport
+      │
+      │  import type { AppRouter }
+      │  createClient<AppRouter>(...)
+      │
+      ▼
+Client (@deessejs/client)
 ```
 
 ### 3.2 Proposed OpenAPI Integration
