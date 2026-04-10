@@ -1,5 +1,5 @@
 import type { Result } from "@deessejs/fp";
-import type { Plugin, Middleware, Router, Procedure } from "../types.js";
+import type { Plugin, Middleware, Router, Procedure, PendingEvent, SendOptions } from "../types.js";
 import { EventEmitter } from "../events/emitter.js";
 import { createErrorResult } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
@@ -21,6 +21,8 @@ function createRouterProxy<Ctx>(
   ctx: Ctx,
   globalMiddleware: Middleware<Ctx>[],
   rootRouter: Router<Ctx>,
+  eventEmitter: EventEmitter<any> | undefined,
+  pendingEvents: PendingEvent[],
   path: string[] = []
 ): any {
   return new Proxy({}, {
@@ -37,10 +39,10 @@ function createRouterProxy<Ctx>(
       }
       if (isProcedure(value)) {
         const fullPath = [...path, prop].join(".");
-        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args);
+        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, pendingEvents);
       }
       if (typeof value === "object" && value !== null) {
-        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, [...path, prop]);
+        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, eventEmitter, pendingEvents, [...path, prop]);
       }
       return undefined;
     },
@@ -52,7 +54,9 @@ async function executeRoute<Ctx>(
   ctx: Ctx,
   globalMiddleware: Middleware<Ctx>[],
   route: string,
-  args: unknown
+  args: unknown,
+  eventEmitter: EventEmitter<any> | undefined,
+  pendingEvents: PendingEvent[]
 ): Promise<Result<unknown>> {
   const parts = route.split(".");
   let current: any = router;
@@ -66,46 +70,93 @@ async function executeRoute<Ctx>(
   if (!procedure || !isProcedure(procedure)) {
     return createErrorResult("ROUTE_NOT_FOUND", `Route not found: ${route}`);
   }
-  return executeProcedure(procedure, ctx, args, globalMiddleware);
+  return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, pendingEvents);
+}
+
+interface SendFunction {
+  (name: string, data: unknown, options?: SendOptions): void;
+}
+
+function createHandlerContext<Ctx>(
+  ctx: Ctx,
+  pendingEvents: PendingEvent[]
+): Ctx & { send: SendFunction } {
+  const send: SendFunction = (name: string, data: unknown, options?: SendOptions) => {
+    pendingEvents.push({
+      name,
+      data,
+      timestamp: new Date().toISOString(),
+      namespace: options?.namespace ?? "default",
+      options,
+    });
+  };
+
+  return {
+    ...(ctx as object),
+    send,
+  } as Ctx & { send: SendFunction };
+}
+
+async function emitPendingEvents(
+  pendingEvents: PendingEvent[],
+  eventEmitter: EventEmitter<any> | undefined
+): Promise<void> {
+  if (!eventEmitter || pendingEvents.length === 0) return;
+
+  for (const event of pendingEvents) {
+    await eventEmitter.emit(event.name, event.data, event.namespace);
+  }
 }
 
 async function executeProcedure<Ctx, Args, Output>(
   procedure: Procedure<Ctx, Args, Output>,
   ctx: Ctx,
   args: Args,
-  middleware: Middleware<Ctx>[]
+  middleware: Middleware<Ctx>[],
+  eventEmitter: EventEmitter<any> | undefined,
+  pendingEvents: PendingEvent[]
 ): Promise<Result<Output>> {
+  // Create handler context with send function
+  const handlerCtx = createHandlerContext(ctx, pendingEvents);
+
   try {
     let index = 0;
     const next = async (): Promise<Result<Output>> => {
       if (index >= middleware.length) {
         const hookedProc = procedure as any;
         if (hookedProc._hooks?.beforeInvoke) {
-          await hookedProc._hooks.beforeInvoke(ctx, args);
+          await hookedProc._hooks.beforeInvoke(handlerCtx, args);
         }
         try {
-          const result = await procedure.handler(ctx, args);
+          const result = await procedure.handler(handlerCtx, args);
           if (hookedProc._hooks?.afterInvoke) {
-            await hookedProc._hooks.afterInvoke(ctx, args, result);
+            await hookedProc._hooks.afterInvoke(handlerCtx, args, result);
           }
           if (result.ok && hookedProc._hooks?.onSuccess) {
-            await hookedProc._hooks.onSuccess(ctx, args, result.value);
+            await hookedProc._hooks.onSuccess(handlerCtx, args, result.value);
           } else if (!result.ok && hookedProc._hooks?.onError) {
-            await hookedProc._hooks.onError(ctx, args, result.error);
+            await hookedProc._hooks.onError(handlerCtx, args, result.error);
+          }
+          // Only emit events if handler succeeded
+          if (result.ok) {
+            await emitPendingEvents(pendingEvents, eventEmitter);
+            pendingEvents.length = 0; // Clear pending events after emitting
           }
           return result;
         } catch (error) {
           if (hookedProc._hooks?.onError) {
-            await hookedProc._hooks.onError(ctx, args, error);
+            await hookedProc._hooks.onError(handlerCtx, args, error);
           }
           throw error;
         }
       }
       const mw = middleware[index++];
-      return mw.handler(ctx as any, next as any) as any;
+      return mw.handler(handlerCtx as any, next as any) as any;
     };
     return await next();
   } catch (error: unknown) {
+    // On error, discard pending events (don't emit them)
+    pendingEvents.length = 0;
     const errorMessage = error instanceof Error ? error.message : "Internal error";
     return createErrorResult("INTERNAL_ERROR", errorMessage);
   }
@@ -121,16 +172,23 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
   }
 ): any {
   const { router, context, plugins = [], middleware = [], eventEmitter } = config;
+  const pendingEvents: PendingEvent[] = [];
+
+  const executeRawInternal = (route: string, args: unknown): Promise<Result<unknown>> => {
+    return executeRoute(router, context, middleware, route, args, eventEmitter, pendingEvents);
+  };
+
   const state: APIInstanceInternal<Ctx, TRoutes> = {
     router,
     ctx: context,
     plugins,
     globalMiddleware: middleware,
     eventEmitter,
-    executeRaw: (route: string, args: unknown) => executeRoute(router, context, middleware, route, args),
-    execute: async (route: string, args: unknown) => state.executeRaw(route, args),
+    executeRaw: executeRawInternal,
+    execute: async (route: string, args: unknown) => executeRawInternal(route, args),
   };
-  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router) as any;
+
+  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, pendingEvents) as any;
   return new Proxy(state as any, {
     get(target, prop: string | symbol): unknown {
       if (prop === "router") return target.router;
@@ -160,12 +218,11 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
 export function createLocalExecutor(
   api: APIInstance<unknown>
 ): LocalExecutor {
-  const events: any[] = [];
   return {
     execute: async (route: string, args: unknown) => {
       return api.executeRaw(route, args);
     },
-    getEvents: () => events,
+    getEvents: () => api.eventEmitter?.getEventLog() ?? [],
   };
 }
 

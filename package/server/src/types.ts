@@ -73,9 +73,26 @@ export interface EventRegistry {
   };
 }
 
-export interface EventPayload {
+export interface EventPayload<T = unknown> {
+  name: string;
+  data: T;
+  timestamp: string;
+  namespace: string;
+  source?: string;
+}
+
+export interface SendOptions {
+  namespace?: string;
+  broadcast?: boolean;
+  delay?: number;
+}
+
+export interface PendingEvent {
   name: string;
   data: unknown;
+  timestamp: string;
+  namespace: string;
+  options?: SendOptions;
 }
 
 export interface ContextWithSend<Ctx, Events extends EventRegistry> {

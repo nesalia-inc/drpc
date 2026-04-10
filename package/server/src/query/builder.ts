@@ -71,10 +71,17 @@ export class QueryBuilder<Ctx> {
 
   on<EventName extends keyof EventRegistry>(
     event: EventName,
-    handler: (ctx: Ctx, event: { name: string; data: EventRegistry[EventName]["data"] }) => void | Promise<void>
-  ): void {
+    handler: (ctx: Ctx, payload: { name: string; data: EventRegistry[EventName]["data"] }) => void | Promise<void>
+  ): () => void {
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    this.eventEmitter?.on(event, handler as any);
+    if (!this.eventEmitter) {
+      return () => {};
+    }
+    // Wrap the handler to pass context (this.context) as the first argument
+    const wrappedHandler = (payload: any) => {
+      return handler(this.context, payload);
+    };
+    return this.eventEmitter.on(event, wrappedHandler as any);
     /* eslint-enable @typescript-eslint/no-explicit-any */
   }
 }
