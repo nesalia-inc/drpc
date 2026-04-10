@@ -26,6 +26,8 @@ export type {
   OnErrorHook,
   EventRegistry,
   EventPayload,
+  SendOptions,
+  PendingEvent,
 } from "./types.js";
 
 // Local executor
@@ -34,6 +36,7 @@ export type { LocalExecutor } from "./api/index.js";
 // Events
 export { EventEmitter, defineEvents } from "./events/index.js";
 export type { EventHandler } from "./events/index.js";
+export { event, eventNamespace, eventsNamespace } from "./events/index.js";
 
 // Router helpers
 export {
