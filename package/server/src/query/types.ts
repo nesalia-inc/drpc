@@ -11,13 +11,19 @@ export interface QueryConfig<Ctx, Args, Output> {
 // HookedProcedureMixin for chainable hooks
 interface HookedProcedureMixin<Ctx, Args> {
   beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSuccess?: OnSuccessHook<Ctx, Args, any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError?: OnErrorHook<Ctx, Args, any>;
   };
 }

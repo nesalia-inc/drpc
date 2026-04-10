@@ -1,7 +1,6 @@
 import { error as errorFn, err as errFn } from "@deessejs/fp";
 import type { Error } from "@deessejs/fp";
 import type { Result } from "@deessejs/fp";
-import type { ServerError } from "./types.js";
 
 export { ok, err } from "@deessejs/fp";
 

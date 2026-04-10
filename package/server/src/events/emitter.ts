@@ -1,14 +1,9 @@
 import type { EventRegistry, EventPayload } from "../types.js";
 
-// ============================================
-// Event System
-// ============================================
-
 export class EventEmitter<Events extends EventRegistry = EventRegistry> {
   private listeners: Map<string, Set<(payload: EventPayload) => void | Promise<void>>> = new Map();
 
-  constructor(events?: Events) {
-    // Events parameter is optional - can be used for type checking later
+  constructor(_events?: Events) {
   }
 
   on<EventName extends keyof Events>(
@@ -18,7 +13,9 @@ export class EventEmitter<Events extends EventRegistry = EventRegistry> {
     if (!this.listeners.has(event as string)) {
       this.listeners.set(event as string, new Set());
     }
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     this.listeners.get(event as string)!.add(handler as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   }
 
   off<EventName extends keyof Events>(
@@ -27,7 +24,9 @@ export class EventEmitter<Events extends EventRegistry = EventRegistry> {
   ): void {
     const handlers = this.listeners.get(event as string);
     if (handlers) {
+      /* eslint-disable @typescript-eslint/no-explicit-any */
       handlers.delete(handler as any);
+      /* eslint-enable @typescript-eslint/no-explicit-any */
     }
   }
 
@@ -52,19 +51,11 @@ export class EventEmitter<Events extends EventRegistry = EventRegistry> {
   }
 }
 
-// ============================================
-// defineEvents Helper
-// ============================================
-
 export function defineEvents<Events extends EventRegistry>(
   events: Events
 ): Events {
   return events;
 }
-
-// ============================================
-// Event Handler Types
-// ============================================
 
 export type EventHandler<Events extends EventRegistry, EventName extends keyof Events> = (
   event: { name: EventName; data: Events[EventName]["data"] }

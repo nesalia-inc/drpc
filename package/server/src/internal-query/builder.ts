@@ -8,6 +8,19 @@ import type {
   OnErrorHook,
 } from "../types.js";
 
+export type InternalQueryWithHooks<Ctx, Output> = InternalQuery<Ctx, void, Output> &
+  HookedProcedureMixin<Ctx, void>;
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function createInternalQueryWithHooks<Ctx, Output>(
+  config: InternalQueryConfig<Ctx, Output>
+): InternalQueryWithHooks<Ctx, Output> {
+  return createHookedProcedure({
+    type: "internalQuery",
+    handler: config.handler as any,
+  }) as InternalQueryWithHooks<Ctx, Output>;
+}
+
 interface HookedProcedureMixin<Ctx, Args> {
   beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
   afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
@@ -21,30 +34,15 @@ interface HookedProcedureMixin<Ctx, Args> {
   };
 }
 
-export type InternalQueryWithHooks<Ctx, Output> = InternalQuery<Ctx, void, Output> &
-  HookedProcedureMixin<Ctx, void>;
-
-export function createInternalQueryWithHooks<Ctx, Output>(
-  config: InternalQueryConfig<Ctx, Output>
-): InternalQueryWithHooks<Ctx, Output> {
-  return createHookedProcedure({
-    type: "internalQuery",
-    handler: config.handler as any,
-  }) as InternalQueryWithHooks<Ctx, Output>;
-}
-
-// ============================================
-// Hooked Procedure Creator
-// ============================================
-
 interface BaseProc {
   type: "query" | "mutation" | "internalQuery" | "internalMutation";
   argsSchema?: any;
   handler: (ctx: any, args: any) => Promise<Result<any>>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createHookedProcedure<Proc extends BaseProc>(proc: Proc): Proc & HookedProcedureMixin<any, any> {
+function createHookedProcedure<Proc extends BaseProc>(
+  proc: Proc
+): Proc & HookedProcedureMixin<any, any> {
   const hookedProc: any = {
     type: proc.type,
     argsSchema: proc.argsSchema,
@@ -74,3 +72,4 @@ function createHookedProcedure<Proc extends BaseProc>(proc: Proc): Proc & Hooked
 
   return hookedProc;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */

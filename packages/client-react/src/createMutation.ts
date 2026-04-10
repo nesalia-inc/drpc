@@ -1,22 +1,20 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import type { MutationConfig } from './types';
-import { getQueryKey } from './utils';
 
-export function createMutation<TRoutes>(
+export function createMutation<TRoutes, TData, TError = unknown, TVariables = Record<string, unknown>>(
   client: TRoutes,
   route: string
 ) {
   const path = route.split('.');
 
   return function useDeesseMutation(
-    config: MutationConfig<any, any, any> = {}
+    config: MutationConfig<TData, TError, TVariables> = {}
   ) {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-      mutationFn: (args: Record<string, unknown>) => {
-        const procedure = getNestedProperty(client, path);
-        return procedure(args);
+    return useMutation<TData, TError, TVariables>({
+      mutationFn: async (args) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const procedure = getNestedProperty<TRoutes>(client, path) as (args: Record<string, unknown>) => Promise<TData>;
+        return procedure(args as Record<string, unknown>);
       },
       onSuccess: () => {
         // Invalidate related queries
@@ -27,8 +25,10 @@ export function createMutation<TRoutes>(
   };
 }
 
-function getNestedProperty(obj: any, path: string[]): any {
-  let current = obj;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getNestedProperty<TObj>(obj: TObj, path: string[]): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let current: any = obj;
   for (const key of path) {
     current = current[key];
   }

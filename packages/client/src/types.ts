@@ -1,6 +1,6 @@
 // Transport interface for making HTTP requests
 export interface Transport {
-  request(path: string, args: unknown, options?: RequestOptions): Promise<any>;
+  request(path: string, args: unknown, options?: RequestOptions): Promise<Response>;
 }
 
 export interface RequestOptions {

@@ -13,10 +13,10 @@ import type { Transport, ClientConfig } from './types';
  * ```
  */
 export function createClient<TRoutes>(config: ClientConfig<TRoutes>): TRoutes {
-  return createRouterProxy(config.transport, []);
+  return createRouterProxy<TRoutes>(config.transport, []);
 }
 
-async function parseResult(response: Response): Promise<{ ok: boolean; value?: any; error?: { message: string; code?: string } }> {
+async function parseResult(response: Response): Promise<{ ok: boolean; value?: unknown; error?: { message: string; code?: string } }> {
   const data = await response.json();
 
   if (data.ok === true) {
@@ -28,11 +28,14 @@ async function parseResult(response: Response): Promise<{ ok: boolean; value?: a
   return { ok: false, error };
 }
 
-function createRouterProxy(transport: Transport, pathParts: string[]): any {
-  async function procedureFunc(args: unknown) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProcedureFunc = (...args: any[]) => Promise<unknown>;
+
+function createRouterProxy<TRoutes>(transport: Transport, pathParts: string[]): TRoutes {
+  const procedureFunc: ProcedureFunc = async (args: unknown) => {
     const response = await transport.request(pathParts.join('/'), args);
     return parseResult(response);
-  }
+  };
 
   return new Proxy(procedureFunc, {
     get(_target, prop) {
@@ -47,11 +50,11 @@ function createRouterProxy(transport: Transport, pathParts: string[]): any {
       const newPathParts = [...pathParts, prop];
 
       // Return a new proxy that has the extended path
-      return createRouterProxy(transport, newPathParts);
+      return createRouterProxy<TRoutes>(transport, newPathParts);
     },
     apply(_target, _thisArg, [args]) {
       // When the proxy is called directly, use the stored path
       return procedureFunc(args);
     }
-  });
+  }) as TRoutes;
 }

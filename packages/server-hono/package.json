@@ -28,9 +28,11 @@
     "@deessejs/server": "*"
   },
   "devDependencies": {
-    "@deessejs/server": "workspace:*",
     "@deessejs/fp": "^3.0.0",
+    "@deessejs/server": "workspace:*",
+    "@eslint/js": "^9.17.0",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.15.0",
     "vitest": "^2.0.0",
     "zod": "^3.0.0"
   }

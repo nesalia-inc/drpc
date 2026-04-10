@@ -1,13 +1,6 @@
 import type { Router, Procedure } from "../types.js";
 
-// ============================================
-// Router Helpers
-// ============================================
-
-/**
- * Flatten a hierarchical router to get all procedure paths
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function flattenRouter<Ctx, R extends Router<Ctx, any>>(
   router: R,
   prefix: string[] = []
@@ -28,10 +21,6 @@ export function flattenRouter<Ctx, R extends Router<Ctx, any>>(
   return result;
 }
 
-/**
- * Get all public routes (query and mutation only)
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getPublicRoutes<Ctx, R extends Router<Ctx, any>>(
   router: R
 ): Array<{ path: string; procedure: Procedure<Ctx, any, any> }> {
@@ -40,10 +29,6 @@ export function getPublicRoutes<Ctx, R extends Router<Ctx, any>>(
   );
 }
 
-/**
- * Get all internal routes (internalQuery and internalMutation)
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getInternalRoutes<Ctx, R extends Router<Ctx, any>>(
   router: R
 ): Array<{ path: string; procedure: Procedure<Ctx, any, any> }> {
@@ -52,15 +37,9 @@ export function getInternalRoutes<Ctx, R extends Router<Ctx, any>>(
   );
 }
 
-// ============================================
-// Type Guards
-// ============================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isRouter(obj: any): obj is Router<any, any> {
   if (!obj || typeof obj !== "object") return false;
 
-  // If any key contains a procedure, it's not a plain router
   for (const key of Object.keys(obj)) {
     if (isProcedure(obj[key])) {
       return false;
@@ -70,7 +49,6 @@ export function isRouter(obj: any): obj is Router<any, any> {
   return true;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isProcedure(obj: any): obj is Procedure<any, any, any> {
   return (
     obj &&
@@ -80,12 +58,10 @@ export function isProcedure(obj: any): obj is Procedure<any, any, any> {
   );
 }
 
-// ============================================
-// Path Resolution
-// ============================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function resolvePath(router: Router, path: string): Procedure<any, any, any> | Router | undefined {
+export function resolvePath(
+  router: Router,
+  path: string
+): Procedure<any, any, any> | Router | undefined {
   const parts = path.split(".");
   let current: any = router;
 
@@ -98,15 +74,14 @@ export function resolvePath(router: Router, path: string): Procedure<any, any, a
 
   return current;
 }
-
-// ============================================
-// Router Validation
-// ============================================
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 import type { ValidationResult } from "./types.js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function validateRouter<Ctx, R extends Router<Ctx, any>>(router: R): ValidationResult {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function validateRouter<Ctx, R extends Router<Ctx, any>>(
+  router: R
+): ValidationResult {
   const errors: string[] = [];
 
   const validate = (current: any, path: string[]): void => {
@@ -115,14 +90,12 @@ export function validateRouter<Ctx, R extends Router<Ctx, any>>(router: R): Vali
       const currentPath = [...path, key];
 
       if (isProcedure(value)) {
-        // Validate procedure
         if (!value.handler) {
           errors.push(`Procedure at "${currentPath.join(".")}" missing handler`);
         }
       } else if (isRouter(value)) {
         validate(value, currentPath);
       } else if (typeof value === "object" && value !== null) {
-        // Could be a nested router without procedures at this level
         validate(value, currentPath);
       }
     }
@@ -131,3 +104,4 @@ export function validateRouter<Ctx, R extends Router<Ctx, any>>(router: R): Vali
   validate(router, []);
   return { valid: errors.length === 0, errors };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */

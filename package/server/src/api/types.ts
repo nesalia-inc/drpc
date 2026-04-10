@@ -1,25 +1,26 @@
-import type { Plugin, Middleware, Router, Procedure } from "../types.js";
 import type { EventEmitter } from "../events/emitter.js";
 
-export interface APIInstance<Ctx, TRoutes = Router<Ctx>> {
+export interface APIInstance<Ctx, TRoutes = import("../types.js").Router<Ctx>> {
   readonly router: TRoutes;
   readonly ctx: Ctx;
-  readonly plugins: Plugin<Ctx>[];
-  readonly globalMiddleware: Middleware<Ctx>[];
+  readonly plugins: import("../types.js").Plugin<Ctx>[];
+  readonly globalMiddleware: import("../types.js").Middleware<Ctx>[];
 
   execute(route: string, args: unknown): Promise<import("@deessejs/fp").Result<unknown>>;
   executeRaw(route: string, args: unknown): Promise<import("@deessejs/fp").Result<unknown>>;
 }
 
-export interface LocalExecutor<Ctx> {
+export interface LocalExecutor {
   execute(route: string, args: unknown): Promise<import("@deessejs/fp").Result<unknown>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getEvents(): any[];
 }
 
-export interface APIConfig<Ctx, TRoutes extends Router<Ctx>> {
+export interface APIConfig<TRoutes extends import("../types.js").Router<unknown>> {
   router: TRoutes;
-  context: Ctx;
-  plugins: Plugin<Ctx>[];
-  middleware: Middleware<Ctx>[];
+  context: unknown;
+  plugins: import("../types.js").Plugin<unknown>[];
+  middleware: import("../types.js").Middleware<unknown>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   eventEmitter?: EventEmitter<any>;
 }

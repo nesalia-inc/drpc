@@ -6,49 +6,6 @@ settings:
 
 importers:
 
-  examples/basic-next:
-    dependencies:
-      '@deessejs/client':
-        specifier: ^0.0.1
-        version: 0.0.1(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76))
-      '@deessejs/client-react':
-        specifier: ^0.0.0
-        version: 0.0.0(@deessejs/client@0.0.1(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)))(react@18.3.1)
-      '@deessejs/fp':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@deessejs/server':
-        specifier: ^0.0.0
-        version: 0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)
-      '@deessejs/server-next':
-        specifier: ^0.0.0
-        version: 0.0.0(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76))(next@15.5.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
-      next:
-        specifier: ^14.0.0 || ^15.0.0
-        version: 15.5.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: ^18.0.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.0.0
-        version: 18.3.1(react@18.3.1)
-      zod:
-        specifier: ^3.0.0
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^20.19.39
-        version: 20.19.39
-      '@types/react':
-        specifier: ^18.0.0
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.0.0
-        version: 18.3.7(@types/react@18.3.28)
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
-
   package/server:
     devDependencies:
       '@deessejs/fp':
@@ -59,7 +16,7 @@ importers:
         version: 9.39.4
       '@vitest/coverage-v8':
         specifier: ^2.0.0
-        version: 2.1.9(vitest@2.1.9(jsdom@25.0.1))
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       eslint:
         specifier: ^9.17.0
         version: 9.39.4
@@ -71,7 +28,7 @@ importers:
         version: 8.58.1(eslint@9.39.4)(typescript@5.9.3)
       vitest:
         specifier: ^2.0.0
-        version: 2.1.9(jsdom@25.0.1)
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
       zod:
         specifier: ^3.0.0
         version: 3.25.76
@@ -90,7 +47,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.0.0
-        version: 2.1.9(jsdom@25.0.1)
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
 
   packages/client-react:
     dependencies:
@@ -112,7 +69,7 @@ importers:
         version: 18.3.7(@types/react@18.3.28)
       '@vitejs/plugin-react':
         specifier: ^4.0.0
-        version: 4.7.0(vite@5.4.21)
+        version: 4.7.0(vite@5.4.21(@types/node@20.19.39))
       jsdom:
         specifier: ^25.0.0
         version: 25.0.1
@@ -127,7 +84,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.0.0
-        version: 2.1.9(jsdom@25.0.1)
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
 
   packages/server-hono:
     dependencies:
@@ -141,12 +98,18 @@ importers:
       '@deessejs/fp':
         specifier: ^3.0.0
         version: 3.0.0
+      '@eslint/js':
+        specifier: ^9.17.0
+        version: 9.39.4
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.15.0
+        version: 8.58.1(eslint@9.39.4)(typescript@5.9.3)
       vitest:
         specifier: ^2.0.0
-        version: 2.1.9(jsdom@25.0.1)
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
       zod:
         specifier: ^3.0.0
         version: 3.25.76
@@ -169,12 +132,21 @@ importers:
       '@deessejs/server':
         specifier: workspace:*
         version: link:../../package/server
+      '@eslint/js':
+        specifier: ^9.17.0
+        version: 9.39.4
+      eslint:
+        specifier: ^9.17.0
+        version: 9.39.4
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.15.0
+        version: 8.58.1(eslint@9.39.4)(typescript@5.9.3)
       vitest:
         specifier: ^2.0.0
-        version: 2.1.9(jsdom@25.0.1)
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
       zod:
         specifier: ^3.0.0
         version: 3.25.76
@@ -306,30 +278,13 @@ packages:
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
 
-  '@deessejs/client-react@0.0.0':
-    resolution: {integrity: sha512-3/RS7fd9O0QBHgTrFiYmG6htf51SaQ0axvJFE+itDr5k7Ic1eJqCgEiVrA7c5uDtW+CIHB1FFxSz2GO5GmqUcg==}
-    peerDependencies:
-      '@deessejs/client': '*'
-      react: ^18.0.0
-
   '@deessejs/client@0.0.0':
     resolution: {integrity: sha512-aqxn1hBT363Qkv/UhFnO02CghP3FAdMTCFcyR0ntFEKPTHf9Yx1+or4vPi72unmITJz1x2lMPMZVPMsnn94ujQ==}
     peerDependencies:
       '@deessejs/server': '*'
 
-  '@deessejs/client@0.0.1':
-    resolution: {integrity: sha512-VTdqFEZpL0sTuq4YAHVa0figgLh3LXT6A9pFdFA5XxCWF7nGDjbv2H0YkZhtERQUyxPNFTwlsNO4b6pbyBIiXg==}
-    peerDependencies:
-      '@deessejs/server': '*'
-
   '@deessejs/fp@3.0.0':
     resolution: {integrity: sha512-sFSmCoRtDJFn/teZs9c1aU6Icgw7IaL9vrplgvS+tD9aGfo6xiVMb6pFAtAf1Mo3eZfRkBIsd5D2DWKrp4Aqzg==}
-
-  '@deessejs/server-next@0.0.0':
-    resolution: {integrity: sha512-jqJmmrDD2W/8m2umi8w187eGQjgRG0epodjpCpE1phFtTILqcU2f1q9OGUoi199w4bu9REJ8YmR0DXcv3l/eaw==}
-    peerDependencies:
-      '@deessejs/server': '*'
-      next: ^14.0.0 || ^15.0.0
 
   '@deessejs/server@0.0.0':
     resolution: {integrity: sha512-qiJCpwa9zZgZaqy3KsVU3TknKTXQH04qA+hXPunyekOp5cdSHInV1Up1n0Nh3R0dG5I8XLiGblxZn16es9Z/vQ==}
@@ -2185,37 +2140,14 @@ snapshots:
 
   '@csstools/css-tokenizer@3.0.4': {}
 
-  '@deessejs/client-react@0.0.0(@deessejs/client@0.0.1(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)))(react@18.3.1)':
-    dependencies:
-      '@deessejs/client': 0.0.1(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76))
-      '@tanstack/react-query': 5.97.0(react@18.3.1)
-      react: 18.3.1
-
   '@deessejs/client@0.0.0(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@4.3.6))':
     dependencies:
       '@deessejs/fp': 3.0.0
       '@deessejs/server': 0.0.0(@deessejs/fp@3.0.0)(zod@4.3.6)
 
-  '@deessejs/client@0.0.1(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76))':
-    dependencies:
-      '@deessejs/fp': 3.0.0
-      '@deessejs/server': 0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)
-
   '@deessejs/fp@3.0.0':
     dependencies:
       zod: 4.3.6
-
-  '@deessejs/server-next@0.0.0(@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76))(next@15.5.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
-    dependencies:
-      '@deessejs/server': 0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)
-      '@deessejs/server-hono': link:packages/server-hono
-      hono: 4.12.12
-      next: 15.5.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-
-  '@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@3.25.76)':
-    dependencies:
-      '@deessejs/fp': 3.0.0
-      zod: 3.25.76
 
   '@deessejs/server@0.0.0(@deessejs/fp@3.0.0)(zod@4.3.6)':
     dependencies:
@@ -2648,6 +2580,7 @@ snapshots:
   '@types/node@20.19.39':
     dependencies:
       undici-types: 6.21.0
+    optional: true
 
   '@types/prop-types@15.7.15': {}
 
@@ -2751,7 +2684,7 @@ snapshots:
       '@typescript-eslint/types': 8.58.1
       eslint-visitor-keys: 5.0.1
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.21)':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@20.19.39))':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
@@ -2759,11 +2692,11 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.21
+      vite: 5.4.21(@types/node@20.19.39)
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(jsdom@25.0.1))':
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -2777,7 +2710,7 @@ snapshots:
       std-env: 3.10.0
       test-exclude: 7.0.2
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(jsdom@25.0.1)
+      vitest: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -2788,13 +2721,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(vite@5.4.21)':
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@20.19.39))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 5.4.21
+      vite: 5.4.21(@types/node@20.19.39)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -3682,7 +3615,8 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  undici-types@6.21.0: {}
+  undici-types@6.21.0:
+    optional: true
 
   update-browserslist-db@1.2.3(browserslist@4.28.2):
     dependencies:
@@ -3694,13 +3628,13 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  vite-node@2.1.9:
+  vite-node@2.1.9(@types/node@20.19.39):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 1.1.2
-      vite: 5.4.21
+      vite: 5.4.21(@types/node@20.19.39)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -3712,18 +3646,19 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.4.21:
+  vite@5.4.21(@types/node@20.19.39):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.8
       rollup: 4.60.1
     optionalDependencies:
+      '@types/node': 20.19.39
       fsevents: 2.3.3
 
-  vitest@2.1.9(jsdom@25.0.1):
+  vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21)
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@20.19.39))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -3739,10 +3674,11 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.1.1
       tinyrainbow: 1.2.0
-      vite: 5.4.21
-      vite-node: 2.1.9
+      vite: 5.4.21(@types/node@20.19.39)
+      vite-node: 2.1.9(@types/node@20.19.39)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@types/node': 20.19.39
       jsdom: 25.0.1
     transitivePeerDependencies:
       - less

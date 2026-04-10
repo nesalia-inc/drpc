@@ -1,12 +1,7 @@
 import type { ZodType } from "zod";
 import type { Result } from "@deessejs/fp";
 
-// Re-export Result type from @deessejs/fp
 export type { Result } from "@deessejs/fp";
-
-// ============================================
-// Procedure Types
-// ============================================
 
 export type ProcedureType = "query" | "mutation" | "internalQuery" | "internalMutation";
 
@@ -33,10 +28,6 @@ export interface InternalMutation<Ctx, Args, Output> extends BaseProcedure<Ctx, 
   readonly type: "internalMutation";
 }
 
-// ============================================
-// Hooks
-// ============================================
-
 export type BeforeInvokeHook<Ctx, Args> = (ctx: Ctx, args: Args) => void | Promise<void>;
 
 export type AfterInvokeHook<Ctx, Args, Output> = (
@@ -49,10 +40,6 @@ export type OnSuccessHook<Ctx, Args, Output> = (ctx: Ctx, args: Args, data: Outp
 
 export type OnErrorHook<Ctx, Args, Error> = (ctx: Ctx, args: Args, error: Error) => void | Promise<void>;
 
-// ============================================
-// Middleware
-// ============================================
-
 export interface Middleware<Ctx, Args = unknown> {
   readonly name: string;
   readonly args?: Args;
@@ -62,21 +49,14 @@ export interface Middleware<Ctx, Args = unknown> {
   ) => Promise<Result<unknown>>;
 }
 
-// ============================================
-// Plugin
-// ============================================
-
 export interface Plugin<Ctx> {
   readonly name: string;
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
 }
 
-// ============================================
-// Router
-// ============================================
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Router<Ctx = any, Routes = Record<string, any>> = Routes & {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: Router<Ctx> | Procedure<Ctx, any, any>;
 };
 
@@ -85,10 +65,6 @@ export type Procedure<Ctx, Args, Output> =
   | Mutation<Ctx, Args, Output>
   | InternalQuery<Ctx, Args, Output>
   | InternalMutation<Ctx, Args, Output>;
-
-// ============================================
-// Events
-// ============================================
 
 export interface EventRegistry {
   [eventName: string]: {
@@ -101,10 +77,6 @@ export interface EventPayload {
   name: string;
   data: unknown;
 }
-
-// ============================================
-// Context Types
-// ============================================
 
 export interface ContextWithSend<Ctx, Events extends EventRegistry> {
   ctx: Ctx;

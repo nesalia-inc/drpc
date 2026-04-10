@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { QueryConfig } from './types';
 import { getQueryKey } from './utils';
 
-export function createQuery<TRoutes>(
+export function createQuery<TRoutes, TData, TError = unknown>(
   client: TRoutes,
   route: string
 ) {
@@ -10,15 +10,15 @@ export function createQuery<TRoutes>(
 
   return function useDeesseQuery(
     args: Record<string, unknown>,
-    config: QueryConfig<any, any> = {}
+    config: QueryConfig<TData, TError> = {}
   ) {
-    const queryClient = useQueryClient();
     const queryKey = config.queryKey ?? getQueryKey(path, args);
 
-    return useQuery({
+    return useQuery<TData, TError>({
       queryKey,
-      queryFn: () => {
-        const procedure = getNestedProperty(client, path);
+      queryFn: async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const procedure = getNestedProperty<TRoutes>(client, path) as (args: Record<string, unknown>) => Promise<TData>;
         return procedure(args);
       },
       ...config.queryOptions,
@@ -26,8 +26,10 @@ export function createQuery<TRoutes>(
   };
 }
 
-function getNestedProperty(obj: any, path: string[]): any {
-  let current = obj;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getNestedProperty<TObj>(obj: TObj, path: string[]): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let current: any = obj;
   for (const key of path) {
     current = current[key];
   }

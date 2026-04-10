@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HTTPClient } from "./types.js";
 import { getHTTPStatus } from "./errors.js";
+import type { Error } from "@deessejs/fp";
 
 /**
  * Converts a path like "users/get" to "users.get" for procedure lookup
@@ -54,7 +55,8 @@ export function createHonoHandler(client: HTTPClient): Hono {
     }
 
     // Map error code to HTTP status
-    const status = getHTTPStatus((result.error as any)?.code);
+    const error = result.error as Error | undefined;
+    const status = getHTTPStatus(error?.name);
     return c.json(result, status as 400 | 401 | 403 | 404 | 409 | 500);
   });
 

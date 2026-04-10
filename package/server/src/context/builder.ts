@@ -1,4 +1,4 @@
-import type { Plugin, EventRegistry, Middleware, Router } from "../types.js";
+import type { EventRegistry, Middleware, Router } from "../types.js";
 import { QueryBuilder } from "../query/builder.js";
 import { EventEmitter } from "../events/emitter.js";
 import { createAPI } from "../api/factory.js";
@@ -11,8 +11,9 @@ export function defineContext<
   config: DefineContextConfig<Ctx, Events>
 ): {
   t: QueryBuilder<Ctx>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   createAPI: (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => any;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 } {
   const { context, plugins = [], events } = config;
 
@@ -20,10 +21,13 @@ export function defineContext<
   const eventEmitter = events ? new EventEmitter<Events>(events) : undefined;
 
   // Create query builder (t)
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const t = new QueryBuilder<Ctx>(context, eventEmitter as any);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Create createAPI function - use any to avoid complex type issues
   const createAPIFn = (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     return createAPI({
       router: apiConfig.router,
       context,
@@ -31,6 +35,7 @@ export function defineContext<
       middleware: apiConfig.middleware,
       eventEmitter,
     }) as any;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   };
 
   return { t, createAPI: createAPIFn };

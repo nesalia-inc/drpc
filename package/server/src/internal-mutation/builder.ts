@@ -8,19 +8,6 @@ import type {
   OnErrorHook,
 } from "../types.js";
 
-interface HookedProcedureMixin<Ctx, Args> {
-  beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
-  afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
-  onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
-  onError(hook: OnErrorHook<Ctx, Args, any>): this;
-  _hooks: {
-    beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
-    afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
-    onSuccess?: OnSuccessHook<Ctx, Args, any>;
-    onError?: OnErrorHook<Ctx, Args, any>;
-  };
-}
-
 export type InternalMutationWithHooks<Ctx, Args, Output> = InternalMutation<Ctx, Args, Output> &
   HookedProcedureMixin<Ctx, Args>;
 
@@ -34,9 +21,19 @@ export function createInternalMutationWithHooks<Ctx, Args, Output>(
   }) as InternalMutationWithHooks<Ctx, Args, Output>;
 }
 
-// ============================================
-// Hooked Procedure Creator
-// ============================================
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface HookedProcedureMixin<Ctx, Args> {
+  beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
+  afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
+  onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
+  onError(hook: OnErrorHook<Ctx, Args, any>): this;
+  _hooks: {
+    beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
+    afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
+    onSuccess?: OnSuccessHook<Ctx, Args, any>;
+    onError?: OnErrorHook<Ctx, Args, any>;
+  };
+}
 
 interface BaseProc {
   type: "query" | "mutation" | "internalQuery" | "internalMutation";
@@ -44,8 +41,9 @@ interface BaseProc {
   handler: (ctx: any, args: any) => Promise<Result<any>>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createHookedProcedure<Proc extends BaseProc>(proc: Proc): Proc & HookedProcedureMixin<any, any> {
+function createHookedProcedure<Proc extends BaseProc>(
+  proc: Proc
+): Proc & HookedProcedureMixin<any, any> {
   const hookedProc: any = {
     type: proc.type,
     argsSchema: proc.argsSchema,
@@ -75,3 +73,4 @@ function createHookedProcedure<Proc extends BaseProc>(proc: Proc): Proc & Hooked
 
   return hookedProc;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
