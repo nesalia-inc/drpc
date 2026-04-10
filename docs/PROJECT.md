@@ -106,7 +106,7 @@ Typed operation calls
 
 ### Key Packages
 
-- `@deessejs/core` - Shared types (`Result<T>`, `ok()`, `err()`)
+- `@deessejs/fp` - FP types (`Result`, `ok()`, `err()`, `Maybe`, `Try`, etc.) - see [/deesse-fp skill](../../.claude/skills/deesse-fp/SKILL.md)
 - `@deessejs/server` - RPC server implementation
 - `@deessejs/client` - RPC client implementation
 
@@ -117,7 +117,7 @@ Typed operation calls
 ```typescript
 import { defineContext, t } from '@deessejs/server';
 import { z } from 'zod';
-import { ok } from '@deessejs/core';
+import { ok } from '@deessejs/fp'; // See /deesse-fp for Result patterns
 
 const { router } = defineContext({
   context: () => ({ db: myDatabase }),

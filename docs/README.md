@@ -83,7 +83,7 @@ This ensures sensitive operations (admin actions, privileged mutations) remain p
 
 | Package | Description |
 |---------|-------------|
-| `@deessejs/core` | Core types (`Result`, `ok()`, `err()`) |
+| `@deessejs/fp` | FP types (`Result`, `ok()`, `err()`, `Maybe`, `Try`, `AsyncResult`) - see [/deesse-fp skill](../.claude/skills/deesse-fp/SKILL.md) |
 | `@deessejs/server` | This package: functional RPC definitions |
 | `@deessejs/server/react` | React hooks integration |
 
@@ -109,7 +109,7 @@ const { t, createAPI } = defineContext({
 
 ```typescript
 import { z } from "zod"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result, ok, err patterns
 import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
@@ -131,7 +131,7 @@ const getUser = t.query({
 
 ```typescript
 import { z } from "zod"
-import { ok } from "@deessejs/core"
+import { ok } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
@@ -153,7 +153,7 @@ Internal operations are only callable from server-side code, not exposed via HTT
 
 ```typescript
 import { z } from "zod"
-import { ok } from "@deessejs/core"
+import { ok } from "@deessejs/fp" // See /deesse-fp for Result patterns
 
 // Internal query - only callable from server code
 const getAdminStats = t.internalQuery({
@@ -316,7 +316,7 @@ const stats = await api.users.getAdminStats({}) // Works - internal
 
 ```typescript
 import { z } from "zod"
-import { ok } from "@deessejs/core"
+import { ok } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 
 const createUser = t.mutation({
@@ -419,7 +419,7 @@ function CreateUserForm() {
 ## Installation
 
 ```bash
-pnpm add @deessejs/server @deessejs/core
+pnpm add @deessejs/server @deessejs/fp
 # or
-npm install @deessejs/server @deessejs/core
+npm install @deessejs/server @deessejs/fp
 ```

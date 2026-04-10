@@ -7,7 +7,7 @@
 ## Project Context
 
 This package is part of a multi-package architecture:
-- **@deessejs/core** - Core types and utilities (`Result`, `ok()`, `err()`)
+- **@deessejs/fp** - FP types (`Result`, `ok()`, `err()`, `Maybe`, `Try`, etc.) - see [/deesse-fp skill](../.claude/skills/deesse-fp/SKILL.md)
 - **@deessejs/server** - This package: functional RPC protocol implementation
 - **@deessejs/server/react** - React hooks integration
 
@@ -69,8 +69,7 @@ This package is part of a multi-package architecture:
 
 ## Dependencies
 
-- **@deessejs/core** - Required peer dependency
-  - Provides: `Result` type
+- **@deessejs/fp** - Required peer dependency for `Result` type
 
 ## Requirements
 
@@ -86,7 +85,7 @@ This package is part of a multi-package architecture:
 ### Result Pattern
 
 ```typescript
-import { ok, err, Result } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for full documentation
 
 type Result<Success, Error = { code: string; message: string }> =
   | { ok: true; value: Success }
@@ -142,9 +141,9 @@ type Plugin<Ctx> = {
 ### Installation
 
 ```bash
-pnpm add @deessejs/server @deessejs/core
+pnpm add @deessejs/server @deessejs/fp
 # or
-npm install @deessejs/server @deessejs/core
+npm install @deessejs/server @deessejs/fp
 ```
 
 ### Define Context
@@ -178,7 +177,7 @@ The handler can return a `Result` (with `ok`/`err`), but for queries that return
 
 ```typescript
 import { z } from "zod"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
@@ -228,7 +227,7 @@ const getAdminStats = t.internalQuery({
 
 ```typescript
 import { z } from "zod"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
@@ -557,7 +556,7 @@ const stats = await executor.execute("users.getAdminStats", {})
 ## Architecture
 
 ```
-@deessejs/core (peer dependency)
+@deessejs/fp (FP types: Result, ok, err)
        │
        ▼
 @deessejs/server (functional RPC protocol)
@@ -576,7 +575,7 @@ Drpc reimagines RPC for the modern stack:
 - **Type Safety** - Full TypeScript inference from schema definition to client call
 - **Security**: Separate public vs internal operations
 - Plugin system for extensibility (context, lifecycle hooks)
-- Built on @deessejs/core patterns (Result type with `ok`/`err`)
+- Built on @deessejs/fp patterns (Result type with `ok`/`err`) - see [/deesse-fp skill](../.claude/skills/deesse-fp/SKILL.md)
 
 ## Security Model
 
