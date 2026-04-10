@@ -1,0 +1,37 @@
+{
+  "name": "@deessejs/server-hono",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Hono HTTP adapter for @deessejs/server",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@deessejs/server": "workspace:*",
+    "hono": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@deessejs/server": "*"
+  },
+  "devDependencies": {
+    "@deessejs/server": "workspace:*",
+    "@deessejs/fp": "^3.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.0.0"
+  }
+}
