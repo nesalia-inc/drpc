@@ -10,7 +10,7 @@ Public queries are the standard way to define read operations that need to be ac
 
 ```typescript
 import { defineContext } from "@deessejs/server"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { z } from "zod"
 
 const { t } = defineContext({

@@ -13,7 +13,7 @@ Mutations follow the same patterns as queries but are used for creating, updatin
 
 ```typescript
 import { defineContext } from "@deessejs/server"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { z } from "zod"
 
 const { t } = defineContext({

@@ -70,6 +70,8 @@ const { t, createAPI } = defineContext({
 
 The context is fully typed, so you get autocomplete and type safety throughout your handlers.
 
+> **Note:** For `Result` type and FP patterns (`ok`, `err`, `map`, `flatMap`, etc.), see the [/deesse-fp skill](../../.claude/skills/deesse-fp/SKILL.md).
+
 ```typescript
 type Context = {
   db: Database
@@ -97,6 +99,8 @@ const getUser = t.query({
   },
 })
 ```
+
+For more on `Result` and FP patterns, see [/deesse-fp](../../.claude/skills/deesse-fp/SKILL.md).
 
 ## With Plugins
 

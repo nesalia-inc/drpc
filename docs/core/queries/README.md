@@ -11,7 +11,7 @@ Queries are read operations in `@deessejs/server`. They are used to fetch data f
 
 ```typescript
 import { defineContext } from "@deessejs/server"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { z } from "zod"
 
 const { t } = defineContext({
@@ -463,7 +463,7 @@ handler: async (ctx, args) => {
 7. **Use pagination** - Always limit results for list queries
 
 ```typescript
-import { err } from "@deessejs/core"
+import { err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { z } from "zod"
 

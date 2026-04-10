@@ -529,7 +529,7 @@ const api = createAPI({
 
 ```typescript
 import { defineContext, createAPI, t } from "@deessejs/server"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 
 describe("authMiddleware", () => {
   const { t, createAPI } = defineContext({

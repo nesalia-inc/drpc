@@ -61,7 +61,7 @@ export { keys }
 
 ```typescript
 import { z } from "zod"
-import { ok, err } from "@deessejs/core"
+import { ok, err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { t } from "../context"
 import { keys } from "./cache/keys"
@@ -106,7 +106,7 @@ const listUsers = t.query({
 
 ```typescript
 import { z } from "zod"
-import { ok } from "@deessejs/core"
+import { ok } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 import { keys } from "./cache/keys"
 
@@ -245,7 +245,7 @@ withMetadata(user, { invalidate: ["users:list"] })
 
 ```typescript
 import { z } from "zod"
-import { err } from "@deessejs/core"
+import { err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 
 const getUser = t.query({
@@ -494,7 +494,7 @@ class CacheService {
 
 ```typescript
 import { z } from "zod"
-import { err } from "@deessejs/core"
+import { err } from "@deessejs/fp" // See /deesse-fp for Result patterns
 import { withMetadata } from "@deessejs/server"
 
 const getUser = t.query({

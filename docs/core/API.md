@@ -11,8 +11,6 @@ import {
   createPublicAPI,
   createClient,
   createLocalExecutor,
-  ok,
-  err,
   withMetadata,
   defineCacheKeys,
   defineEvents,
@@ -25,12 +23,12 @@ import {
   Router,
   Middleware,
   Plugin,
-  Result,
   CacheKey,
   WithMetadata,
   EventRegistry,
   EventPayload,
 } from "@deessejs/server"
+import { ok, err, Result } from "@deessejs/fp" // See /deesse-fp for FP types
 ```
 
 ## Documentation Structure
@@ -85,7 +83,7 @@ import {
 
 | Type | Description |
 |------|-------------|
-| `Result<Success, Error>` | Result type with `ok`/`err` |
+| `Result<Success, Error>` | Result type with `ok`/`err` (from `@deessejs/fp`, see /deesse-fp) |
 | `CacheKey` | Cache key type |
 | `WithMetadata<T, Keys>` | Value with cache metadata |
 | `Plugin<Ctx>` | Plugin definition |
