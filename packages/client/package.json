@@ -1,0 +1,33 @@
+{
+  "name": "@deessejs/client",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Type-safe HTTP client for @deessejs/server",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@deessejs/fp": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@deessejs/server": "*"
+  },
+  "devDependencies": {
+    "@deessejs/server": "workspace:*",
+    "@deessejs/fp": "^3.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
