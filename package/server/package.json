@@ -1,8 +1,9 @@
 {
   "name": "@deessejs/server",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
+  "description": "Modern functional-first RPC protocol for type-safe APIs",
+  "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -20,12 +21,18 @@
     "test:run": "vitest run --coverage",
     "clean": "rm -rf dist"
   },
+  "peerDependencies": {
+    "@deessejs/fp": "*",
+    "zod": "^3.0.0"
+  },
   "devDependencies": {
+    "@deessejs/fp": "^3.0.0",
     "@eslint/js": "^9.17.0",
     "@vitest/coverage-v8": "^2.0.0",
     "eslint": "^9.17.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.15.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "zod": "^3.0.0"
   }
 }
