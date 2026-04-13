@@ -4,7 +4,7 @@
  * Combines all sub-routers into the application router.
  */
 
-import { t } from "./context";
+import { t } from "../context";
 import { usersRouter } from "./users";
 
 // ============================================================================
