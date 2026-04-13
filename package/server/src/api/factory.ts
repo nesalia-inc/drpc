@@ -75,7 +75,7 @@ async function executeRoute<Ctx>(
 }
 
 interface SendFunction {
-  (name: string, data: unknown, options?: SendOptions): void;
+  (name: string, data: unknown, options?: SendOptions): { eventName: string; data: unknown; processed: boolean; timestamp: string; namespace: string };
 }
 
 function createHandlerContext<Ctx>(
@@ -83,7 +83,7 @@ function createHandlerContext<Ctx>(
   queue: ReturnType<typeof createPendingEventQueue>
 ): Ctx & { send: SendFunction } {
   const send: SendFunction = (name: string, data: unknown, options?: SendOptions) => {
-    queue.enqueue({
+    return queue.enqueue({
       name,
       data,
       timestamp: new Date().toISOString(),

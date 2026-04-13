@@ -92,8 +92,8 @@ function createTestAPI() {
         email: args.email,
       };
       ctx.db.users.push(user);
-      ctx.send(eventNames.user.created, { id: user.id, email: user.email, name: user.name });
-      ctx.send(eventNames.email.sent, {
+      (ctx as any).send(eventNames.user.created, { id: user.id, email: user.email, name: user.name });
+      (ctx as any).send(eventNames.email.sent, {
         to: user.email,
         template: "welcome",
         subject: "Welcome!",
@@ -111,7 +111,7 @@ function createTestAPI() {
     handler: async (ctx, args) => {
       const user = ctx.db.users.find((u) => u.id === args.id);
       if (!user) {
-        return err("NOT_FOUND" as any, "User not found");
+        return err({ name: "NOT_FOUND", message: () => "User not found" } as any);
       }
       const changes: Record<string, unknown> = {};
       if (args.name !== undefined) {
@@ -123,7 +123,7 @@ function createTestAPI() {
         user.email = args.email;
       }
       if (Object.keys(changes).length > 0) {
-        ctx.send(eventNames.user.updated, { id: user.id, changes });
+        (ctx as any).send(eventNames.user.updated, { id: user.id, changes });
       }
       return ok(user);
     },
@@ -134,10 +134,10 @@ function createTestAPI() {
     handler: async (ctx, args) => {
       const index = ctx.db.users.findIndex((u) => u.id === args.id);
       if (index === -1) {
-        return err("NOT_FOUND" as any, "User not found");
+        return err({ name: "NOT_FOUND", message: () => "User not found" } as any);
       }
       ctx.db.users.splice(index, 1);
-      ctx.send(eventNames.user.deleted, { id: args.id });
+      (ctx as any).send(eventNames.user.deleted, { id: args.id });
       return ok({ deleted: true });
     },
   });
@@ -146,8 +146,8 @@ function createTestAPI() {
     args: z.object({ shouldFail: z.boolean() }),
     handler: async (ctx, args) => {
       if (args.shouldFail) {
-        ctx.send(eventNames.user.created, { id: 999, email: "test@test.com", name: "Test" });
-        return err("FAIL" as any, "Intentional failure");
+        (ctx as any).send(eventNames.user.created, { id: 999, email: "test@test.com", name: "Test" });
+        return err({ name: "FAIL", message: () => "Intentional failure" } as any);
       }
       return ok({ success: true });
     },
@@ -213,8 +213,8 @@ describe("ctx.send() - Event Emission", () => {
 
     const emittedEvents = api.getEvents();
     // Should have both user.created and email.sent
-    expect(emittedEvents.some((e) => e.name === "user.created")).toBe(true);
-    expect(emittedEvents.some((e) => e.name === "email.sent")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "user.created")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "email.sent")).toBe(true);
   });
 
   it("should not emit events when mutation fails", async () => {
@@ -244,7 +244,7 @@ describe("ctx.send() - Event Emission", () => {
     const throwingMutation = t.mutation({
       args: z.object({}),
       handler: async (ctx, _args) => {
-        ctx.send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
         throw new Error("Database error");
       },
     });
@@ -303,7 +303,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -334,7 +334,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -368,7 +368,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -398,7 +398,7 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -432,8 +432,8 @@ describe("Wildcard Patterns", () => {
       args: z.object({ id: z.number(), name: z.string() }),
       handler: async (ctx, args) => {
         const user = ctx.db.users.find((u: any) => u.id === args.id);
-        if (!user) return err("NOT_FOUND" as any, "Not found");
-        ctx.send(eventNames.user.updated, { id: user.id, changes: { name: args.name } });
+        if (!user) return err({ name: "NOT_FOUND", message: () => "Not found" } as any);
+        (ctx as any).send(eventNames.user.updated, { id: user.id, changes: { name: args.name } });
         return ok(user);
       },
     });
@@ -463,8 +463,8 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
-        ctx.send(eventNames.email.sent, { to: "test@test.com", template: "welcome", subject: "Hi" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.email.sent, { to: "test@test.com", template: "welcome", subject: "Hi" });
         return ok(user);
       },
     });
@@ -494,7 +494,7 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -532,7 +532,7 @@ describe("Transaction Integrity", () => {
 
     // No events should have been emitted for the failed update
     const emittedEvents = api.getEvents();
-    const updateEvents = emittedEvents.filter((e) => e.name === "user.updated");
+    const updateEvents = emittedEvents.filter((e: any) => e.name === "user.updated");
     expect(updateEvents).toHaveLength(0);
   });
 
@@ -546,7 +546,7 @@ describe("Transaction Integrity", () => {
     const throwingMutation = t.mutation({
       args: z.object({}),
       handler: async (ctx, _args) => {
-        ctx.send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
+        (ctx as any).send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
         throw new Error("Database error");
       },
     });
@@ -619,7 +619,7 @@ describe("Edge Cases", () => {
 
     const emittedEvents = api.getEvents();
     // Should still capture events even without listeners
-    expect(emittedEvents.some((e) => e.name === "user.created")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "user.created")).toBe(true);
   });
 
   it("should handle empty update (no changes)", async () => {
@@ -642,7 +642,7 @@ describe("Edge Cases", () => {
     if (result.ok) {
       const emittedEvents = api.getEvents();
       // No user.updated should be emitted since no fields were provided
-      const updateEvents = emittedEvents.filter((e) => e.name === "user.updated");
+      const updateEvents = emittedEvents.filter((e: any) => e.name === "user.updated");
       expect(updateEvents).toHaveLength(0);
     }
   });
@@ -655,6 +655,6 @@ describe("Edge Cases", () => {
     await api.execute("users.create", { name: "User3", email: "u3@example.com" });
 
     const emittedEvents = api.getEvents();
-    expect(emittedEvents.filter((e) => e.name === "user.created")).toHaveLength(3);
+    expect(emittedEvents.filter((e: any) => e.name === "user.created")).toHaveLength(3);
   });
 });
