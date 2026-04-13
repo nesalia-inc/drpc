@@ -10,7 +10,7 @@
  * communicate with your server.
  */
 
-import { executor } from "../server";
+import { api } from "../server";
 
 // Re-export types for client usage
 export type { AppRouter } from "../server/routers";
@@ -32,35 +32,35 @@ export function createClient(): ClientAPI {
   return {
     users: {
       list: async () => {
-        const result = await executor.execute("users.list", {});
+        const result = await api.execute("users.list", {});
         if (!result.ok) {
           throw new Error(`Failed to list users: ${result.error}`);
         }
         return result.value as { id: number; name: string; email: string }[];
       },
       get: async (args) => {
-        const result = await executor.execute("users.get", args);
+        const result = await api.execute("users.get", args);
         if (!result.ok) {
           return null;
         }
         return result.value as { id: number; name: string; email: string };
       },
       create: async (args) => {
-        const result = await executor.execute("users.create", args);
+        const result = await api.execute("users.create", args);
         if (!result.ok) {
           throw new Error(`Failed to create user: ${result.error}`);
         }
         return result.value as { id: number; name: string; email: string };
       },
       update: async (args) => {
-        const result = await executor.execute("users.update", args);
+        const result = await api.execute("users.update", args);
         if (!result.ok) {
           throw new Error(`Failed to update user: ${result.error}`);
         }
         return result.value as { id: number; name: string; email: string };
       },
       delete: async (args) => {
-        const result = await executor.execute("users.delete", args);
+        const result = await api.execute("users.delete", args);
         if (!result.ok) {
           throw new Error(`Failed to delete user: ${result.error}`);
         }

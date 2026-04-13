@@ -10,7 +10,7 @@
  * - Unsubscribe - Cleaning up event listeners
  */
 
-import { executor, api } from "./index";
+import { api } from "./index";
 import { createClient } from "../client";
 
 // ============================================================================
