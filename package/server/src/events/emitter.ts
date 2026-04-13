@@ -155,7 +155,7 @@ export function flattenEvents<Events extends EventRegistry>(
   const result: EventRegistry = {};
   for (const key of Object.keys(events)) {
     const fullKey = prefix ? `${prefix}.${key}` : key;
-    const value = (events as any)[key];
+    const value = events[key] as unknown;
     // Check if value is an event definition (has 'data' property) or a namespace
     if (value && typeof value === "object" && "data" in value && Object.keys(value).length <= 2) {
       // This is an event definition (has data and optionally response)

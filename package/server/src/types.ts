@@ -102,3 +102,10 @@ export interface ContextWithSend<Ctx, Events extends EventRegistry> {
     data: Events[EventName]["data"]
   ) => void;
 }
+
+export type HandlerContext<Ctx, Events extends EventRegistry> = Ctx & {
+  send: <EventName extends keyof Events>(
+    event: EventName,
+    data: Events[EventName]["data"]
+  ) => void;
+};

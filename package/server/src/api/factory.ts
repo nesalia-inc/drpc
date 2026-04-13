@@ -1,12 +1,13 @@
 import type { Result } from "@deessejs/fp";
-import type { Plugin, Middleware, Router, Procedure, PendingEvent, SendOptions } from "../types.js";
+import type { Plugin, Middleware, Router, Procedure, SendOptions, EventRegistry, HandlerContext } from "../types.js";
 import { EventEmitter } from "../events/emitter.js";
+import { createPendingEventQueue } from "../events/queue.js";
 import { createErrorResult } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
-import type { APIInstance, LocalExecutor } from "./types.js";
+import type { APIInstance, TypedAPIInstance } from "./types.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface APIInstanceInternal<Ctx, TRoutes extends Router<Ctx>> {
+interface APIInstanceState<Ctx, TRoutes extends Router<Ctx>> {
   router: TRoutes;
   ctx: Ctx;
   plugins: Plugin<Ctx>[];
@@ -22,7 +23,7 @@ function createRouterProxy<Ctx>(
   globalMiddleware: Middleware<Ctx>[],
   rootRouter: Router<Ctx>,
   eventEmitter: EventEmitter<any> | undefined,
-  pendingEvents: PendingEvent[],
+  queue: ReturnType<typeof createPendingEventQueue>,
   path: string[] = []
 ): any {
   return new Proxy({}, {
@@ -39,10 +40,10 @@ function createRouterProxy<Ctx>(
       }
       if (isProcedure(value)) {
         const fullPath = [...path, prop].join(".");
-        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, pendingEvents);
+        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, queue);
       }
       if (typeof value === "object" && value !== null) {
-        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, eventEmitter, pendingEvents, [...path, prop]);
+        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, eventEmitter, queue, [...path, prop]);
       }
       return undefined;
     },
@@ -56,7 +57,7 @@ async function executeRoute<Ctx>(
   route: string,
   args: unknown,
   eventEmitter: EventEmitter<any> | undefined,
-  pendingEvents: PendingEvent[]
+  queue: ReturnType<typeof createPendingEventQueue>
 ): Promise<Result<unknown>> {
   const parts = route.split(".");
   let current: any = router;
@@ -70,42 +71,31 @@ async function executeRoute<Ctx>(
   if (!procedure || !isProcedure(procedure)) {
     return createErrorResult("ROUTE_NOT_FOUND", `Route not found: ${route}`);
   }
-  return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, pendingEvents);
+  return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, queue);
 }
 
-interface SendFunction {
-  (name: string, data: unknown, options?: SendOptions): void;
+interface SendFunction<Events extends EventRegistry> {
+  <Name extends keyof Events>(name: Name, data: Events[Name]["data"], options?: SendOptions): { eventName: Name; data: Events[Name]["data"]; processed: boolean; timestamp: string; namespace: string };
 }
 
-function createHandlerContext<Ctx>(
+function createHandlerContext<Ctx, Events extends EventRegistry>(
   ctx: Ctx,
-  pendingEvents: PendingEvent[]
-): Ctx & { send: SendFunction } {
-  const send: SendFunction = (name: string, data: unknown, options?: SendOptions) => {
-    pendingEvents.push({
-      name,
+  queue: ReturnType<typeof createPendingEventQueue>
+): HandlerContext<Ctx, Events> {
+  const send: SendFunction<Events> = (name, data, options?: SendOptions) => {
+    return queue.enqueue({
+      name: name as string,
       data,
       timestamp: new Date().toISOString(),
       namespace: options?.namespace ?? "default",
       options,
-    });
+    }) as { eventName: typeof name; data: typeof data; processed: boolean; timestamp: string; namespace: string };
   };
 
   return {
     ...(ctx as object),
     send,
-  } as Ctx & { send: SendFunction };
-}
-
-async function emitPendingEvents(
-  pendingEvents: PendingEvent[],
-  eventEmitter: EventEmitter<any> | undefined
-): Promise<void> {
-  if (!eventEmitter || pendingEvents.length === 0) return;
-
-  for (const event of pendingEvents) {
-    await eventEmitter.emit(event.name, event.data, event.namespace);
-  }
+  } as HandlerContext<Ctx, Events>;
 }
 
 async function executeProcedure<Ctx, Args, Output>(
@@ -114,10 +104,10 @@ async function executeProcedure<Ctx, Args, Output>(
   args: Args,
   middleware: Middleware<Ctx>[],
   eventEmitter: EventEmitter<any> | undefined,
-  pendingEvents: PendingEvent[]
+  queue: ReturnType<typeof createPendingEventQueue>
 ): Promise<Result<Output>> {
   // Create handler context with send function
-  const handlerCtx = createHandlerContext(ctx, pendingEvents);
+  const handlerCtx = createHandlerContext(ctx, queue);
 
   try {
     let index = 0;
@@ -139,8 +129,7 @@ async function executeProcedure<Ctx, Args, Output>(
           }
           // Only emit events if handler succeeded
           if (result.ok) {
-            await emitPendingEvents(pendingEvents, eventEmitter);
-            pendingEvents.length = 0; // Clear pending events after emitting
+            await queue.flush(eventEmitter);
           }
           return result;
         } catch (error) {
@@ -156,7 +145,7 @@ async function executeProcedure<Ctx, Args, Output>(
     return await next();
   } catch (error: unknown) {
     // On error, discard pending events (don't emit them)
-    pendingEvents.length = 0;
+    queue.clear();
     const errorMessage = error instanceof Error ? error.message : "Internal error";
     return createErrorResult("INTERNAL_ERROR", errorMessage);
   }
@@ -170,15 +159,15 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
     middleware?: Middleware<Ctx>[];
     eventEmitter?: EventEmitter<any>;
   }
-): any {
+): TypedAPIInstance<Ctx, TRoutes> {
   const { router, context, plugins = [], middleware = [], eventEmitter } = config;
-  const pendingEvents: PendingEvent[] = [];
+  const queue = createPendingEventQueue();
 
   const executeRawInternal = (route: string, args: unknown): Promise<Result<unknown>> => {
-    return executeRoute(router, context, middleware, route, args, eventEmitter, pendingEvents);
+    return executeRoute(router, context, middleware, route, args, eventEmitter, queue);
   };
 
-  const state: APIInstanceInternal<Ctx, TRoutes> = {
+  const state: APIInstanceState<Ctx, TRoutes> = {
     router,
     ctx: context,
     plugins,
@@ -188,7 +177,7 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
     execute: async (route: string, args: unknown) => executeRawInternal(route, args),
   };
 
-  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, pendingEvents) as any;
+  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, queue) as any;
   return new Proxy(state as any, {
     get(target, prop: string | symbol): unknown {
       if (prop === "router") return target.router;
@@ -198,6 +187,7 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
       if (prop === "eventEmitter") return target.eventEmitter;
       if (prop === "execute") return target.execute.bind(target);
       if (prop === "executeRaw") return target.executeRaw.bind(target);
+      if (prop === "getEvents") return () => target.eventEmitter?.getEventLog() ?? [];
       return (routerProxy as any)[prop];
     },
   });
@@ -213,17 +203,6 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
     plugins: api.plugins,
     middleware: api.globalMiddleware,
   }) as any;
-}
-
-export function createLocalExecutor(
-  api: APIInstance<unknown>
-): LocalExecutor {
-  return {
-    execute: async (route: string, args: unknown) => {
-      return api.executeRaw(route, args);
-    },
-    getEvents: () => api.eventEmitter?.getEventLog() ?? [],
-  };
 }
 
 type PublicRouter<TRoutes extends Router> = {

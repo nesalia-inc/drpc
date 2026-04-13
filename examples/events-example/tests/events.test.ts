@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { defineContext, defineEvents, ok, err, createLocalExecutor } from "@deessejs/server";
+import { defineContext, defineEvents, ok, err } from "@deessejs/server";
 import { z } from "zod";
 
 // ============================================================================
@@ -111,7 +111,7 @@ function createTestAPI() {
     handler: async (ctx, args) => {
       const user = ctx.db.users.find((u) => u.id === args.id);
       if (!user) {
-        return err("NOT_FOUND" as any, "User not found");
+        return err({ name: "NOT_FOUND", message: () => "User not found" } as any);
       }
       const changes: Record<string, unknown> = {};
       if (args.name !== undefined) {
@@ -134,7 +134,7 @@ function createTestAPI() {
     handler: async (ctx, args) => {
       const index = ctx.db.users.findIndex((u) => u.id === args.id);
       if (index === -1) {
-        return err("NOT_FOUND" as any, "User not found");
+        return err({ name: "NOT_FOUND", message: () => "User not found" } as any);
       }
       ctx.db.users.splice(index, 1);
       ctx.send(eventNames.user.deleted, { id: args.id });
@@ -147,7 +147,7 @@ function createTestAPI() {
     handler: async (ctx, args) => {
       if (args.shouldFail) {
         ctx.send(eventNames.user.created, { id: 999, email: "test@test.com", name: "Test" });
-        return err("FAIL" as any, "Intentional failure");
+        return err({ name: "FAIL", message: () => "Intentional failure" } as any);
       }
       return ok({ success: true });
     },
@@ -163,7 +163,7 @@ function createTestAPI() {
   });
 
   const api = createAPI({ router });
-  return { api, executor: createLocalExecutor(api), db };
+  return { api, db };
 }
 
 // ============================================================================
@@ -188,14 +188,14 @@ describe("defineEvents", () => {
 
 describe("ctx.send() - Event Emission", () => {
   it("should emit events after successful mutation", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "John Doe",
       email: "john@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     expect(emittedEvents).toHaveLength(2);
     expect(emittedEvents[0].name).toBe("user.created");
     expect(emittedEvents[0].data).toMatchObject({ id: 1, email: "john@example.com" });
@@ -204,26 +204,26 @@ describe("ctx.send() - Event Emission", () => {
   });
 
   it("should emit multiple events from a single mutation", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Jane Doe",
       email: "jane@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     // Should have both user.created and email.sent
-    expect(emittedEvents.some((e) => e.name === "user.created")).toBe(true);
-    expect(emittedEvents.some((e) => e.name === "email.sent")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "user.created")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "email.sent")).toBe(true);
   });
 
   it("should not emit events when mutation fails", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    const result = await executor.execute("fail", { shouldFail: true });
+    const result = await api.execute("fail", { shouldFail: true });
 
     expect(result.ok).toBe(false);
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     expect(emittedEvents).toHaveLength(0); // No events because mutation failed
   });
 
@@ -253,36 +253,35 @@ describe("ctx.send() - Event Emission", () => {
       router: t.router({ test: throwingMutation }),
     });
 
-    const testExecutor = createLocalExecutor(testApi);
-    const result = await testExecutor.execute("test", {});
+    const result = await testApi.execute("test", {});
 
     expect(result.ok).toBe(false);
-    const emittedEvents = testExecutor.getEvents();
+    const emittedEvents = testApi.getEvents();
     expect(emittedEvents).toHaveLength(0);
   });
 
   it("should include timestamp in event payload", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Time Test",
       email: "time@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     expect(emittedEvents[0].timestamp).toBeDefined();
     expect(new Date(emittedEvents[0].timestamp).getTime()).toBeLessThanOrEqual(Date.now());
   });
 
   it("should include namespace in event payload", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Namespace Test",
       email: "ns@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     expect(emittedEvents[0].namespace).toBe("default");
   });
 });
@@ -433,7 +432,7 @@ describe("Wildcard Patterns", () => {
       args: z.object({ id: z.number(), name: z.string() }),
       handler: async (ctx, args) => {
         const user = ctx.db.users.find((u: any) => u.id === args.id);
-        if (!user) return err("NOT_FOUND" as any, "Not found");
+        if (!user) return err({ name: "NOT_FOUND", message: () => "Not found" } as any);
         ctx.send(eventNames.user.updated, { id: user.id, changes: { name: args.name } });
         return ok(user);
       },
@@ -512,19 +511,19 @@ describe("Wildcard Patterns", () => {
 
 describe("Transaction Integrity", () => {
   it("should not emit events when mutation returns error", async () => {
-    const { executor, db } = createTestAPI();
+    const { api } = createTestAPI();
 
     // Create a user first so we can try to update it
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Test User",
       email: "test@example.com",
     });
 
     // Clear emitted events
-    executor.getEvents();
+    api.getEvents();
 
     // Try to update non-existent user
-    const result = await executor.execute("users.update", {
+    const result = await api.execute("users.update", {
       id: 999,
       name: "Nobody",
     });
@@ -532,8 +531,8 @@ describe("Transaction Integrity", () => {
     expect(result.ok).toBe(false);
 
     // No events should have been emitted for the failed update
-    const emittedEvents = executor.getEvents();
-    const updateEvents = emittedEvents.filter((e) => e.name === "user.updated");
+    const emittedEvents = api.getEvents();
+    const updateEvents = emittedEvents.filter((e: any) => e.name === "user.updated");
     expect(updateEvents).toHaveLength(0);
   });
 
@@ -556,32 +555,31 @@ describe("Transaction Integrity", () => {
       router: t.router({ test: throwingMutation }),
     });
 
-    const testExecutor = createLocalExecutor(testApi);
-    const result = await testExecutor.execute("test", {});
+    const result = await testApi.execute("test", {});
 
     expect(result.ok).toBe(false);
-    const emittedEvents = testExecutor.getEvents();
+    const emittedEvents = testApi.getEvents();
     expect(emittedEvents).toHaveLength(0);
   });
 
   it("should not clear pending events after successful emission (cumulative log)", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Test",
       email: "test@example.com",
     });
 
-    const events1 = executor.getEvents();
+    const events1 = api.getEvents();
     expect(events1.length).toBeGreaterThan(0);
 
     // Next mutation should have MORE events (cumulative)
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Test2",
       email: "test2@example.com",
     });
 
-    const events2 = executor.getEvents();
+    const events2 = api.getEvents();
     // Should have 4 events (2 from first create + 2 from second create)
     expect(events2.length).toBe(4);
   });
@@ -589,14 +587,14 @@ describe("Transaction Integrity", () => {
 
 describe("Event Payload Structure", () => {
   it("should have correct payload structure", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Structure Test",
       email: "structure@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     const event = emittedEvents[0];
 
     expect(event).toHaveProperty("name");
@@ -611,52 +609,52 @@ describe("Event Payload Structure", () => {
 
 describe("Edge Cases", () => {
   it("should handle events with no registered listeners", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
     // This will emit email.sent but we don't have a listener for it in this test
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "No Listener",
       email: "no listener@example.com",
     });
 
-    const emittedEvents = executor.getEvents();
+    const emittedEvents = api.getEvents();
     // Should still capture events even without listeners
-    expect(emittedEvents.some((e) => e.name === "user.created")).toBe(true);
+    expect(emittedEvents.some((e: any) => e.name === "user.created")).toBe(true);
   });
 
   it("should handle empty update (no changes)", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
     // Create user
-    await executor.execute("users.create", {
+    await api.execute("users.create", {
       name: "Original",
       email: "original@example.com",
     });
 
     // Clear emitted events
-    executor.getEvents();
+    api.getEvents();
 
     // Update with no args - should not emit event since nothing provided
-    const result = await executor.execute("users.update", {
+    const result = await api.execute("users.update", {
       id: 1,
     });
 
     if (result.ok) {
-      const emittedEvents = executor.getEvents();
+      const emittedEvents = api.getEvents();
       // No user.updated should be emitted since no fields were provided
-      const updateEvents = emittedEvents.filter((e) => e.name === "user.updated");
+      const updateEvents = emittedEvents.filter((e: any) => e.name === "user.updated");
       expect(updateEvents).toHaveLength(0);
     }
   });
 
   it("should handle multiple rapid mutations", async () => {
-    const { executor } = createTestAPI();
+    const { api } = createTestAPI();
 
-    await executor.execute("users.create", { name: "User1", email: "u1@example.com" });
-    await executor.execute("users.create", { name: "User2", email: "u2@example.com" });
-    await executor.execute("users.create", { name: "User3", email: "u3@example.com" });
+    await api.execute("users.create", { name: "User1", email: "u1@example.com" });
+    await api.execute("users.create", { name: "User2", email: "u2@example.com" });
+    await api.execute("users.create", { name: "User3", email: "u3@example.com" });
 
-    const emittedEvents = executor.getEvents();
-    expect(emittedEvents.filter((e) => e.name === "user.created")).toHaveLength(3);
+    const emittedEvents = api.getEvents();
+    expect(emittedEvents.filter((e: any) => e.name === "user.created")).toHaveLength(3);
   });
 });

@@ -80,7 +80,7 @@ const { t, createAPI } = defineContext({
 // ============================================================================
 
 // Audit logging - log all user events
-t.on("user.created", async (ctx, payload) => {
+t.on("user.created", async (ctx, payload: any) => {
   ctx.db.auditLogs.push({
     id: ctx.db.nextAuditId++,
     timestamp: new Date().toISOString(),
@@ -92,7 +92,7 @@ t.on("user.created", async (ctx, payload) => {
   ctx.logger.log(`[AUDIT] User created: ${payload.data.email}`);
 });
 
-t.on("user.updated", async (ctx, payload) => {
+t.on("user.updated", async (ctx, payload: any) => {
   ctx.db.auditLogs.push({
     id: ctx.db.nextAuditId++,
     timestamp: new Date().toISOString(),
@@ -104,7 +104,7 @@ t.on("user.updated", async (ctx, payload) => {
   ctx.logger.log(`[AUDIT] User ${payload.data.id} updated`);
 });
 
-t.on("user.deleted", async (ctx, payload) => {
+t.on("user.deleted", async (ctx, payload: any) => {
   ctx.db.auditLogs.push({
     id: ctx.db.nextAuditId++,
     timestamp: new Date().toISOString(),
@@ -116,7 +116,7 @@ t.on("user.deleted", async (ctx, payload) => {
 });
 
 // Email logging - track all sent emails
-t.on("email.sent", async (ctx, payload) => {
+t.on("email.sent", async (ctx, payload: any) => {
   ctx.db.emails.push({
     id: ctx.db.nextEmailId++,
     to: payload.data.to,

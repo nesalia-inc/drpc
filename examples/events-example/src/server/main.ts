@@ -10,8 +10,7 @@
  * - Unsubscribe - Cleaning up event listeners
  */
 
-import { executor, api } from "./index";
-import { createClient } from "../client";
+import { api } from "./index";
 
 // ============================================================================
 // Demo: Event System Features
@@ -91,26 +90,6 @@ async function main() {
     console.log("Delete result:", deleteResult.value);
   } else {
     console.log("Error:", deleteResult.error);
-  }
-  console.log();
-
-  // -------------------------------------------------------------------------
-  // 6. Demonstrate client API usage
-  // -------------------------------------------------------------------------
-  console.log("--- 6. Using Client API ---");
-  const client = createClient();
-
-  try {
-    const users = await client.users.list();
-    console.log("Client listed users:", users.length);
-
-    const newUser = await client.users.create({
-      name: "Diana Prince",
-      email: "diana@example.com",
-    });
-    console.log("Client created user:", newUser);
-  } catch (error) {
-    console.log("Client error:", error);
   }
   console.log();
 

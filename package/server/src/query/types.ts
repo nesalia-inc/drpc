@@ -1,46 +1,47 @@
 import type { ZodType } from "zod";
 import type { Result } from "@deessejs/fp";
-import type { Query } from "../types.js";
+import type { Query, HandlerContext, EventRegistry } from "../types.js";
 import type { BeforeInvokeHook, AfterInvokeHook, OnSuccessHook, OnErrorHook } from "../types.js";
 
-export interface QueryConfig<Ctx, Args, Output> {
+export interface QueryConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
   args?: ZodType<Args>;
-  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
 }
 
 // HookedProcedureMixin for chainable hooks
-interface HookedProcedureMixin<Ctx, Args> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface HookedProcedureMixin<Ctx, Args, Output = any> {
   beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
+   
+  afterInvoke(hook: AfterInvokeHook<Ctx, Args, Output>): this;
+   
+  onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onSuccess?: OnSuccessHook<Ctx, Args, any>;
+     
+    afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
+     
+    onSuccess?: OnSuccessHook<Ctx, Args, Output>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError?: OnErrorHook<Ctx, Args, any>;
   };
 }
 
 export type QueryWithHooks<Ctx, Args, Output> = Query<Ctx, Args, Output> &
-  HookedProcedureMixin<Ctx, Args>;
+  HookedProcedureMixin<Ctx, Args, Output>;
 
-export interface MutationConfig<Ctx, Args, Output> {
+export interface MutationConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
   args?: ZodType<Args>;
-  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
 }
 
-export interface InternalQueryConfig<Ctx, Output> {
-  handler: (ctx: Ctx) => Promise<Result<Output>>;
+export interface InternalQueryConfig<Ctx, Output, Events extends EventRegistry = EventRegistry> {
+  handler: (ctx: HandlerContext<Ctx, Events>) => Promise<Result<Output>>;
 }
 
-export interface InternalMutationConfig<Ctx, Args, Output> {
+export interface InternalMutationConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
   args?: ZodType<Args>;
-  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
 }

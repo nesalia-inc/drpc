@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defineContext, defineEvents, ok, err, createLocalExecutor } from "../src/index";
+import { defineContext, defineEvents, ok, err } from "../src/index";
 import { z } from "zod";
 
 describe("defineContext", () => {
@@ -185,7 +185,7 @@ describe("ctx.send", () => {
       }),
     });
 
-    const executor = createLocalExecutor(api);
+    const executor = api;
     const result = await executor.execute("users.create", { name: "John" });
 
     expect(result.ok).toBe(true);
@@ -219,7 +219,7 @@ describe("ctx.send", () => {
       }),
     });
 
-    const executor = createLocalExecutor(api);
+    const executor = api;
     const result = await executor.execute("users.create", { name: "John" });
 
     expect(result.ok).toBe(false);
@@ -249,7 +249,7 @@ describe("ctx.send", () => {
       }),
     });
 
-    const executor = createLocalExecutor(api);
+    const executor = api;
     const result = await executor.execute("users.create", { name: "John" });
 
     expect(result.ok).toBe(false);
@@ -282,7 +282,7 @@ describe("ctx.send", () => {
       }),
     });
 
-    const executor = createLocalExecutor(api);
+    const executor = api;
     await executor.execute("users.create", { name: "John", email: "john@example.com" });
 
     const events = executor.getEvents();
@@ -314,7 +314,7 @@ describe("ctx.send", () => {
       }),
     });
 
-    const executor = createLocalExecutor(api);
+    const executor = api;
     await executor.execute("orders.create", { item: "Widget" });
 
     const events = executor.getEvents();

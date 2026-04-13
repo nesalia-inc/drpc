@@ -5,7 +5,6 @@
  * by both the local executor and HTTP server.
  */
 
-import { createLocalExecutor } from "@deessejs/server";
 import { createAPI } from "./context";
 import { appRouter } from "./routers";
 
@@ -19,9 +18,6 @@ import { appRouter } from "./routers";
 export const api = createAPI({
   router: appRouter,
 });
-
-// Local executor for testing and CLI usage
-export const executor = createLocalExecutor(api);
 
 // Type export for client usage
 export type { AppRouter } from "./routers";
