@@ -92,8 +92,8 @@ function createTestAPI() {
         email: args.email,
       };
       ctx.db.users.push(user);
-      (ctx as any).send(eventNames.user.created, { id: user.id, email: user.email, name: user.name });
-      (ctx as any).send(eventNames.email.sent, {
+      ctx.send(eventNames.user.created, { id: user.id, email: user.email, name: user.name });
+      ctx.send(eventNames.email.sent, {
         to: user.email,
         template: "welcome",
         subject: "Welcome!",
@@ -123,7 +123,7 @@ function createTestAPI() {
         user.email = args.email;
       }
       if (Object.keys(changes).length > 0) {
-        (ctx as any).send(eventNames.user.updated, { id: user.id, changes });
+        ctx.send(eventNames.user.updated, { id: user.id, changes });
       }
       return ok(user);
     },
@@ -137,7 +137,7 @@ function createTestAPI() {
         return err({ name: "NOT_FOUND", message: () => "User not found" } as any);
       }
       ctx.db.users.splice(index, 1);
-      (ctx as any).send(eventNames.user.deleted, { id: args.id });
+      ctx.send(eventNames.user.deleted, { id: args.id });
       return ok({ deleted: true });
     },
   });
@@ -146,7 +146,7 @@ function createTestAPI() {
     args: z.object({ shouldFail: z.boolean() }),
     handler: async (ctx, args) => {
       if (args.shouldFail) {
-        (ctx as any).send(eventNames.user.created, { id: 999, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: 999, email: "test@test.com", name: "Test" });
         return err({ name: "FAIL", message: () => "Intentional failure" } as any);
       }
       return ok({ success: true });
@@ -244,7 +244,7 @@ describe("ctx.send() - Event Emission", () => {
     const throwingMutation = t.mutation({
       args: z.object({}),
       handler: async (ctx, _args) => {
-        (ctx as any).send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
         throw new Error("Database error");
       },
     });
@@ -303,7 +303,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -334,7 +334,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -368,7 +368,7 @@ describe("t.on() - Global Event Listeners", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -398,7 +398,7 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -433,7 +433,7 @@ describe("Wildcard Patterns", () => {
       handler: async (ctx, args) => {
         const user = ctx.db.users.find((u: any) => u.id === args.id);
         if (!user) return err({ name: "NOT_FOUND", message: () => "Not found" } as any);
-        (ctx as any).send(eventNames.user.updated, { id: user.id, changes: { name: args.name } });
+        ctx.send(eventNames.user.updated, { id: user.id, changes: { name: args.name } });
         return ok(user);
       },
     });
@@ -463,8 +463,8 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
-        (ctx as any).send(eventNames.email.sent, { to: "test@test.com", template: "welcome", subject: "Hi" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.email.sent, { to: "test@test.com", template: "welcome", subject: "Hi" });
         return ok(user);
       },
     });
@@ -494,7 +494,7 @@ describe("Wildcard Patterns", () => {
       args: z.object({ name: z.string() }),
       handler: async (ctx, _args) => {
         const user = ctx.db.create({});
-        (ctx as any).send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: user.id, email: "test@test.com", name: "Test" });
         return ok(user);
       },
     });
@@ -546,7 +546,7 @@ describe("Transaction Integrity", () => {
     const throwingMutation = t.mutation({
       args: z.object({}),
       handler: async (ctx, _args) => {
-        (ctx as any).send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
+        ctx.send(eventNames.user.created, { id: 1, email: "test@test.com", name: "Test" });
         throw new Error("Database error");
       },
     });

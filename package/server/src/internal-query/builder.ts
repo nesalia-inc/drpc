@@ -9,7 +9,7 @@ import type {
 } from "../types.js";
 
 export type InternalQueryWithHooks<Ctx, Output> = InternalQuery<Ctx, void, Output> &
-  HookedProcedureMixin<Ctx, void>;
+  HookedProcedureMixin<Ctx, void, Output>;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function createInternalQueryWithHooks<Ctx, Output>(
@@ -21,28 +21,28 @@ export function createInternalQueryWithHooks<Ctx, Output>(
   }) as InternalQueryWithHooks<Ctx, Output>;
 }
 
-interface HookedProcedureMixin<Ctx, Args> {
+interface HookedProcedureMixin<Ctx, Args, Output> {
   beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
-  afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
-  onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
+  afterInvoke(hook: AfterInvokeHook<Ctx, Args, Output>): this;
+  onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
-    afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
-    onSuccess?: OnSuccessHook<Ctx, Args, any>;
+    afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
+    onSuccess?: OnSuccessHook<Ctx, Args, Output>;
     onError?: OnErrorHook<Ctx, Args, any>;
   };
 }
 
-interface BaseProc {
+interface BaseProc<Ctx, Args, Output> {
   type: "query" | "mutation" | "internalQuery" | "internalMutation";
   argsSchema?: any;
-  handler: (ctx: any, args: any) => Promise<Result<any>>;
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
 }
 
-function createHookedProcedure<Proc extends BaseProc>(
-  proc: Proc
-): Proc & HookedProcedureMixin<any, any> {
+function createHookedProcedure<Ctx, Args, Output>(
+  proc: BaseProc<Ctx, Args, Output>
+): BaseProc<Ctx, Args, Output> & HookedProcedureMixin<Ctx, Args, Output> {
   const hookedProc: any = {
     type: proc.type,
     argsSchema: proc.argsSchema,
@@ -50,22 +50,22 @@ function createHookedProcedure<Proc extends BaseProc>(
     _hooks: {},
   };
 
-  hookedProc.beforeInvoke = function(hook: BeforeInvokeHook<any, any>) {
+  hookedProc.beforeInvoke = function(hook: BeforeInvokeHook<Ctx, Args>) {
     hookedProc._hooks.beforeInvoke = hook;
     return hookedProc;
   };
 
-  hookedProc.afterInvoke = function(hook: AfterInvokeHook<any, any, any>) {
+  hookedProc.afterInvoke = function(hook: AfterInvokeHook<Ctx, Args, Output>) {
     hookedProc._hooks.afterInvoke = hook;
     return hookedProc;
   };
 
-  hookedProc.onSuccess = function(hook: OnSuccessHook<any, any, any>) {
+  hookedProc.onSuccess = function(hook: OnSuccessHook<Ctx, Args, Output>) {
     hookedProc._hooks.onSuccess = hook;
     return hookedProc;
   };
 
-  hookedProc.onError = function(hook: OnErrorHook<any, any, any>) {
+  hookedProc.onError = function(hook: OnErrorHook<Ctx, Args, any>) {
     hookedProc._hooks.onError = hook;
     return hookedProc;
   };

@@ -7,10 +7,11 @@ import type {
   AfterInvokeHook,
   OnSuccessHook,
   OnErrorHook,
+  ProcedureType,
 } from "../types.js";
 
 export type MutationWithHooks<Ctx, Args, Output> = Mutation<Ctx, Args, Output> &
-  HookedProcedureMixin<Ctx, Args>;
+  HookedProcedureMixin<Ctx, Args, Output>;
 
 export function createMutationWithHooks<Ctx, Args, Output>(
   config: MutationConfig<Ctx, Args, Output>
@@ -23,28 +24,31 @@ export function createMutationWithHooks<Ctx, Args, Output>(
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface HookedProcedureMixin<Ctx, Args> {
+interface HookedProcedureMixin<Ctx, Args, Output> {
   beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
-  afterInvoke(hook: AfterInvokeHook<Ctx, Args, any>): this;
-  onSuccess(hook: OnSuccessHook<Ctx, Args, any>): this;
+  afterInvoke(hook: AfterInvokeHook<Ctx, Args, Output>): this;
+  onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
-    afterInvoke?: AfterInvokeHook<Ctx, Args, any>;
-    onSuccess?: OnSuccessHook<Ctx, Args, any>;
+    afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
+    onSuccess?: OnSuccessHook<Ctx, Args, Output>;
     onError?: OnErrorHook<Ctx, Args, any>;
   };
 }
 
-interface BaseProc {
-  type: "query" | "mutation" | "internalQuery" | "internalMutation";
-  argsSchema?: ZodType<any>;
-  handler: (ctx: any, args: any) => Promise<Result<any>>;
+interface BaseProc<Ctx, Args, Output> {
+  type: ProcedureType;
+  argsSchema?: ZodType<Args>;
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
 }
 
-function createHookedProcedure<Proc extends BaseProc>(
-  proc: Proc
-): Proc & HookedProcedureMixin<any, any> {
+function createHookedProcedure<
+  Ctx,
+  Args,
+  Output,
+>(proc: BaseProc<Ctx, Args, Output>): BaseProc<Ctx, Args, Output> & HookedProcedureMixin<Ctx, Args, Output>;
+function createHookedProcedure(proc: BaseProc<any, any, any>): any {
   const hookedProc: any = {
     type: proc.type,
     argsSchema: proc.argsSchema,

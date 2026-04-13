@@ -77,14 +77,14 @@ const createUser = t.mutation({
     ctx.db.users.push(user);
 
     // Emit event on success - events are only emitted if the mutation succeeds
-    (ctx as any).send("user.created", {
+    ctx.send("user.created", {
       id: user.id,
       email: user.email,
       name: user.name,
     });
 
     // Also emit an email event for welcome email
-    (ctx as any).send("email.sent", {
+    ctx.send("email.sent", {
       to: user.email,
       template: "welcome",
       subject: "Welcome to our platform!",
@@ -135,7 +135,7 @@ const updateUser = t.mutation({
 
     // Only emit if there were actual changes
     if (Object.keys(changes).length > 0) {
-      (ctx as any).send("user.updated", {
+      ctx.send("user.updated", {
         id: user.id,
         changes,
       });
@@ -160,7 +160,7 @@ const deleteUser = t.mutation({
     ctx.db.users.splice(userIndex, 1);
 
     // Emit deletion event
-    (ctx as any).send("user.deleted", { id: user.id });
+    ctx.send("user.deleted", { id: user.id });
 
     return ok({ deleted: true, id: args.id });
   },

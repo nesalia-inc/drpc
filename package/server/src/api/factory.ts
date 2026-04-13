@@ -1,13 +1,13 @@
 import type { Result } from "@deessejs/fp";
-import type { Plugin, Middleware, Router, Procedure, PendingEvent, SendOptions } from "../types.js";
+import type { Plugin, Middleware, Router, Procedure, SendOptions, EventRegistry, HandlerContext } from "../types.js";
 import { EventEmitter } from "../events/emitter.js";
 import { createPendingEventQueue } from "../events/queue.js";
 import { createErrorResult } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
-import type { APIInstance } from "./types.js";
+import type { APIInstance, TypedAPIInstance } from "./types.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface APIInstanceInternal<Ctx, TRoutes extends Router<Ctx>> {
+interface APIInstanceState<Ctx, TRoutes extends Router<Ctx>> {
   router: TRoutes;
   ctx: Ctx;
   plugins: Plugin<Ctx>[];
@@ -74,28 +74,28 @@ async function executeRoute<Ctx>(
   return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, queue);
 }
 
-interface SendFunction {
-  (name: string, data: unknown, options?: SendOptions): { eventName: string; data: unknown; processed: boolean; timestamp: string; namespace: string };
+interface SendFunction<Events extends EventRegistry> {
+  <Name extends keyof Events>(name: Name, data: Events[Name]["data"], options?: SendOptions): { eventName: Name; data: Events[Name]["data"]; processed: boolean; timestamp: string; namespace: string };
 }
 
-function createHandlerContext<Ctx>(
+function createHandlerContext<Ctx, Events extends EventRegistry>(
   ctx: Ctx,
   queue: ReturnType<typeof createPendingEventQueue>
-): Ctx & { send: SendFunction } {
-  const send: SendFunction = (name: string, data: unknown, options?: SendOptions) => {
+): HandlerContext<Ctx, Events> {
+  const send: SendFunction<Events> = (name, data, options?: SendOptions) => {
     return queue.enqueue({
-      name,
+      name: name as string,
       data,
       timestamp: new Date().toISOString(),
       namespace: options?.namespace ?? "default",
       options,
-    });
+    }) as { eventName: typeof name; data: typeof data; processed: boolean; timestamp: string; namespace: string };
   };
 
   return {
     ...(ctx as object),
     send,
-  } as Ctx & { send: SendFunction };
+  } as HandlerContext<Ctx, Events>;
 }
 
 async function executeProcedure<Ctx, Args, Output>(
@@ -159,7 +159,7 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
     middleware?: Middleware<Ctx>[];
     eventEmitter?: EventEmitter<any>;
   }
-): any {
+): TypedAPIInstance<Ctx, TRoutes> {
   const { router, context, plugins = [], middleware = [], eventEmitter } = config;
   const queue = createPendingEventQueue();
 
@@ -167,7 +167,7 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
     return executeRoute(router, context, middleware, route, args, eventEmitter, queue);
   };
 
-  const state: APIInstanceInternal<Ctx, TRoutes> = {
+  const state: APIInstanceState<Ctx, TRoutes> = {
     router,
     ctx: context,
     plugins,
