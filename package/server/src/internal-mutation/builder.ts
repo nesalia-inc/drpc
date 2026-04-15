@@ -1,12 +1,12 @@
-import type { ZodType } from "zod";
-import type { Result } from "@deessejs/fp";
-import type { InternalMutation, Middleware } from "../types.js";
-import type { InternalMutationConfig } from "./types.js";
-import type {
-  BeforeInvokeHook,
-  AfterInvokeHook,
-  OnSuccessHook,
-  OnErrorHook,
+import  { type ZodType } from "zod";
+import  { type Result } from "@deessejs/fp";
+import  { type InternalMutation, type Middleware } from "../types.js";
+import  { type InternalMutationConfig } from "./types.js";
+import  {
+  type BeforeInvokeHook,
+  type AfterInvokeHook,
+  type OnSuccessHook,
+  type OnErrorHook,
 } from "../types.js";
 
 export type InternalMutationWithHooks<Ctx, Args, Output> = InternalMutation<Ctx, Args, Output> &

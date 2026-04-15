@@ -1,9 +1,9 @@
-import type { EventRegistry, Middleware, Router } from "../types.js";
+import  { type EventRegistry, type Middleware, type Router } from "../types.js";
 import { QueryBuilder } from "../query/builder.js";
 import { EventEmitter } from "../events/emitter.js";
 import { createAPI } from "../api/factory.js";
-import type { TypedAPIInstance } from "../api/types.js";
-import type { DefineContextConfig } from "./types.js";
+import  { type TypedAPIInstance } from "../api/types.js";
+import  { type DefineContextConfig } from "./types.js";
 
 export function defineContext<
   Ctx,

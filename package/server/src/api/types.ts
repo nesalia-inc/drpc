@@ -1,6 +1,6 @@
-import type { EventEmitter } from "../events/emitter.js";
-import type { Result } from "@deessejs/fp";
-import type { Router, Procedure } from "../types.js";
+import  { type EventEmitter } from "../events/emitter.js";
+import  { type Result } from "@deessejs/fp";
+import  { type Router, type Procedure } from "../types.js";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventEmitterAny = EventEmitter<any>;
 

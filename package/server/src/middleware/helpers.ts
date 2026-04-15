@@ -1,6 +1,6 @@
-import type { Middleware } from "../types.js";
-import type { QueryWithHooks } from "../query/types.js";
-import type { MutationWithHooks } from "../mutation/builder.js";
+import  { type Middleware } from "../types.js";
+import  { type QueryWithHooks } from "../query/types.js";
+import  { type MutationWithHooks } from "../mutation/builder.js";
 
 /**
  * Apply middleware to a query
@@ -20,11 +20,11 @@ export function withQuery<Ctx, Args, Output>(
 /**
  * Apply middleware to a query using a function transformer (curried form)
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types -- Curried form requires dynamic type inference */
 export function withQuery<Ctx>(
   fn: (q: QueryWithHooks<Ctx, any, any>) => QueryWithHooks<Ctx, any, any>
 ): (query: QueryWithHooks<Ctx, any, any>) => QueryWithHooks<Ctx, any, any>;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export function withQuery(
   queryOrFn: any,
   middlewareOrFn?: any
@@ -43,7 +43,6 @@ export function withQuery(
   }
   return queryOrFn;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Apply middleware to a mutation
@@ -63,11 +62,11 @@ export function withMutation<Ctx, Args, Output>(
 /**
  * Apply middleware to a mutation using a function transformer (curried form)
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types -- Curried form requires dynamic type inference */
 export function withMutation<Ctx>(
   fn: (m: MutationWithHooks<Ctx, any, any>) => MutationWithHooks<Ctx, any, any>
 ): (mutation: MutationWithHooks<Ctx, any, any>) => MutationWithHooks<Ctx, any, any>;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export function withMutation(
   mutationOrFn: any,
   middlewareOrFn?: any
@@ -86,4 +85,3 @@ export function withMutation(
   }
   return mutationOrFn;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */

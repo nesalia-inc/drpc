@@ -1,7 +1,7 @@
-import type { ZodType } from "zod";
-import type { Result } from "@deessejs/fp";
-import type { Query, HandlerContext, EventRegistry, ProcedureType } from "../types.js";
-import type { BeforeInvokeHook, AfterInvokeHook, OnSuccessHook, OnErrorHook } from "../types.js";
+import  { type ZodType } from "zod";
+import  { type Result } from "@deessejs/fp";
+import  { type Query, type HandlerContext, type EventRegistry, type ProcedureType, type Middleware } from "../types.js";
+import  { type BeforeInvokeHook, type AfterInvokeHook, type OnSuccessHook, type OnErrorHook } from "../types.js";
 
 export interface QueryConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
   args?: ZodType<Args>;
@@ -19,6 +19,7 @@ interface HookedProcedureMixin<Ctx, Args, Output = any> {
   onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
+  use(middleware: Middleware<Ctx>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
 
@@ -28,6 +29,7 @@ interface HookedProcedureMixin<Ctx, Args, Output = any> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError?: OnErrorHook<Ctx, Args, any>;
   };
+  _middleware: Middleware<Ctx>[];
 }
 
 export type QueryWithHooks<Ctx, Args, Output> = Query<Ctx, Args, Output> &

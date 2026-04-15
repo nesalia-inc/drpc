@@ -1,23 +1,23 @@
-import type { ZodType } from "zod";
-import type { Result } from "@deessejs/fp";
-import type {
-  Middleware,
-  Router,
-  BeforeInvokeHook,
-  AfterInvokeHook,
-  OnSuccessHook,
-  OnErrorHook,
-  EventRegistry,
-  EventPayload,
+import  { type ZodType } from "zod";
+import  { type Result } from "@deessejs/fp";
+import  {
+  type Middleware,
+  type Router,
+  type BeforeInvokeHook,
+  type AfterInvokeHook,
+  type OnSuccessHook,
+  type OnErrorHook,
+  type EventRegistry,
+  type EventPayload,
 } from "../types.js";
-import type { QueryConfig, QueryWithHooks } from "./types.js";
-import type { MutationConfig } from "../mutation/types.js";
-import type { MutationWithHooks } from "../mutation/builder.js";
-import type { InternalQueryConfig } from "../internal-query/types.js";
-import type { InternalQueryWithHooks } from "../internal-query/builder.js";
-import type { InternalMutationConfig } from "../internal-mutation/types.js";
-import type { InternalMutationWithHooks } from "../internal-mutation/builder.js";
-import type { EventEmitter } from "../events/emitter.js";
+import  { type QueryConfig, type QueryWithHooks } from "./types.js";
+import  { type MutationConfig } from "../mutation/types.js";
+import  { type MutationWithHooks } from "../mutation/builder.js";
+import  { type InternalQueryConfig } from "../internal-query/types.js";
+import  { type InternalQueryWithHooks } from "../internal-query/builder.js";
+import  { type InternalMutationConfig } from "../internal-mutation/types.js";
+import  { type InternalMutationWithHooks } from "../internal-mutation/builder.js";
+import  { type EventEmitter } from "../events/emitter.js";
 
 export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
   constructor(
@@ -168,22 +168,22 @@ function createHookedProcedure<Ctx, Args, Output>(
     };
 
     newProc.beforeInvoke = function(hook: BeforeInvokeHook<any, any>) {
-      hookedProc._hooks.beforeInvoke = hook;
+      newProc._hooks.beforeInvoke = hook;
       return newProc;
     };
 
     newProc.afterInvoke = function(hook: AfterInvokeHook<any, any, any>) {
-      hookedProc._hooks.afterInvoke = hook;
+      newProc._hooks.afterInvoke = hook;
       return newProc;
     };
 
     newProc.onSuccess = function(hook: OnSuccessHook<any, any, any>) {
-      hookedProc._hooks.onSuccess = hook;
+      newProc._hooks.onSuccess = hook;
       return newProc;
     };
 
     newProc.onError = function(hook: OnErrorHook<any, any, any>) {
-      hookedProc._hooks.onError = hook;
+      newProc._hooks.onError = hook;
       return newProc;
     };
 

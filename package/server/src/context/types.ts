@@ -1,5 +1,5 @@
-import type { EventRegistry } from "../types.js";
-import type { RequestInfo } from "../api/types.js";
+import  { type EventRegistry } from "../types.js";
+import  { type RequestInfo } from "../api/types.js";
 
 export interface DefineContextConfig<Ctx, Events extends EventRegistry = EventRegistry> {
   context?: Ctx;

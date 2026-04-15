@@ -1,11 +1,11 @@
-import type { Result } from "@deessejs/fp";
-import type { InternalQuery, Middleware } from "../types.js";
-import type { InternalQueryConfig } from "./types.js";
-import type {
-  BeforeInvokeHook,
-  AfterInvokeHook,
-  OnSuccessHook,
-  OnErrorHook,
+import  { type Result } from "@deessejs/fp";
+import  { type InternalQuery, type Middleware } from "../types.js";
+import  { type InternalQueryConfig } from "./types.js";
+import  {
+  type BeforeInvokeHook,
+  type AfterInvokeHook,
+  type OnSuccessHook,
+  type OnErrorHook,
 } from "../types.js";
 
 export type InternalQueryWithHooks<Ctx, Output> = InternalQuery<Ctx, void, Output> &
@@ -84,22 +84,22 @@ function createHookedProcedure<Ctx, Args, Output>(
     };
 
     newProc.beforeInvoke = function(hook: BeforeInvokeHook<any, any>) {
-      hookedProc._hooks.beforeInvoke = hook;
+      newProc._hooks.beforeInvoke = hook;
       return newProc;
     };
 
     newProc.afterInvoke = function(hook: AfterInvokeHook<any, any, any>) {
-      hookedProc._hooks.afterInvoke = hook;
+      newProc._hooks.afterInvoke = hook;
       return newProc;
     };
 
     newProc.onSuccess = function(hook: OnSuccessHook<any, any, any>) {
-      hookedProc._hooks.onSuccess = hook;
+      newProc._hooks.onSuccess = hook;
       return newProc;
     };
 
     newProc.onError = function(hook: OnErrorHook<any, any, any>) {
-      hookedProc._hooks.onError = hook;
+      newProc._hooks.onError = hook;
       return newProc;
     };
 

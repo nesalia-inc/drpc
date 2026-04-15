@@ -1,5 +1,5 @@
-import type { ZodType } from "zod";
-import type { Result } from "@deessejs/fp";
+import { type ZodType } from "zod";
+import { type Result } from "@deessejs/fp";
 
 export type { Result } from "@deessejs/fp";
 
@@ -58,11 +58,11 @@ export interface Plugin<Ctx> {
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Router<Ctx = any, Routes extends Record<string, any> = Record<string, any>> = {
-  [K in keyof Routes & string]: Routes[K] extends Procedure<Ctx, any, any>
+export type Router<Ctx = unknown, Routes extends Record<string, unknown> = Record<string, unknown>> = {
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  [K in keyof Routes & string]: Routes[K] extends Procedure<Ctx, infer _Args, infer _Output>
     ? Routes[K]
-    : Routes[K] extends Record<string, any>
+    : Routes[K] extends Record<string, unknown>
       ? Router<Ctx, Routes[K]>
       : never;
 };
