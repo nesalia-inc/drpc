@@ -65,6 +65,9 @@ export type { MutationConfig } from "./mutation/types.js";
 export type { InternalQueryConfig } from "./internal-query/types.js";
 export type { InternalMutationConfig } from "./internal-mutation/types.js";
 
+// API types
+export type { RequestInfo } from "./api/types.js";
+
 // Errors
 export {
   ok,

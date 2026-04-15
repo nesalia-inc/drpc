@@ -4,7 +4,7 @@ import { EventEmitter } from "../events/emitter.js";
 import { createPendingEventQueue } from "../events/queue.js";
 import { createErrorResult, ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
-import type { APIInstance, TypedAPIInstance } from "./types.js";
+import type { APIInstance, TypedAPIInstance, RequestInfo } from "./types.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface APIInstanceState<Ctx, TRoutes extends Router<Ctx>> {
@@ -180,27 +180,43 @@ async function executeProcedure<Ctx, Args, Output>(
 export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
   config: {
     router: TRoutes;
-    context: Ctx;
+    context?: Ctx;
+    createContext?: (requestInfo?: RequestInfo) => Ctx;
     plugins?: Plugin<Ctx>[];
     middleware?: Middleware<Ctx>[];
     eventEmitter?: EventEmitter<any>;
   }
 ): TypedAPIInstance<Ctx, TRoutes> {
-  const { router, context, plugins = [], middleware = [], eventEmitter } = config;
+  const { router, context, createContext, plugins = [], middleware = [], eventEmitter } = config;
   const queue = createPendingEventQueue();
 
-  const executeRawInternal = (route: string, args: unknown): Promise<Result<unknown>> => {
-    return executeRoute(router, context, middleware, route, args, eventEmitter, queue);
+  // Resolve context factory - createContext takes precedence over static context
+  // Both factories accept optional RequestInfo for per-request context enrichment
+  const contextFactory = createContext ?? ((_requestInfo?: RequestInfo) => context as Ctx);
+
+  const executeRawInternal = (route: string, args: unknown, ctx: Ctx): Promise<Result<unknown>> => {
+    return executeRoute(router, ctx, middleware, route, args, eventEmitter, queue);
   };
 
+  const execute = async (route: string, args: unknown, requestInfo?: RequestInfo): Promise<Result<unknown>> => {
+    const ctx = contextFactory(requestInfo); // Fresh context per request, with optional request info
+    return executeRawInternal(route, args, ctx);
+  };
+
+  const executeRaw = async (route: string, args: unknown, requestInfo?: RequestInfo): Promise<Result<unknown>> => {
+    const ctx = contextFactory(requestInfo); // Fresh context per request, with optional request info
+    return executeRawInternal(route, args, ctx);
+  };
+
+  const initialCtx = contextFactory();
   const state: APIInstanceState<Ctx, TRoutes> = {
     router,
-    ctx: context,
+    ctx: initialCtx,
     plugins,
     globalMiddleware: middleware,
     eventEmitter,
-    executeRaw: executeRawInternal,
-    execute: async (route: string, args: unknown) => executeRawInternal(route, args),
+    executeRaw,
+    execute,
   };
 
   const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, queue) as any;
@@ -223,9 +239,12 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
   api: APIInstance<Ctx, TRoutes>
 ): APIInstance<Ctx, PublicRouter<TRoutes>> {
   const publicRouter = filterPublicRouter(api.router);
+  // Try to get createContext from the API instance if available
+  const createContext = (api as any).createContext;
   return createAPI({
     router: publicRouter as any,
     context: api.ctx,
+    createContext: createContext,
     plugins: api.plugins,
     middleware: api.globalMiddleware,
   }) as any;

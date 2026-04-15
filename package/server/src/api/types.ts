@@ -20,6 +20,13 @@ export type RouterProxy<Ctx, Routes extends Router<Ctx, any>> = {
 // TypedAPIInstance - the full return type combining APIInstance properties with the router proxy
 export type TypedAPIInstance<Ctx, TRoutes extends Router<Ctx, any>> = APIInstance<Ctx, TRoutes> & RouterProxy<Ctx, TRoutes>;
 
+export interface RequestInfo {
+  headers?: Record<string, string>;
+  method?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
 export interface APIInstance<Ctx, TRoutes = Router<Ctx, any>> {
   readonly router: TRoutes;
   readonly ctx: Ctx;
@@ -27,13 +34,18 @@ export interface APIInstance<Ctx, TRoutes = Router<Ctx, any>> {
   readonly globalMiddleware: import("../types.js").Middleware<Ctx>[];
   readonly eventEmitter?: EventEmitterAny;
 
-  execute(route: string, args: unknown): Promise<import("@deessejs/fp").Result<unknown>>;
-  executeRaw(route: string, args: unknown): Promise<import("@deessejs/fp").Result<unknown>>;
+  execute(route: string, args: unknown, requestInfo?: RequestInfo): Promise<import("@deessejs/fp").Result<unknown>>;
+  executeRaw(route: string, args: unknown, requestInfo?: RequestInfo): Promise<import("@deessejs/fp").Result<unknown>>;
 }
 
 export interface APIConfig<TRoutes extends Router<unknown, any>> {
   router: TRoutes;
-  context: unknown;
+  context?: unknown;
+  /**
+   * Factory function to create context per request.
+   * Receives optional RequestInfo (headers, method, url) for per-request context enrichment.
+   */
+  createContext?: (requestInfo?: RequestInfo) => unknown;
   plugins: import("../types.js").Plugin<unknown>[];
   middleware: import("../types.js").Middleware<unknown>[];
   eventEmitter?: EventEmitterAny;

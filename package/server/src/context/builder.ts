@@ -12,18 +12,19 @@ export function defineContext<
   config: DefineContextConfig<Ctx, Events>
 ): {
   t: QueryBuilder<Ctx, Events>;
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  createAPI: (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => any;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  createAPI: (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => TypedAPIInstance<Ctx, Router<Ctx>>;
 } {
-  const { context, plugins = [], events } = config;
+  const { context, createContext, plugins = [], events } = config;
 
   // Create event emitter if events are defined
   const eventEmitter = events ? new EventEmitter<Events>(events) : undefined;
 
+  // Initial context for QueryBuilder (used for building queries, not for request handling)
+  const initialContext = createContext ? createContext() : context;
+
   // Create query builder (t)
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const t = new QueryBuilder<Ctx, Events>(context, eventEmitter as any);
+  const t = new QueryBuilder<Ctx, Events>(initialContext as Ctx, eventEmitter as any);
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Create createAPI function
@@ -31,10 +32,11 @@ export function defineContext<
     return createAPI({
       router: apiConfig.router,
       context,
+      createContext,
       plugins,
       middleware: apiConfig.middleware,
       eventEmitter,
-    }) as TypedAPIInstance<Ctx, Router<Ctx>>;
+    });
   };
 
   return { t, createAPI: createAPIFn };
