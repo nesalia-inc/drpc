@@ -44,8 +44,12 @@ export interface Middleware<Ctx, Args = unknown> {
   readonly name: string;
   readonly args?: Args;
   readonly handler: (
-    ctx: Ctx & { args: Args; meta: Record<string, unknown> },
-    next: () => Promise<Result<unknown>>
+    ctx: Ctx,
+    opts: {
+      next: (overrides?: { ctx?: Partial<Ctx> }) => Promise<Result<unknown>>;
+      args: Args;
+      meta: Record<string, unknown>;
+    }
   ) => Promise<Result<unknown>>;
 }
 

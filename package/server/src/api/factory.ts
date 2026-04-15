@@ -2,7 +2,7 @@ import type { Result } from "@deessejs/fp";
 import type { Plugin, Middleware, Router, Procedure, SendOptions, EventRegistry, HandlerContext } from "../types.js";
 import { EventEmitter } from "../events/emitter.js";
 import { createPendingEventQueue } from "../events/queue.js";
-import { createErrorResult } from "../errors/server-error.js";
+import { createErrorResult, ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
 import type { APIInstance, TypedAPIInstance } from "./types.js";
 
@@ -109,23 +109,42 @@ async function executeProcedure<Ctx, Args, Output>(
   // Create handler context with send function
   const handlerCtx = createHandlerContext(ctx, queue);
 
+  // Validate args if schema is defined
+  const hookedProc = procedure as any;
+  if (hookedProc.argsSchema) {
+    const parseResult = hookedProc.argsSchema.safeParse(args);
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map((e: any) => `${e.path.join(".")}: ${e.message}`);
+      return createErrorResult("VALIDATION_ERROR", errors.join(", "));
+    }
+    args = parseResult.data;
+  }
+
+  // Extract per-procedure middleware and combine with global middleware
+  // Per-procedure middleware runs AFTER global middleware (as per design doc)
+  const procedureMiddleware: Middleware<Ctx>[] = hookedProc._middleware || [];
+  const allMiddleware: Middleware<Ctx>[] = [...middleware, ...procedureMiddleware];
+
   try {
     let index = 0;
-    const next = async (): Promise<Result<Output>> => {
-      if (index >= middleware.length) {
-        const hookedProc = procedure as any;
+    const next = async (overrides?: { ctx?: Partial<Ctx> }): Promise<Result<Output>> => {
+      // Merge context if overrides provided
+      const currentCtx = overrides?.ctx ? { ...handlerCtx, ...overrides.ctx } : handlerCtx;
+
+      if (index >= allMiddleware.length) {
+        // No more middleware, execute procedure handler
         if (hookedProc._hooks?.beforeInvoke) {
-          await hookedProc._hooks.beforeInvoke(handlerCtx, args);
+          await hookedProc._hooks.beforeInvoke(currentCtx, args);
         }
         try {
-          const result = await procedure.handler(handlerCtx, args);
+          const result = await procedure.handler(currentCtx, args);
           if (hookedProc._hooks?.afterInvoke) {
-            await hookedProc._hooks.afterInvoke(handlerCtx, args, result);
+            await hookedProc._hooks.afterInvoke(currentCtx, args, result);
           }
           if (result.ok && hookedProc._hooks?.onSuccess) {
-            await hookedProc._hooks.onSuccess(handlerCtx, args, result.value);
+            await hookedProc._hooks.onSuccess(currentCtx, args, result.value);
           } else if (!result.ok && hookedProc._hooks?.onError) {
-            await hookedProc._hooks.onError(handlerCtx, args, result.error);
+            await hookedProc._hooks.onError(currentCtx, args, result.error);
           }
           // Only emit events if handler succeeded
           if (result.ok) {
@@ -134,18 +153,25 @@ async function executeProcedure<Ctx, Args, Output>(
           return result;
         } catch (error) {
           if (hookedProc._hooks?.onError) {
-            await hookedProc._hooks.onError(handlerCtx, args, error);
+            await hookedProc._hooks.onError(currentCtx, args, error);
           }
           throw error;
         }
       }
-      const mw = middleware[index++];
-      return mw.handler(handlerCtx as any, next as any) as any;
+      const mw = allMiddleware[index++];
+      return mw.handler(currentCtx, {
+        next: (innerOverrides?: { ctx?: Partial<Ctx> }) => next(innerOverrides),
+        args,
+        meta: {},
+      }) as unknown as Result<Output>;
     };
     return await next();
   } catch (error: unknown) {
     // On error, discard pending events (don't emit them)
     queue.clear();
+    if (error instanceof ServerException) {
+      return createErrorResult(error.code, error.message, error.args?.data);
+    }
     const errorMessage = error instanceof Error ? error.message : "Internal error";
     return createErrorResult("INTERNAL_ERROR", errorMessage);
   }
@@ -205,17 +231,17 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
   }) as any;
 }
 
-type PublicRouter<TRoutes extends Router> = {
+type PublicRouter<TRoutes extends Router<any, any>> = {
   [K in keyof TRoutes as TRoutes[K] extends Procedure<any, any, any>
     ? TRoutes[K] extends { type: "query" | "mutation" }
       ? K
       : never
-    : K]: TRoutes[K] extends Router
+    : K]: TRoutes[K] extends Router<any, any>
     ? PublicRouter<TRoutes[K]>
     : TRoutes[K];
 };
 
-function filterPublicRouter<TRoutes extends Router>(router: TRoutes): PublicRouter<TRoutes> {
+function filterPublicRouter<TRoutes extends Router<any, any>>(router: TRoutes): PublicRouter<TRoutes> {
   const result: any = {};
   for (const key in router) {
     const value = (router as any)[key];

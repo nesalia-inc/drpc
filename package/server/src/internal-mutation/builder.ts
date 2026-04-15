@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 import type { Result } from "@deessejs/fp";
-import type { InternalMutation } from "../types.js";
+import type { InternalMutation, Middleware } from "../types.js";
 import type { InternalMutationConfig } from "./types.js";
 import type {
   BeforeInvokeHook,
@@ -31,12 +31,14 @@ interface HookedProcedureMixin<Ctx, Args, Output> {
   afterInvoke(hook: AfterInvokeHook<Ctx, Args, Output>): this;
   onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
   onError(hook: OnErrorHook<Ctx, Args, any>): this;
+  use(middleware: Middleware<Ctx>): this;
   _hooks: {
     beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
     afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
     onSuccess?: OnSuccessHook<Ctx, Args, Output>;
     onError?: OnErrorHook<Ctx, Args, any>;
   };
+  _middleware: Middleware<Ctx>[];
 }
 
 interface BaseProc<Ctx, Args, Output> {
@@ -56,6 +58,7 @@ function createHookedProcedure<
     argsSchema: proc.argsSchema,
     handler: proc.handler,
     _hooks: {},
+    _middleware: [],
   };
 
   hookedProc.beforeInvoke = function(hook: BeforeInvokeHook<Ctx, Args>) {
@@ -76,6 +79,43 @@ function createHookedProcedure<
   hookedProc.onError = function(hook: OnErrorHook<Ctx, Args, Output>) {
     hookedProc._hooks.onError = hook;
     return hookedProc;
+  };
+
+  hookedProc.use = function(middleware: Middleware<any>) {
+    const newProc: any = {
+      type: hookedProc.type,
+      argsSchema: hookedProc.argsSchema,
+      handler: hookedProc.handler,
+      _hooks: { ...hookedProc._hooks },
+      _middleware: [...hookedProc._middleware, middleware],
+    };
+
+    newProc.beforeInvoke = function(hook: BeforeInvokeHook<any, any>) {
+      hookedProc._hooks.beforeInvoke = hook;
+      return newProc;
+    };
+
+    newProc.afterInvoke = function(hook: AfterInvokeHook<any, any, any>) {
+      hookedProc._hooks.afterInvoke = hook;
+      return newProc;
+    };
+
+    newProc.onSuccess = function(hook: OnSuccessHook<any, any, any>) {
+      hookedProc._hooks.onSuccess = hook;
+      return newProc;
+    };
+
+    newProc.onError = function(hook: OnErrorHook<any, any, any>) {
+      hookedProc._hooks.onError = hook;
+      return newProc;
+    };
+
+    newProc.use = function(mw: Middleware<any>) {
+      newProc._middleware.push(mw);
+      return newProc;
+    };
+
+    return newProc;
   };
 
   return hookedProc;
