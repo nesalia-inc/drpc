@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Build
+        run: pnpm build
+
       - name: Create changeset PR
         id: changesets
         uses: changesets/action@v1
