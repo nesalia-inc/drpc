@@ -6,7 +6,9 @@ export type EventEmitterAny = EventEmitter<any>;
 
 // ProcedureProxy - a callable procedure with typed args and output
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export type ProcedureProxy<Ctx, Args, Output> = (args: Args) => Promise<Result<Output>>;
+export type ProcedureProxy<Ctx, Args, Output> = Args extends void
+  ? () => Promise<Result<Output>>
+  : (args: Args) => Promise<Result<Output>>;
 
 // RouterProxy - recursively maps routes to typed proxies
 export type RouterProxy<Ctx, Routes extends Router<Ctx, any>> = {

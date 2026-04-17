@@ -159,6 +159,119 @@ describe("createAPI", () => {
     const unknownRoute = (api as any).unknown?.route;
     expect(unknownRoute).toBeUndefined();
   });
+
+  it("should execute query without args using no-args call", async () => {
+    const { t, createAPI } = defineContext({
+      context: { db: { find: () => ({ id: 1, name: "test" }) }, name: "test" },
+    });
+
+    const getUser = t.query({
+      handler: async (ctx: any) => {
+        return ok({ id: 1, name: ctx.name });
+      },
+    });
+
+    const api = createAPI({
+      router: t.router({
+        users: {
+          get: getUser,
+        },
+      }),
+    });
+
+    // New syntax: call without {}
+    const result = await api.users.get();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({ id: 1, name: "test" });
+    }
+  });
+
+  it("should execute query without args using empty {} for backwards compat", async () => {
+    const { t, createAPI } = defineContext({
+      context: { db: { find: () => ({ id: 1, name: "test" }) }, name: "test" },
+    });
+
+    const getUser = t.query({
+      handler: async (ctx: any) => {
+        return ok({ id: 1, name: ctx.name });
+      },
+    });
+
+    const api = createAPI({
+      router: t.router({
+        users: {
+          get: getUser,
+        },
+      }),
+    });
+
+    // Backwards compatible: still works with {}
+    const result = await api.users.get({});
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({ id: 1, name: "test" });
+    }
+  });
+
+  it("should execute mutation without args using no-args call", async () => {
+    const { t, createAPI } = defineContext({
+      context: { db: { create: () => ({ id: 42 }) }, name: "test" },
+    });
+
+    const resetDb = t.mutation({
+      handler: async (ctx: any) => {
+        return ok({ success: true, dbName: ctx.name });
+      },
+    });
+
+    const api = createAPI({
+      router: t.router({
+        admin: {
+          reset: resetDb,
+        },
+      }),
+    });
+
+    // New syntax: call without {}
+    const result = await api.admin.reset();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({ success: true, dbName: "test" });
+    }
+  });
+
+  it("should still require args for procedures with args defined", async () => {
+    const { t, createAPI } = defineContext({
+      context: { db: { find: () => ({ id: 1, name: "test" }) } },
+    });
+
+    const getUser = t.query({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        return ok({ id: args.id, name: "test" });
+      },
+    });
+
+    const api = createAPI({
+      router: t.router({
+        users: {
+          get: getUser,
+        },
+      }),
+    });
+
+    // With args defined, must pass args
+    const result = await api.users.get({ id: 1 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({ id: 1, name: "test" });
+    }
+  });
 });
 
 describe("ctx.send", () => {

@@ -8,7 +8,7 @@
  * - t.internalQuery() - defining server-only read operations
  * - t.router() - organizing procedures hierarchically
  * - createAPI() - creating an executable API
- * - Direct method access: api.users.list({}) instead of api.execute("users.list", {})
+ * - Direct method access: api.users.list() instead of api.execute("users.list", {})
  */
 
 import { defineContext } from "@deessejs/server";
@@ -141,11 +141,11 @@ async function main() {
   console.log("=== @deessejs/server Basic Example ===\n");
 
   // NEW SYNTAX: Direct method access (RECOMMENDED)
-  console.log("--- Using Direct Method Access (api.users.list({})) ---");
+  console.log("--- Using Direct Method Access (api.users.list()) ---");
 
   // List all users
   console.log("1. List all users:");
-  const listResult = await api.users.list({});
+  const listResult = await api.users.list();
   if (listResult.ok) {
     console.log("   Success:", listResult.value);
   }
@@ -188,11 +188,11 @@ async function main() {
 
   // Internal query (server-only) - still works with direct access
   console.log("\n6. Internal query (getUserCount):");
-  const countResult = await api.users.count({});
+  const countResult = await api.users.count();
   if (countResult.ok) {
     console.log("   Success:", countResult.value);
   }
-  // Direct method access (api.users.list({})) is the recommended pattern
+  // Direct method access (api.users.list()) is the recommended pattern
   // See the example above for usage
   console.log("
 --- All tests completed ---");

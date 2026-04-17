@@ -15,7 +15,7 @@ export function UserList({ initialUsers, onSelect }: UserListProps) {
 
   const refresh = async () => {
     setLoading(true);
-    const result = await client.users.list({});
+    const result = await client.users.list();
     if (result.ok) {
       setUsers(result.value);
     }

@@ -42,7 +42,7 @@ async function main() {
   // 2. List all users
   // -------------------------------------------------------------------------
   console.log("--- 2. List All Users ---");
-  const listResult = await api.users.list({});
+  const listResult = await api.users.list();
   if (listResult.ok) {
     console.log("Users:", listResult.value);
   }

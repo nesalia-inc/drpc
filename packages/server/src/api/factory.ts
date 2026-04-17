@@ -37,6 +37,10 @@ function createRouterProxy<Ctx>(
       }
       if (isProcedure(value)) {
         const fullPath = [...path, prop].join(".");
+        // If procedure has no argsSchema, return a no-args callable
+        if (!(value as any).argsSchema) {
+          return () => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, undefined, eventEmitter, queue);
+        }
         return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, queue);
       }
       if (typeof value === "object" && value !== null) {

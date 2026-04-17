@@ -33,7 +33,7 @@ async function main() {
   // 1. Public Procedure (No Middleware)
   // -------------------------------------------------------------------------
   console.log("--- 1. Public Procedure (No Auth Required) ---");
-  const listResult = await api.users.list({});
+  const listResult = await api.users.list();
   if (listResult.ok) {
     console.log("All users:", listResult.value.map((u) => u.name).join(", "));
   }
@@ -48,7 +48,7 @@ async function main() {
   // but demonstrates how middleware can be used
 
   // List users first to see initial state
-  const listBefore = await api.users.list({});
+  const listBefore = await api.users.list();
   if (listBefore.ok) {
     console.log("Users before delete:", listBefore.value.map((u) => u.name).join(", "));
   }
@@ -74,7 +74,7 @@ async function main() {
   console.log("--- 4. Admin Middleware - Admin User (Bob) ---");
   // The adminList procedure requires admin role
   // This will fail because we can't properly inject user context without meta
-  const adminListResult = await api.users.adminList({});
+  const adminListResult = await api.users.adminList();
   if (adminListResult.ok) {
     console.log(
       "Admin list (emails redacted):",
@@ -90,7 +90,7 @@ async function main() {
   // -------------------------------------------------------------------------
   console.log("--- 5. Admin Middleware - Non-Admin User (Alice) ---");
   // Same as above - fails because we can't set the user context
-  const nonAdminResult = await api.users.adminList({});
+  const nonAdminResult = await api.users.adminList();
   if (nonAdminResult.ok) {
     console.log("Admin list:", nonAdminResult.value);
   } else {
@@ -129,7 +129,7 @@ async function main() {
   console.log();
 
   // Verify David was added
-  const listAfter = await api.users.list({});
+  const listAfter = await api.users.list();
   if (listAfter.ok) {
     console.log("Users after create:", listAfter.value.map((u) => u.name).join(", "));
   }

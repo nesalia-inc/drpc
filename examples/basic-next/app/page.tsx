@@ -15,7 +15,7 @@ import { UserPageClient } from "@/app/components/UserPageClient";
 // Server Component - fetches initial data
 export default async function Home() {
   // Fetch initial users directly on the server (no HTTP needed)
-  const initialResult = await api.users.list({});
+  const initialResult = await api.users.list();
   const initialUsers: User[] = initialResult.ok ? initialResult.value : [];
 
   return (
