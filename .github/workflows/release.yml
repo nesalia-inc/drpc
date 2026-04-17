@@ -27,7 +27,7 @@ jobs:
         run: pnpm install
 
       - name: Build
-        run: pnpm build
+        run: pnpm --filter '@deessejs/server' --filter '@deessejs/client' --filter '@deessejs/client-react' --filter '@deessejs/server-hono' --filter '@deessejs/server-next' build
 
       - name: Publish to npm
         run: |
