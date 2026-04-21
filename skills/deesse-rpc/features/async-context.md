@@ -363,6 +363,25 @@ Requires Node.js 16+ or equivalent (Deno, Bun, Cloudflare Workers).
 
 Works in Edge runtimes that support `AsyncLocalStorage` (Cloudflare Workers, Vercel Edge).
 
+## Plugin-Extended Context
+
+`getContext()` returns the full context including plugin-extended properties:
+
+```typescript
+// Plugin adds server-only properties
+const authPlugin = plugin("auth", (ctx) => ({
+  userId: null as string | null,
+  requireAuth: () => { if (!ctx.userId) throw new Error("Not authenticated") }
+}))
+
+// In any utility function called from handler
+async function someUtility() {
+  const ctx = getContext()
+  ctx.requireAuth()  // Works! Plugin property available
+  return ctx.db.users.find(1)
+}
+```
+
 ## See Also
 
 - [Middleware](features/middleware.md) - Request interception

@@ -40,6 +40,11 @@ A modern functional-first RPC protocol for building type-safe APIs, designed for
 - [Async Context](features/async-context.md) - AsyncLocalStorage for context access
 - [Batching](features/batching.md) - Request batching for performance
 
+## Examples
+
+- [plugin-example (Hono)](../../examples/plugin-example/) - HTTP server with plugins
+- [plugin-example-server](../../examples/plugin-example-server/) - Pure server-side with plugins
+
 ## Quick Example
 
 ```typescript

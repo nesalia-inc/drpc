@@ -1,386 +1,213 @@
 # Plugin System
 
-Plugins allow extending the context (`ctx`) with additional properties and adding API routes.
+Plugins extend the server-side context with additional properties, and can expose API routes. They are **server-only** - plugin properties are never exposed to clients.
 
-## Overview
+## The `plugin()` Wrapper - NOW MANDATORY
 
-The plugin system allows:
-1. **Context Extension** - Add properties to the context object
-2. **API Routes** - Add queries and mutations to the router
-3. **Lifecycle Hooks** - Execute code on invoke, success, or error
-4. **Request Access** - Access headers and cookies
-
-## Plugin Type
-
-Plugins are declared using the `plugin()` helper function:
+Use the `plugin()` factory function to create plugins:
 
 ```typescript
-const myPlugin = plugin<Ctx>({
-  name: "myPlugin",
-  extend: (ctx) => ({ ... }),
-  router: (t) => ({ ... }),
-  hooks: { ... }
-})
+import { plugin } from "@deessejs/server"
+
+const authPlugin = plugin("auth", (ctx) => ({
+  userId: ctx.userId,
+  isAuthenticated: ctx.userId !== null,
+  requireAuth: () => {
+    if (!ctx.userId) throw new UnauthorizedException("Not authenticated")
+  }
+}))
 ```
 
-### Plugin Definition
+The `plugin()` factory:
+1. Takes a unique name as the first argument
+2. Takes an `extend` function that returns properties to merge into context
+
+## How Plugins Work
+
+Plugins are passed to `defineContext()`:
 
 ```typescript
-type PluginDefinition<Ctx, PluginRouter extends Router = {}> = {
-  name: string
-  extend: (ctx: Ctx) => Partial<Ctx>
-  router?: (t: QueryBuilder<Ctx>) => PluginRouter
-  hooks?: PluginHooks<Ctx>
-}
-
-type PluginHooks<Ctx> = {
-  onInvoke?: (ctx: Ctx, args: unknown) => void | Promise<void>
-  onSuccess?: (ctx: Ctx, args: unknown, result: unknown) => void | Promise<void>
-  onError?: (ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>
-}
-```
-
-### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | `string` | Unique identifier for the plugin |
-| `extend` | `(ctx: Ctx) => Partial<Ctx>` | Function that returns additional context properties |
-| `router` | `(t: QueryBuilder<Ctx>) => PluginRouter` | Optional function that returns plugin queries and mutations |
-| `hooks` | `PluginHooks` | Optional lifecycle hooks |
-
-## Plugin Factory Functions
-
-Plugins can be configured with options using factory functions:
-
-```typescript
-// plugins/notifications.ts
-import { Plugin } from "@deessejs/server"
-
-type NotificationOptions = {
-  retryCount?: number
-  defaultChannel?: "email" | "sms" | "push"
-}
-
-export const notificationPlugin = (options: NotificationOptions = {}): Plugin<Ctx> => ({
-  name: "notifications",
-  extend: (ctx) => ({
-    sendNotification: async (to: string, message: string) => {
-      // Use options
-      const retry = options.retryCount ?? 3
-      const channel = options.defaultChannel ?? "email"
-
-      // Send notification with retry logic
-      for (let i = 0; i < retry; i++) {
-        try {
-          return await ctx.notificationService.send(to, message, channel)
-        } catch (error) {
-          if (i === retry - 1) throw error
-        }
-      }
-    }
-  })
-})
-
-// Usage
 const { t, createAPI } = defineContext({
   context: { db: myDatabase },
-  plugins: [
-    notificationPlugin({ retryCount: 5, defaultChannel: "push" })
-  ]
+  plugins: [authPlugin, loggerPlugin]
 })
 ```
 
-## Lifecycle Hooks
-
-Plugins can execute code at specific points during request execution:
-
-```typescript
-type PluginHooks<Ctx> = {
-  onInvoke?: (ctx: Ctx, args: unknown) => void | Promise<void>
-  onSuccess?: (ctx: Ctx, args: unknown, result: unknown) => void | Promise<void>
-  onError?: (ctx: Ctx, args: unknown, error: unknown) => void | Promise<void>
-}
-```
-
-### Execution Order
+Each plugin's `extend(ctx)` is called **per-request** in `createHandlerContext`. The returned properties are merged into the context available in all handlers.
 
 ```
 Request Flow:
 ┌─────────────────────────────────────────────────────────────┐
-│  onInvoke (plugins 1→2→3)                               │
+│  createHandlerContext()                                    │
 │      │                                                     │
-│      ▼                                                     │
-│  ┌─────────────┐                                          │
-│  │   Handler   │                                          │
-│  └─────────────┘                                          │
-│      │                                                     │
-│      ├──► onSuccess (plugins 3→2→1)  ◄── Reverse order  │
-│      │                                                     │
-│      └──► onError (plugins 3→2→1)    ◄── Reverse order  │
+│      ├── extend() -> plugin 1                              │
+│      ├── extend() -> plugin 2                              │
+│      └── extend() -> plugin 3                             │
+│              │                                             │
+│              ▼                                             │
+│  ┌─────────────────────┐                                   │
+│  │  Handler (ctx)      │  <- ctx includes plugin props     │
+│  └─────────────────────┘                                   │
+│              │                                             │
+│              ▼                                             │
+│  Response with result (plugin props NOT exposed)           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Guard (Stopping Execution)
+## Plugins Are Server-Only
 
-The `onInvoke` hook can stop request execution by throwing an error:
+**Critical**: Plugin properties are **never** sent to clients.
+
+- Plugin `extend()` runs only in `createHandlerContext` (server-side)
+- Plugin properties exist only in `ctx` during handler execution
+- Clients cannot access plugin properties via HTTP
+- To expose data to clients, use public queries/mutations
 
 ```typescript
-// Plugin: Maintenance Mode
-const maintenancePlugin = plugin({
-  name: "maintenance",
-  hooks: {
-    onInvoke: async (ctx, args) => {
-      const isInMaintenance = await ctx.db.config.get("maintenance_mode")
-      if (isInMaintenance) {
-        throw new Error("SERVICE_IN_MAINTENANCE")
-      }
-    }
+// Plugin adds server-only property
+const authPlugin = plugin("auth", (ctx) => ({
+  // This is server-only - never exposed to client
+  requireAuth: () => { ... }
+}))
+
+// Handler can use the plugin property
+const getUser = t.query({
+  handler: async (ctx, args) => {
+    ctx.requireAuth() // Works! Server-side only
+    return await ctx.db.users.find(args.id)
   }
 })
 ```
 
-## Example: Logging Plugin
+## Real Examples in the Repo
+
+See working implementations:
+
+- [`examples/plugin-example/`](../../examples/plugin-example/) - HTTP server with plugins (Hono)
+- [`examples/plugin-example-server/`](../../examples/plugin-example-server/) - Pure server-side with plugins
+
+## Plugin Definition
 
 ```typescript
-const loggerPlugin = plugin<Ctx>({
-  name: "logger",
-  extend: (ctx) => ({
-    logger: {
-      info: (msg: string) => console.log("[INFO]", msg),
-      error: (msg: string) => console.error("[ERROR]", msg)
-    }
+import { plugin } from "@deessejs/server"
+
+type Ctx = {
+  db: Database
+  // ... other base context properties
+}
+
+const myPlugin = plugin<Ctx>("myPlugin", (ctx) => ({
+  // Return properties to merge into context
+  myProperty: "value",
+  myHelper: () => { ... }
+}))
+```
+
+### Plugin Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| First arg | `string` | Unique plugin name (used for namespacing routes) |
+| `extend` | `(ctx: Ctx) => Partial<Ctx>` | Function returning properties to merge into context |
+
+### Optional: Router and Hooks
+
+```typescript
+const notificationPlugin = plugin<Ctx, NotificationRouter>("notifications", (ctx) => ({
+  sendNotification: async (to: string, msg: string) => {
+    await ctx.db.notifications.create({ to, msg })
+  }
+}), {
+  router: (t) => ({
+    list: t.query({ handler: async (ctx) => ok(await ctx.db.notifications.findMany()) }),
+    send: t.mutation({ args: z.object({ to: z.string(), msg: z.string() }), handler: async (ctx, a) => ok(ctx.sendNotification(a.to, a.msg)) })
   }),
   hooks: {
-    onInvoke: (ctx, args) => {
-      console.log(`[INVOKE] ${ctx.operation}`, args)
-    },
-    onSuccess: (ctx, args, result) => {
-      console.log(`[SUCCESS] ${ctx.operation}`)
-    },
-    onError: (ctx, args, error) => {
-      console.error(`[ERROR] ${ctx.operation}`, error)
-    }
+    onInvoke: (ctx, args) => { ctx.logger.info("notification op", args) },
+    onSuccess: (ctx, args, result) => { ctx.logger.info("notification success") }
   }
 })
 ```
 
-## Example: Auth Plugin
+### Lifecycle Hooks
 
-Plugins can access HTTP headers and cookies from the request:
+| Hook | Parameters | Description |
+|------|------------|-------------|
+| `onInvoke` | `(ctx, args)` | Called before handler runs (can throw to block) |
+| `onSuccess` | `(ctx, args, result)` | Called after successful execution |
+| `onError` | `(ctx, args, error)` | Called when handler throws |
+
+## Factory Pattern for Authenticated Contexts
+
+Create plugins that integrate with specific user contexts:
 
 ```typescript
-const authPlugin = plugin<Ctx>({
-  name: "auth",
-  extend: async (ctx) => {
-    // Access headers (Next.js)
-    const headers = await headers()
-    const cookieStore = await cookies()
-
-    const authHeader = headers.get("authorization")
-    const sessionToken = cookieStore.get("session")?.value
-
-    let user = null
-    if (sessionToken) {
-      user = await verifySession(sessionToken)
-    }
-
-    return {
-      userId: user?.id ?? null,
-      userRoles: user?.roles ?? [],
-      isAuthenticated: !!user
-    }
+// Auth plugin with helper
+const authPlugin = plugin("auth", (ctx) => ({
+  userId: null as string | null,
+  isAuthenticated: false,
+  requireAuth: () => {
+    if (!ctx.userId) throw new Error("UNAUTHORIZED")
   }
-})
-```
+}))
 
-> **Note:** The `extend` function can be `async` to support awaiting headers/cookies.
-
-## Namespace Enforcement
-
-Plugin routes are automatically namespaced under the plugin name:
-
-```typescript
-const notificationPlugin = plugin<Ctx, {
-  list: Query
-  send: Mutation
-  markRead: Mutation
-}>({
-  name: "notifications",
-  extend: (ctx) => ({ sendNotification: (...args) => { ... } }),
-  router: (t) => ({
-    list: t.query({ ... }),
-    send: t.mutation({ ... }),
-    markRead: t.mutation({ ... })
+// Factory to create API with specific user context
+function createUserAPI(userId: string) {
+  return createAPI({
+    context: { db: myDatabase, userId },
+    plugins: [
+      plugin("auth", () => ({
+        userId,
+        isAuthenticated: true,
+        requireAuth: () => { /* no-op - already authenticated */ }
+      }))
+    ],
+    router: t.router({ users: { create: t.mutation({ ... }) } })
   })
-})
+}
 
-// Usage: api.notifications.list()
-// NOT: api.list()
+// Usage
+const userApi = createUserAPI("user-123")
+const result = await userApi.users.create({ name: "Test", email: "test@test.com" })
 ```
 
 ## Using Multiple Plugins
 
 ```typescript
-import { defineContext, plugin } from "@deessejs/server"
-import { authPlugin } from "./plugins/auth"
-import { cachePlugin } from "./plugins/cache"
-import { loggerPlugin } from "./plugins/logger"
-
-type BaseContext = {
-  db: Database
-}
-
 const { t, createAPI } = defineContext({
-  context: {
-    db: myDatabase,
-  },
+  context: { db: myDatabase },
   plugins: [
-    authPlugin,
-    cachePlugin,
-    loggerPlugin,
-  ],
-})
-
-const api = createAPI({
-  router: t.router({ ... })
-})
-
-// Context now has: db, userId, isAuthenticated, cache, logger
-```
-
-### Plugin Order Matters
-
-```typescript
-// CORRECT: authPlugin runs first, loggerPlugin can use ctx.userId
-plugins: [
-  authPlugin,      // Adds userId to context
-  loggerPlugin,   // Can access ctx.userId in hooks
-]
-
-// INCORRECT: loggerPlugin runs first, ctx.userId not available
-plugins: [
-  loggerPlugin,   // Cannot access ctx.userId yet
-  authPlugin,     // Adds userId after
-]
-```
-
-**Why?** Plugins that add properties to context must be declared **before** plugins that need those properties in their hooks.
-
-## Plugin with API Routes
-
-Plugins can also add queries and mutations to the API router:
-
-```typescript
-export const notificationPlugin = plugin<NotificationContext, NotificationRouter>({
-  name: "notifications",
-
-  // Extend context with notification helper
-  extend: (ctx) => ({
-    async sendNotification(userId: string, message: string) {
-      await ctx.db.notifications.create({ userId, message })
-    }
-  }),
-
-  // Add routes to the API
-  router: (t) => ({
-    list: t.query({
-      args: z.object({}),
-      handler: async (ctx) => {
-        const notifications = await ctx.db.notifications.findMany({
-          where: { userId: ctx.userId },
-          orderBy: { createdAt: "desc" }
-        })
-        return ok(notifications)
-      }
-    }),
-
-    markAsRead: t.mutation({
-      args: z.object({ id: z.number() }),
-      handler: async (ctx, args) => {
-        await ctx.db.notifications.update({
-          where: { id: args.id },
-          data: { read: true }
-        })
-        return ok({ success: true })
-      }
-    }),
-
-    send: t.mutation({
-      args: z.object({
-        userId: z.string(),
-        message: z.string()
-      }),
-      handler: async (ctx, args) => {
-        const notification = await ctx.db.notifications.create(args)
-        return ok(notification)
-      }
-    })
-  })
+    authPlugin,    // Adds userId, isAuthenticated
+    loggerPlugin,  // Adds logger (can use ctx.userId from authPlugin)
+    cachePlugin    // Adds cache
+  ]
 })
 ```
+
+**Plugin order matters**: Plugins that other plugins depend on should be listed first.
 
 ## Type Safety
-
-### Extending Context Types
 
 ```typescript
 import { plugin } from "@deessejs/server"
 
-// Define your full context type
 type MyContext = {
   db: Database
-  // Plugin-extended properties
   userId: string | null
-  cache: Cache
   logger: Logger
 }
 
-// Create plugins with full type safety
-export const authPlugin = plugin<MyContext>({
-  name: "auth",
-  extend: () => ({
-    userId: null,
-  }),
-})
+export const authPlugin = plugin<MyContext>("auth", () => ({
+  userId: null,
+  logger: {} as Logger  // or actual implementation
+}))
 
-// TypeScript knows all context properties
 const getUser = t.query({
-  args: z.object({ id: z.number() }),
   handler: async (ctx: MyContext, args) => {
-    // All properties available with full autocomplete
-    ctx.db // Database
-    ctx.userId // string | null
-    ctx.cache // Cache
-    ctx.logger // Logger
+    ctx.db        // Database
+    ctx.userId    // string | null
+    ctx.logger    // Logger
   }
-})
-```
-
-## Best Practices
-
-1. **Keep plugins focused** - Each plugin should do one thing well
-2. **Use descriptive names** - Plugin names should clearly indicate their purpose
-3. **Initialize lazily** - Don't do heavy computation in `extend()`
-4. **Document your plugins** - Clear documentation helps users understand available context properties
-
-```typescript
-// Good: Focused plugin
-export const cachePlugin = plugin({
-  name: "cache",
-  extend: () => ({ cache: ... })
-})
-
-// Good: Descriptive name
-export const authPlugin = plugin({
-  name: "auth",
-  extend: () => ({ userId: ... })
-})
-
-// Avoid: Do everything in one plugin
-export const everythingPlugin = plugin({
-  name: "everything",
-  extend: () => ({ cache: ..., logger: ..., userId: ..., analytics: ... })
 })
 ```
 
@@ -388,4 +215,4 @@ export const everythingPlugin = plugin({
 
 - [Defining Context](features/defining-context.md) - Entry point with plugin support
 - [Creating API](features/creating-api.md) - Creating the API instance
-- [Event System](features/event-system.md) - Event emission and handling
+- [Security Model](features/security-model.md) - Plugins and security

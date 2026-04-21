@@ -210,6 +210,43 @@ const getUser = t.query({
 })
 ```
 
+## Plugins (Server-Only Context)
+
+Plugins extend the server-side context only. Plugin properties are **never exposed** to clients.
+
+### What Plugins Add
+
+- Server-side context properties (e.g., `userId`, `requireAuth()`)
+- Helper functions available in handlers
+- Lifecycle hooks (onInvoke, onSuccess, onError)
+
+### Security Boundaries
+
+| Feature | Client Access | Server Access |
+|---------|---------------|---------------|
+| Base context | Yes (via query/mutation args) | Yes |
+| Plugin properties | **No** | Yes |
+| `internalQuery` | **No** | Yes |
+| `internalMutation` | **No** | Yes |
+
+```typescript
+// Plugin - server-only properties
+const authPlugin = plugin("auth", (ctx) => ({
+  userId: null as string | null,    // Never sent to client
+  requireAuth: () => { ... }         // Never sent to client
+}))
+
+// Public query - plugin props available in handler, not in response
+const getUser = t.query({
+  handler: async (ctx, args) => {
+    ctx.requireAuth()  // Works! Server-side only
+    return ok(await ctx.db.users.find(args.id))
+  }
+})
+```
+
+**Key insight**: Even when a handler uses plugin properties, only the handler's return value is sent to the client. Plugin properties remain server-side.
+
 ## Best Practices
 
 ### 1. Use Internal for Sensitive Operations

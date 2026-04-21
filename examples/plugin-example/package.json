@@ -1,0 +1,23 @@
+{
+  "name": "@deessejs/server-example-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "node --loader tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deessejs/fp": "^3.0.0",
+    "@deessejs/server": "workspace:*",
+    "hono": "^4.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.0.0",
+    "@types/node": "^20.19.39",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
