@@ -1,2 +1,15 @@
-export type { APIInstance, APIConfig, RequestInfo } from "./types.js";
+export type { APIInstance, APIConfig, RequestInfo } from "./types/api.js";
+export type { ProcedureProxy, RouterProxy, TypedAPIInstance } from "./types/proxy.js";
+export type { APIInstanceState } from "./types/internal.js";
 export { createAPI, createPublicAPI } from "./factory.js";
+export {
+  RouteNotFoundError,
+  ValidationError,
+  MiddlewareError,
+  InternalError,
+  ServerError,
+  routeNotFound,
+  validationFailed,
+  serverError,
+  internalError,
+} from "./errors.js";
