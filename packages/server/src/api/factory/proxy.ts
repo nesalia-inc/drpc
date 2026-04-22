@@ -8,7 +8,7 @@ import { isValidSymbol, buildFullPath, isNoArgsProcedure } from "./utils.js";
 import { executeRoute } from "./route.js";
 
 // ============================================================
-// Router Proxy Creation
+// Router Proxy Creation (Memoized per instance)
 // ============================================================
 
 export const createRouterProxy = <Ctx>(
@@ -18,29 +18,26 @@ export const createRouterProxy = <Ctx>(
 ): any => {
   const { router, ctx, globalMiddleware, rootRouter, eventEmitter, queue, plugins } = proxyCtx;
 
+  // L1: Memoization cache for this proxy instance (stability for React/useEffect)
+  const cache = new Map<string | symbol, unknown>();
+
   return new Proxy({}, {
     get(target: unknown, prop: string | symbol): unknown {
+      // L2: Return cached result if exists (api.users === api.users)
+      if (cache.has(prop)) return cache.get(prop);
+
       if (!isValidSymbol(prop)) return undefined;
       if (typeof prop !== "string") return none();
 
       const value = (router as Record<string, unknown>)[prop];
       if (value === undefined) return none();
 
+      let result: unknown;
+
       if (isProcedure(value)) {
         const fullPath = buildFullPath(path, prop);
 
-        if (isNoArgsProcedure(value)) {
-          const routeCtx: ExecuteRouteContext<Ctx> = {
-            router: rootRouter,
-            ctx,
-            globalMiddleware,
-            eventEmitter,
-            queue,
-            plugins,
-          };
-          return () => executeRoute(fullPath, undefined, routeCtx);
-        }
-
+        // L2: Create routeCtx with rootRouter for proper procedure lookup
         const routeCtx: ExecuteRouteContext<Ctx> = {
           router: rootRouter,
           ctx,
@@ -49,23 +46,25 @@ export const createRouterProxy = <Ctx>(
           queue,
           plugins,
         };
-        return (args: unknown) => executeRoute(fullPath, args, routeCtx);
+
+        if (isNoArgsProcedure(value)) {
+          result = () => executeRoute(fullPath, undefined, routeCtx);
+        } else {
+          result = (args: unknown) => executeRoute(fullPath, args, routeCtx);
+        }
+      } else if (typeof value === "object" && value !== null) {
+        // L2: Nested proxy created once per path
+        result = createRouterProxy(
+          { ...proxyCtx, router: value as Router<Ctx> },
+          [...path, prop]
+        );
+      } else {
+        result = none();
       }
 
-      if (typeof value === "object" && value !== null) {
-        const nestedProxyCtx: RouterProxyContext<Ctx> = {
-          router: value as Router<Ctx>,
-          ctx,
-          globalMiddleware,
-          rootRouter,
-          eventEmitter,
-          queue,
-          plugins,
-        };
-        return createRouterProxy(nestedProxyCtx, [...path, prop]);
-      }
-
-      return none();
+      // L2: Cache the result for consistent references
+      cache.set(prop, result);
+      return result;
     },
   });
 };

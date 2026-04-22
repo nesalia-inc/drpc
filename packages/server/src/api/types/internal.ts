@@ -37,6 +37,7 @@ export type RouterProxyContext<Ctx> = Readonly<{
   readonly eventEmitter: EventEmitterAny | undefined;
   readonly queue: EventQueue;
   readonly plugins: readonly Plugin<Ctx>[];
+  readonly routeCache?: Map<string, Procedure<unknown, unknown, unknown>>;
 }>;
 
 export type ExecuteRouteContext<Ctx> = Readonly<{
@@ -46,6 +47,7 @@ export type ExecuteRouteContext<Ctx> = Readonly<{
   readonly eventEmitter: EventEmitterAny | undefined;
   readonly queue: EventQueue;
   readonly plugins: readonly Plugin<Ctx>[];
+  readonly routeCache?: Map<string, Procedure<unknown, unknown, unknown>>;
 }>;
 
 export type ExecuteProcedureContext<Ctx, Args, Output> = Readonly<{

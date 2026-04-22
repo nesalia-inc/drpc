@@ -63,7 +63,7 @@ const executeProcedureWithHooks = async <Ctx, Args, Output>(
 };
 
 // ============================================================
-// L2: Middleware Chain Runner
+// L2: Middleware Chain Runner (with double-next protection)
 // ============================================================
 
 const runMiddlewareChain = <Ctx, Args, Output>(
@@ -72,16 +72,23 @@ const runMiddlewareChain = <Ctx, Args, Output>(
   args: Args,
   finalInvoke: () => Promise<Result<Output>>
 ): (() => Promise<Result<Output>>) => {
-  let index = 0;
+  let index = -1;
 
   const next = async (overrides?: { ctx?: Partial<Ctx> }): Promise<Result<Output>> => {
+    // L1: Double-next protection - validate index hasn't been reused
+    const nextIndex = index + 1;
+    if (nextIndex <= index) {
+      throw new Error(`Middleware safety violation: next() called multiple times at index ${index}`);
+    }
+    index = nextIndex;
+
     const currentCtx = overrides?.ctx ? { ...handlerCtx, ...overrides.ctx } : handlerCtx;
 
     if (index >= allMiddleware.length) {
       return finalInvoke();
     }
 
-    const mw = allMiddleware[index++];
+    const mw = allMiddleware[index];
     return mw.handler(currentCtx, {
       next: (innerOverrides?: { ctx?: Partial<Ctx> }) => next(innerOverrides),
       args,
