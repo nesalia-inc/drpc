@@ -36,6 +36,7 @@ A modern functional-first RPC protocol for building type-safe APIs, designed for
 ### Integrations
 - [Next.js Integration](features/nextjs-integration.md) - Next.js App Router adapter
 - [Client React Hooks](features/client-react-hooks.md) - React hooks with TanStack Query
+- [Client Transport](features/client-transport.md) - @deessejs/client with FetchTransport
 
 ### Architecture
 - [Async Context](features/async-context.md) - AsyncLocalStorage for context access
