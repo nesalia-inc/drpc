@@ -3,7 +3,7 @@ import type { Plugin, Router } from "../../types.js";
 import { isProcedure } from "../../router/index.js";
 import { createPendingEventQueue } from "../../events/queue.js";
 import type { EventEmitterAny } from "../types/api.js";
-import type { ExecuteRouteContext, RouterProxyContext } from "./context.js";
+import type { ExecuteRouteContext, RouterProxyContext } from "../types/internal.js";
 import { isValidSymbol, buildFullPath, isNoArgsProcedure } from "./utils.js";
 import { executeRoute } from "./route.js";
 

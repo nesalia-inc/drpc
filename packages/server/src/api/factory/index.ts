@@ -11,4 +11,4 @@ export type {
   RouterProxyContext,
   ExecuteRouteContext,
   ExecuteProcedureContext,
-} from "./context.js";
+} from "../types/internal.js";

@@ -2,12 +2,12 @@ import type { Result } from "@deessejs/fp";
 import type { Middleware, EventRegistry, HandlerContext, Procedure } from "../../types.js";
 import type { ProcedureWithHooks } from "../types/internal.js";
 import type { EventEmitterAny } from "../types/api.js";
-import type { ExecuteProcedureContext } from "./context.js";
+import type { EventQueue } from "../../events/queue.js";
+import type { ExecuteProcedureContext } from "../types/internal.js";
 import { createHandlerContext } from "./send.js";
 import { validationFailed } from "../errors.js";
 import { createInternalErrorResult, createServerErrorResult } from "./errors.js";
 import { ServerException } from "../../errors/server-error.js";
-import { createPendingEventQueue } from "../../events/queue.js";
 
 // ============================================================
 // L2: Procedure Execution with Hooks
@@ -19,7 +19,7 @@ const executeProcedureWithHooks = async <Ctx, Args, Output>(
   hookedProc: ProcedureWithHooks<Ctx, Args, Output>,
   procedure: Procedure<Ctx, Args, Output>,
   route: string,
-  queue: ReturnType<typeof createPendingEventQueue>,
+  queue: EventQueue,
   eventEmitter: EventEmitterAny | undefined
 ): Promise<Result<Output>> => {
   // L1: Invoke beforeInvoke hook

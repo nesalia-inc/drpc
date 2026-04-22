@@ -7,7 +7,7 @@ import type { APIInstance, RequestInfo, EventEmitterAny } from "../types/api.js"
 import type { TypedAPIInstance, PublicRouter } from "../types/proxy.js";
 import type { APIInstanceState } from "../types/internal.js";
 import { createRouterProxy } from "./proxy.js";
-import type { RouterProxyContext } from "./context.js";
+import type { RouterProxyContext } from "../types/internal.js";
 
 // ============================================================
 // Public API Creation

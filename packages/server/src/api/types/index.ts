@@ -5,4 +5,10 @@ export type { EventEmitterAny, APIInstance, APIConfig, RequestInfo } from "./api
 export type { ProcedureProxy, RouterProxy, TypedAPIInstance, PublicRouter } from "./proxy.js";
 
 // Internal types - for use within the API module
-export type { ProcedureWithHooks, APIInstanceState } from "./internal.js";
+export type {
+  ProcedureWithHooks,
+  APIInstanceState,
+  RouterProxyContext,
+  ExecuteRouteContext,
+  ExecuteProcedureContext,
+} from "./internal.js";
