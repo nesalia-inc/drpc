@@ -1,5 +1,6 @@
-import  { type EventRegistry } from "../types.js";
-import  { type RequestInfo } from "../api/types.js";
+import { type EventRegistry } from "../types.js";
+import { type RequestInfo } from "../api/types/api.js";
+import type { Plugin } from "../types.js";
 
 export interface DefineContextConfig<Ctx, Events extends EventRegistry = EventRegistry> {
   context?: Ctx;
@@ -9,6 +10,6 @@ export interface DefineContextConfig<Ctx, Events extends EventRegistry = EventRe
    * Use this for extracting auth user from headers, request-specific data, etc.
    */
   createContext?: (requestInfo?: RequestInfo) => Ctx;
-  plugins?: import("../types.js").Plugin<Ctx>[];
+  plugins?: Plugin<Ctx>[];
   events?: Events;
 }

@@ -4,20 +4,21 @@ import { type Plugin, type Middleware, type Router, type Procedure, type SendOpt
 import { createPendingEventQueue } from "../events/queue.js";
 import { ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
-import { type APIInstance, type TypedAPIInstance, type RequestInfo, type EventEmitterAny } from "./types.js";
-import { type ProcedureWithHooks, type APIInstanceState } from "./factory-types.js";
+import { type APIInstance, type RequestInfo, type EventEmitterAny } from "./types/api.js";
+import { type TypedAPIInstance } from "./types/proxy.js";
+import { type ProcedureWithHooks, type APIInstanceState } from "./types/internal.js";
 import { routeNotFound, validationFailed, serverError, internalError } from "./errors.js";
 /* eslint-disable unicorn/throw-new-error */
 
 function createRouterProxy<Ctx>(
   router: Router<Ctx>,
   ctx: Ctx,
-  globalMiddleware: Middleware<Ctx>[],
+  globalMiddleware: readonly Middleware<Ctx>[],
   rootRouter: Router<Ctx>,
   eventEmitter: EventEmitterAny | undefined,
   queue: ReturnType<typeof createPendingEventQueue>,
-  plugins: Plugin<Ctx>[],
-  path: string[] = []
+  plugins: readonly Plugin<Ctx>[],
+  path: readonly string[] = []
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 ): any {
   /* eslint-disable @typescript-eslint/consistent-return */
@@ -54,12 +55,12 @@ function createRouterProxy<Ctx>(
 async function executeRoute<Ctx>(
   router: Router<Ctx>,
   ctx: Ctx,
-  globalMiddleware: Middleware<Ctx>[],
+  globalMiddleware: readonly Middleware<Ctx>[],
   route: string,
   args: unknown,
   eventEmitter: EventEmitterAny | undefined,
   queue: ReturnType<typeof createPendingEventQueue>,
-  plugins: Plugin<Ctx>[]
+  plugins: readonly Plugin<Ctx>[]
 ): Promise<Result<unknown>> {
   const parts = route.split(".");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,7 +80,7 @@ async function executeRoute<Ctx>(
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-function applyPlugins<Ctx>(ctx: Ctx, plugins: Plugin<Ctx>[]): Ctx {
+function applyPlugins<Ctx>(ctx: Ctx, plugins: readonly Plugin<Ctx>[]): Ctx {
   let extendedCtx = ctx;
   for (const plugin of plugins) {
     extendedCtx = { ...extendedCtx, ...plugin.extend(extendedCtx) } as Ctx;
@@ -90,7 +91,7 @@ function applyPlugins<Ctx>(ctx: Ctx, plugins: Plugin<Ctx>[]): Ctx {
 function createHandlerContext<Ctx, Events extends EventRegistry>(
   ctx: Ctx,
   queue: ReturnType<typeof createPendingEventQueue>,
-  plugins: Plugin<Ctx>[]
+  plugins: readonly Plugin<Ctx>[]
 ): HandlerContext<Ctx, Events> {
   const send = (name: keyof Events, data: Events[typeof name]["data"], options?: SendOptions): void => {
     queue.enqueue({
@@ -177,11 +178,11 @@ async function executeProcedure<Ctx, Args, Output>(
   procedure: Procedure<Ctx, Args, Output>,
   ctx: Ctx,
   args: Args,
-  middleware: Middleware<Ctx>[],
+  middleware: readonly Middleware<Ctx>[],
   eventEmitter: EventEmitterAny | undefined,
   queue: ReturnType<typeof createPendingEventQueue>,
   route: string,
-  plugins: Plugin<Ctx>[]
+  plugins: readonly Plugin<Ctx>[]
 ): Promise<Result<Output>> {
   const handlerCtx = createHandlerContext(ctx, queue, plugins);
   const hookedProc = procedure as unknown as ProcedureWithHooks<Ctx, Args, Output>;
@@ -196,7 +197,7 @@ async function executeProcedure<Ctx, Args, Output>(
     }
   }
 
-  const procedureMiddleware: Middleware<Ctx>[] = hookedProc._middleware || [];
+  const procedureMiddleware: readonly Middleware<Ctx>[] = hookedProc._middleware || [];
   const allMiddleware: Middleware<Ctx>[] = [...middleware, ...procedureMiddleware];
 
   try {
@@ -242,8 +243,8 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
     router: TRoutes;
     context?: Ctx;
     createContext?: (requestInfo?: RequestInfo) => Ctx;
-    plugins?: Plugin<Ctx>[];
-    middleware?: Middleware<Ctx>[];
+    plugins?: readonly Plugin<Ctx>[];
+    middleware?: readonly Middleware<Ctx>[];
     eventEmitter?: EventEmitterAny;
   }
 ): TypedAPIInstance<Ctx, TRoutes> {

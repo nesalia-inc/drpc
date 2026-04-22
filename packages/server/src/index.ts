@@ -29,6 +29,7 @@ export type {
   SendOptions,
   PendingEvent,
 } from "./types.js";
+export { plugin } from "./types.js";
 
 // Events
 export { EventEmitter, defineEvents } from "./events/index.js";
@@ -66,7 +67,7 @@ export type { InternalQueryConfig } from "./internal-query/types.js";
 export type { InternalMutationConfig } from "./internal-mutation/types.js";
 
 // API types
-export type { RequestInfo } from "./api/types.js";
+export type { RequestInfo } from "./api/types/api.js";
 
 // Errors
 export {
