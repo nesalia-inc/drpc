@@ -29,7 +29,6 @@ export type {
   SendOptions,
   PendingEvent,
 } from "./types.js";
-export { plugin } from "./types.js";
 
 // Events
 export { EventEmitter, defineEvents } from "./events/index.js";
