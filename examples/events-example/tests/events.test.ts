@@ -83,7 +83,7 @@ function createTestAPI() {
   const createUser = t.mutation({
     args: z.object({
       name: z.string(),
-      email: z.string().email(),
+      email: z.email(),
     }),
     handler: async (ctx, args) => {
       const user = {
@@ -106,7 +106,7 @@ function createTestAPI() {
     args: z.object({
       id: z.number(),
       name: z.string().optional(),
-      email: z.string().email().optional(),
+      email: z.email().optional(),
     }),
     handler: async (ctx, args) => {
       const user = ctx.db.users.find((u) => u.id === args.id);

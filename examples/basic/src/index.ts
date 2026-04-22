@@ -88,7 +88,7 @@ const getUser = t.query({
 const createUser = t.mutation({
   args: z.object({
     name: z.string().min(1),
-    email: z.string().email(),
+    email: z.email(),
   }),
   handler: async (ctx, args) => {
     const existing = ctx.db.users.find((u) => u.email === args.email);

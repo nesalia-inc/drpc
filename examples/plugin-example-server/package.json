@@ -10,7 +10,7 @@
   "dependencies": {
     "@deessejs/fp": "^3.0.0",
     "@deessejs/server": "workspace:*",
-    "zod": "^3.0.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -1,10 +1,11 @@
-import { err, type Result, error as errorFn, none } from "@deessejs/fp";
+import type { Result } from "@deessejs/fp";
+import { err, error as errorFn, none } from "@deessejs/fp";
 import { type Plugin, type Middleware, type Router, type Procedure, type SendOptions, type EventRegistry, type HandlerContext } from "../types.js";
 import { createPendingEventQueue } from "../events/queue.js";
 import { createErrorResult, ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
 import { type APIInstance, type TypedAPIInstance, type RequestInfo, type EventEmitterAny } from "./types.js";
-import  { type ZodIssue } from "zod";
+import { type ZodIssue } from "zod";
 /* eslint-disable unicorn/throw-new-error */
 
 // Procedure augmented with internal hooks and metadata (used internally)
@@ -36,6 +37,7 @@ function createRouterProxy<Ctx>(
   rootRouter: Router<Ctx>,
   eventEmitter: EventEmitterAny | undefined,
   queue: ReturnType<typeof createPendingEventQueue>,
+  plugins: Plugin<Ctx>[],
   path: string[] = []
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 ): any {
@@ -57,12 +59,12 @@ function createRouterProxy<Ctx>(
         // If procedure has no argsSchema, return a no-args callable
         /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
         if (!(value as any).argsSchema) {
-          return () => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, undefined, eventEmitter, queue);
+          return () => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, undefined, eventEmitter, queue, plugins);
         }
-        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, queue);
+        return (args: unknown) => executeRoute(rootRouter, ctx, globalMiddleware, fullPath, args, eventEmitter, queue, plugins);
       }
       if (typeof value === "object" && value !== null) {
-        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, eventEmitter, queue, [...path, prop]);
+        return createRouterProxy(value as Router<Ctx>, ctx, globalMiddleware, rootRouter, eventEmitter, queue, plugins, [...path, prop]);
       }
       return none();
     },
@@ -76,7 +78,8 @@ async function executeRoute<Ctx>(
   route: string,
   args: unknown,
   eventEmitter: EventEmitterAny | undefined,
-  queue: ReturnType<typeof createPendingEventQueue>
+  queue: ReturnType<typeof createPendingEventQueue>,
+  plugins: Plugin<Ctx>[]
 ): Promise<Result<unknown>> {
   const parts = route.split(".");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,12 +95,22 @@ async function executeRoute<Ctx>(
   if (!procedure || !isProcedure(procedure)) {
     return createErrorResult("ROUTE_NOT_FOUND", `Route not found: ${route}`);
   }
-  return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, queue, route);
+  return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, queue, route, plugins);
+}
+
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+function applyPlugins<Ctx>(ctx: Ctx, plugins: Plugin<Ctx>[]): Ctx {
+  let extendedCtx = ctx;
+  for (const plugin of plugins) {
+    extendedCtx = { ...extendedCtx, ...plugin.extend(extendedCtx) } as Ctx;
+  }
+  return extendedCtx;
 }
 
 function createHandlerContext<Ctx, Events extends EventRegistry>(
   ctx: Ctx,
-  queue: ReturnType<typeof createPendingEventQueue>
+  queue: ReturnType<typeof createPendingEventQueue>,
+  plugins: Plugin<Ctx>[]
 ): HandlerContext<Ctx, Events> {
   const send = (name: keyof Events, data: Events[typeof name]["data"], options?: SendOptions): void => {
     queue.enqueue({
@@ -109,8 +122,10 @@ function createHandlerContext<Ctx, Events extends EventRegistry>(
     });
   };
 
+  const extendedCtx = applyPlugins(ctx, plugins);
+
   return {
-    ...(ctx as object),
+    ...(extendedCtx as object),
     send,
   } as HandlerContext<Ctx, Events>;
 }
@@ -182,14 +197,15 @@ async function executeProcedure<Ctx, Args, Output>(
   middleware: Middleware<Ctx>[],
   eventEmitter: EventEmitterAny | undefined,
   queue: ReturnType<typeof createPendingEventQueue>,
-  route: string
+  route: string,
+  plugins: Plugin<Ctx>[]
 ): Promise<Result<Output>> {
-  const handlerCtx = createHandlerContext(ctx, queue);
+  const handlerCtx = createHandlerContext(ctx, queue, plugins);
   const hookedProc = procedure as unknown as ProcedureWithHooks<Ctx, Args, Output>;
   if (hookedProc.argsSchema) {
     const parseResult = hookedProc.argsSchema.safeParse(args);
     if (!parseResult.success) {
-      const errors = parseResult.error.errors.map((e: ZodIssue) => `${e.path.join(".")}: ${e.message}`);
+      const errors = parseResult.error.issues.map((e: ZodIssue) => `${e.path.join(".")}: ${e.message}`);
       const ValidationError = errorFn({ name: "VALIDATION_ERROR", message: (args: { message: string }) => args.message });
       return err(ValidationError({ message: errors.join(", ") }).addNotes(`Validation failed for route: ${route}`));
       }
@@ -258,7 +274,7 @@ export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
   };
 
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, queue) as any;
+  const routerProxy = createRouterProxy(state.router, state.ctx, state.globalMiddleware, state.router, eventEmitter, queue, state.plugins) as any;
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   return new Proxy(state as any, {
     get(target, prop: string | symbol): unknown {
@@ -278,13 +294,18 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
   api: APIInstance<Ctx, TRoutes>
 ): APIInstance<Ctx, PublicRouter<TRoutes>> {
   const publicRouter = filterPublicRouter(api.router);
+  // Use original createContext if it exists, otherwise use a default that returns the context
+  // Must use explicit check because createContext could be null (not just undefined)
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const createContext = (api as any).createContext;
+  const originalCreateContext = (api as any).createContext;
+  const contextFactory = typeof originalCreateContext === 'function'
+    ? originalCreateContext
+    : (_requestInfo?: RequestInfo) => api.ctx;
   return createAPI({
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     router: publicRouter as any,
     context: api.ctx,
-    createContext: createContext,
+    createContext: contextFactory,
     plugins: api.plugins,
     middleware: api.globalMiddleware,
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */

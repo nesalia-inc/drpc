@@ -1,6 +1,6 @@
 {
   "name": "@deessejs/server",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "type": "module",
   "description": "Modern functional-first RPC protocol for type-safe APIs",
   "license": "MIT",
@@ -23,7 +23,7 @@
   },
   "peerDependencies": {
     "@deessejs/fp": "*",
-    "zod": "^3.0.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@deessejs/fp": "^3.0.0",
@@ -37,6 +37,6 @@
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.15.0",
     "vitest": "^2.0.0",
-    "zod": "^3.0.0"
+    "zod": "^4.0.0"
   }
 }

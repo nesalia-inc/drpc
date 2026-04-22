@@ -143,7 +143,7 @@ const createUser = withMutation(
   t.mutation({
     args: z.object({
       name: z.string().min(1, "Name is required").max(100),
-      email: z.string().email("Invalid email address"),
+      email: z.email("Invalid email address"),
       role: z.enum(["user", "admin"]).default("user"),
     }),
     handler: async (ctx, args) => {
@@ -174,7 +174,7 @@ const createUser = withMutation(
   validationMiddleware(
     z.object({
       name: z.string().min(1).max(100),
-      email: z.string().email(),
+      email: z.email(),
     })
   )
 );
@@ -216,7 +216,7 @@ const updateMyProfile = protectedMutation(
   t.mutation({
     args: z.object({
       name: z.string().min(1).max(100).optional(),
-      email: z.string().email().optional(),
+      email: z.email().optional(),
     }),
     handler: async (ctx, args) => {
       const user = (ctx as any).user;
@@ -317,7 +317,7 @@ const createUserRateLimited = rateLimitedMutation(
   t.mutation({
     args: z.object({
       name: z.string().min(1).max(100),
-      email: z.string().email(),
+      email: z.email(),
     }),
     handler: async (ctx, args) => {
       const existing = ctx.db.users.find((u) => u.email === args.email);
