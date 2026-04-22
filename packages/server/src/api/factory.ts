@@ -2,33 +2,12 @@ import type { Result } from "@deessejs/fp";
 import { err, error as errorFn, none } from "@deessejs/fp";
 import { type Plugin, type Middleware, type Router, type Procedure, type SendOptions, type EventRegistry, type HandlerContext } from "../types.js";
 import { createPendingEventQueue } from "../events/queue.js";
-import { createErrorResult, ServerException } from "../errors/server-error.js";
+import { ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
 import { type APIInstance, type TypedAPIInstance, type RequestInfo, type EventEmitterAny } from "./types.js";
-import { type ZodIssue } from "zod";
+import { type ProcedureWithHooks, type APIInstanceState } from "./factory-types.js";
+import { routeNotFound, validationFailed, serverError, internalError } from "./errors.js";
 /* eslint-disable unicorn/throw-new-error */
-
-// Procedure augmented with internal hooks and metadata (used internally)
-interface ProcedureWithHooks<Ctx, Args, Output> {
-  readonly argsSchema?: Procedure<Ctx, Args, Output>["argsSchema"];
-  readonly _middleware?: Middleware<Ctx>[];
-  readonly _hooks?: {
-    beforeInvoke?: (ctx: HandlerContext<Ctx, EventRegistry>, args: Args) => void | Promise<void>;
-    afterInvoke?: (ctx: HandlerContext<Ctx, EventRegistry>, args: Args, result: Result<Output>) => void | Promise<void>;
-    onSuccess?: (ctx: HandlerContext<Ctx, EventRegistry>, args: Args, data: Output) => void | Promise<void>;
-    onError?: (ctx: HandlerContext<Ctx, EventRegistry>, args: Args, error: unknown) => void | Promise<void>;
-  };
-  readonly type: Procedure<Ctx, Args, Output>["type"];
-  readonly handler: Procedure<Ctx, Args, Output>["handler"];
-}
-
-interface APIInstanceState<Ctx, TRoutes extends Router<Ctx>> {
-  router: TRoutes;
-  ctx: Ctx;
-  plugins: Plugin<Ctx>[];
-  globalMiddleware: Middleware<Ctx>[];
-  eventEmitter?: EventEmitterAny;
-}
 
 function createRouterProxy<Ctx>(
   router: Router<Ctx>,
@@ -71,6 +50,7 @@ function createRouterProxy<Ctx>(
   /* eslint-enable @typescript-eslint/consistent-return */
   });
 }
+
 async function executeRoute<Ctx>(
   router: Router<Ctx>,
   ctx: Ctx,
@@ -88,12 +68,12 @@ async function executeRoute<Ctx>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     current = current[parts[i]] as any;
     if (!current) {
-      return createErrorResult("ROUTE_NOT_FOUND", `Route not found: ${route}`);
+      return routeNotFound(route);
     }
   }
   const procedure = current[parts.at(-1)!];
   if (!procedure || !isProcedure(procedure)) {
-    return createErrorResult("ROUTE_NOT_FOUND", `Route not found: ${route}`);
+    return routeNotFound(route);
   }
   return executeProcedure(procedure, ctx, args, globalMiddleware, eventEmitter, queue, route, plugins);
 }
@@ -182,12 +162,15 @@ async function handleProcedureError<Ctx, Args, Output>(
     await hookedProc._hooks.onError(currentCtx, args, error);
   }
   const errToReturn = error instanceof Error ? error : new Error(String(error));
-  const InternalError = errorFn({ name: "INTERNAL_ERROR", message: (a: { message: string }) => a.message });
-  return err(
-    InternalError({ message: errToReturn.message })
-      .addNotes(`Error in route: ${route}`)
-      .from(errorFn({ name: "INTERNAL_ERROR", message: (_: unknown) => errToReturn.message })({ message: errToReturn.message }))
-  );
+  return internalError(errToReturn.message)
+    .mapErr((e) =>
+      e.addNotes(`Error in route: ${route}`).from(
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        errorFn({ name: "INTERNAL_ERROR", message: (_: unknown) => errToReturn.message })({
+          message: errToReturn.message,
+        })
+      )
+    );
 }
 
 async function executeProcedure<Ctx, Args, Output>(
@@ -202,16 +185,18 @@ async function executeProcedure<Ctx, Args, Output>(
 ): Promise<Result<Output>> {
   const handlerCtx = createHandlerContext(ctx, queue, plugins);
   const hookedProc = procedure as unknown as ProcedureWithHooks<Ctx, Args, Output>;
+
+  // Validate args if schema exists
   if (hookedProc.argsSchema) {
     const parseResult = hookedProc.argsSchema.safeParse(args);
     if (!parseResult.success) {
-      const errors = parseResult.error.issues.map((e: ZodIssue) => `${e.path.join(".")}: ${e.message}`);
-      const ValidationError = errorFn({ name: "VALIDATION_ERROR", message: (args: { message: string }) => args.message });
-      return err(ValidationError({ message: errors.join(", ") }).addNotes(`Validation failed for route: ${route}`));
-      }
+      return validationFailed(route, parseResult.error.issues).mapErr((e) =>
+        e.addNotes(`Validation failed for route: ${route}`)
+      );
     }
+  }
 
-    const procedureMiddleware: Middleware<Ctx>[] = hookedProc._middleware || [];
+  const procedureMiddleware: Middleware<Ctx>[] = hookedProc._middleware || [];
   const allMiddleware: Middleware<Ctx>[] = [...middleware, ...procedureMiddleware];
 
   try {
@@ -232,23 +217,26 @@ async function executeProcedure<Ctx, Args, Output>(
     return await next();
   } catch (error: unknown) {
     queue.clear();
-    const errToReturn = error instanceof Error ? error : new Error(String(error));
     if (error instanceof ServerException) {
-      const ServerError = errorFn({ name: error.code, message: (args: { message: string }) => args.message });
-      return err(
-        ServerError({ message: error.message })
-          .addNotes(`Route: ${route}`)
-          .from(errorFn({ name: error.code, message: (_: unknown) => error.message })({ message: error.message }))
+      return serverError(error.code, error.message).mapErr((e) =>
+        e.addNotes(`Route: ${route}`).from(
+          errorFn({ name: error.code, message: (_: unknown) => error.message })({
+            message: error.message,
+          })
+        )
       );
     }
-    const UnexpectedError = errorFn({ name: "INTERNAL_ERROR", message: (args: { message: string }) => args.message });
-    return err(
-      UnexpectedError({ message: errToReturn.message })
-        .addNotes(`Unexpected error in route: ${route}`)
-        .from(errorFn({ name: "INTERNAL_ERROR", message: (_: unknown) => errToReturn.message })({ message: errToReturn.message }))
+    const errToReturn = error instanceof Error ? error : new Error(String(error));
+    return internalError(errToReturn.message).mapErr((e) =>
+      e.addNotes(`Unexpected error in route: ${route}`).from(
+        errorFn({ name: "INTERNAL_ERROR", message: (_: unknown) => errToReturn.message })({
+          message: errToReturn.message,
+        })
+      )
     );
   }
 }
+
 export function createAPI<Ctx, TRoutes extends Router<Ctx>>(
   config: {
     router: TRoutes;
@@ -298,9 +286,10 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
   // Must use explicit check because createContext could be null (not just undefined)
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const originalCreateContext = (api as any).createContext;
-  const contextFactory = typeof originalCreateContext === 'function'
-    ? originalCreateContext
-    : (_requestInfo?: RequestInfo) => api.ctx;
+  const contextFactory =
+    typeof originalCreateContext === "function"
+      ? originalCreateContext
+      : (_requestInfo?: RequestInfo) => api.ctx;
   return createAPI({
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
     router: publicRouter as any,
@@ -308,7 +297,7 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
     createContext: contextFactory,
     plugins: api.plugins,
     middleware: api.globalMiddleware,
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   }) as any;
 }
 
@@ -326,15 +315,12 @@ type PublicRouter<TRoutes extends Router<any, any>> = {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function filterPublicRouter<TRoutes extends Router<any, any>>(router: TRoutes): PublicRouter<TRoutes> {
-   
   const result: any = {};
   for (const key in router) {
-     
     const value = (router as any)[key];
     if (isRouter(value)) {
       result[key] = filterPublicRouter(value);
     } else if (isProcedure(value)) {
-       
       if ((value as any).type === "query" || (value as any).type === "mutation") {
         result[key] = value;
       }

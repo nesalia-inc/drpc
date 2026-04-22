@@ -1,6 +1,7 @@
-import  { type EventEmitter } from "../events/emitter.js";
-import  { type Result } from "@deessejs/fp";
-import  { type Router, type Procedure } from "../types.js";
+import { type EventEmitter } from "../events/emitter.js";
+import { type Result } from "@deessejs/fp";
+import { type Router, type Procedure } from "../types.js";
+import type { Plugin, Middleware } from "../types.js";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventEmitterAny = EventEmitter<any>;
 
@@ -32,8 +33,8 @@ export interface RequestInfo {
 export interface APIInstance<Ctx, TRoutes = Router<Ctx, any>> {
   readonly router: TRoutes;
   readonly ctx: Ctx;
-  readonly plugins: import("../types.js").Plugin<Ctx>[];
-  readonly globalMiddleware: import("../types.js").Middleware<Ctx>[];
+  readonly plugins: Plugin<Ctx>[];
+  readonly globalMiddleware: Middleware<Ctx>[];
   readonly eventEmitter?: EventEmitterAny;
 }
 
@@ -45,7 +46,7 @@ export interface APIConfig<TRoutes extends Router<unknown, any>> {
    * Receives optional RequestInfo (headers, method, url) for per-request context enrichment.
    */
   createContext?: (requestInfo?: RequestInfo) => unknown;
-  plugins: import("../types.js").Plugin<unknown>[];
-  middleware: import("../types.js").Middleware<unknown>[];
+  plugins: Plugin<unknown>[];
+  middleware: Middleware<unknown>[];
   eventEmitter?: EventEmitterAny;
 }
