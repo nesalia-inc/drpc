@@ -23,11 +23,19 @@ export const getProcedureFromPath = (
   return isProcedure(procedure) ? procedure : undefined;
 };
 
-export const isValidSymbol = (prop: string | symbol): boolean =>
-  prop !== "then" &&
-  prop !== "toJSON" &&
-  prop !== "valueOf" &&
-  prop !== Symbol.toStringTag;
+// Invalid symbols that Proxy's get trap will be called with
+const INVALID_SYMBOLS = new Set([
+  Symbol.toStringTag,
+  Symbol.iterator,
+  Symbol.toPrimitive,
+]);
+
+export const isValidSymbol = (prop: string | symbol): boolean => {
+  // String properties are always valid
+  if (typeof prop === "string") return true;
+  // Symbol properties are valid except for special internal ones
+  return !INVALID_SYMBOLS.has(prop);
+};
 
 export const getSymbolProperty = (prop: string | symbol): unknown => {
   if (typeof prop !== "string") return none();
