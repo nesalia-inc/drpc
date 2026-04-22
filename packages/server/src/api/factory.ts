@@ -5,7 +5,7 @@ import { createPendingEventQueue } from "../events/queue.js";
 import { ServerException } from "../errors/server-error.js";
 import { isRouter, isProcedure } from "../router/index.js";
 import { type APIInstance, type RequestInfo, type EventEmitterAny } from "./types/api.js";
-import { type TypedAPIInstance } from "./types/proxy.js";
+import { type TypedAPIInstance, type PublicRouter } from "./types/proxy.js";
 import { type ProcedureWithHooks, type APIInstanceState } from "./types/internal.js";
 import { routeNotFound, validationFailed, serverError, internalError } from "./errors.js";
 /* eslint-disable unicorn/throw-new-error */
@@ -301,18 +301,6 @@ export function createPublicAPI<Ctx, TRoutes extends Router<Ctx>>(
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   }) as any;
 }
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type PublicRouter<TRoutes extends Router<any, any>> = {
-  [K in keyof TRoutes as TRoutes[K] extends Procedure<any, any, any>
-    ? TRoutes[K] extends { type: "query" | "mutation" }
-      ? K
-      : never
-    : K]: TRoutes[K] extends Router<any, any>
-    ? PublicRouter<TRoutes[K]>
-    : TRoutes[K];
-};
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function filterPublicRouter<TRoutes extends Router<any, any>>(router: TRoutes): PublicRouter<TRoutes> {
