@@ -34,7 +34,8 @@ A modern functional-first RPC protocol for building type-safe APIs, designed for
 - [Metadata](features/metadata.md) - Route reflection and OpenAPI generation
 
 ### Integrations
-- [React Hooks](features/react-hooks.md) - Client-side hooks integration
+- [Next.js Integration](features/nextjs-integration.md) - Next.js App Router adapter
+- [Client React Hooks](features/client-react-hooks.md) - React hooks with TanStack Query
 
 ### Architecture
 - [Async Context](features/async-context.md) - AsyncLocalStorage for context access
