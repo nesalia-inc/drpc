@@ -1,9 +1,9 @@
-import type { Result } from "@deessejs/fp";
-import type { Middleware, EventRegistry, HandlerContext, Procedure } from "../../types.js";
-import type { ProcedureWithHooks } from "../types/internal.js";
-import type { EventEmitterAny } from "../types/api.js";
-import type { EventQueue } from "../../events/queue.js";
-import type { ExecuteProcedureContext } from "../types/internal.js";
+import  { type Result } from "@deessejs/fp";
+import  { type Middleware, type EventRegistry, type HandlerContext, type Procedure } from "../../types.js";
+import  { type ProcedureWithHooks } from "../types/internal.js";
+import  { type EventEmitterAny } from "../types/api.js";
+import  { type EventQueue } from "../../events/queue.js";
+import  { type ExecuteProcedureContext } from "../types/internal.js";
 import { createHandlerContext } from "./send.js";
 import { validationFailed } from "../errors.js";
 import { createInternalErrorResult, createServerErrorResult } from "./errors.js";
@@ -24,7 +24,7 @@ const executeProcedureWithHooks = async <Ctx, Args, Output>(
 ): Promise<Result<Output>> => {
   // L1: Invoke beforeInvoke hook
   if (hookedProc._hooks?.beforeInvoke) {
-    hookedProc._hooks.beforeInvoke(ctx, args);
+    void hookedProc._hooks.beforeInvoke(ctx, args);
   }
 
   try {
@@ -32,20 +32,20 @@ const executeProcedureWithHooks = async <Ctx, Args, Output>(
 
     // L1: Invoke afterInvoke hook
     if (hookedProc._hooks?.afterInvoke) {
-      hookedProc._hooks.afterInvoke(ctx, args, result);
+      void hookedProc._hooks.afterInvoke(ctx, args, result);
     }
 
     if (result.ok) {
       // L1: Invoke onSuccess hook
       if (hookedProc._hooks?.onSuccess) {
-        hookedProc._hooks.onSuccess(ctx, args, result.value);
+        void hookedProc._hooks.onSuccess(ctx, args, result.value);
       }
       // L1: Flush queue on success
       await queue.flush(eventEmitter);
     } else {
       // L1: Invoke onError hook
       if (hookedProc._hooks?.onError) {
-        hookedProc._hooks.onError(ctx, args, result.error);
+        void hookedProc._hooks.onError(ctx, args, result.error);
       }
     }
 
@@ -53,7 +53,7 @@ const executeProcedureWithHooks = async <Ctx, Args, Output>(
   } catch (error) {
     // L1: Invoke onError hook on exception
     if (hookedProc._hooks?.onError) {
-      hookedProc._hooks.onError(ctx, args, error);
+      void hookedProc._hooks.onError(ctx, args, error);
     }
     return createInternalErrorResult(
       error instanceof Error ? error.message : String(error),

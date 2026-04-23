@@ -1,4 +1,4 @@
-import type { Result } from "@deessejs/fp";
+import  { type Result } from "@deessejs/fp";
 import { error as errorFn } from "@deessejs/fp";
 import { internalError, serverError } from "../errors.js";
 

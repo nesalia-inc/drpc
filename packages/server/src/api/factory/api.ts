@@ -1,22 +1,10 @@
-import type { Middleware, Plugin, Router } from "../../types.js";
 import { createPendingEventQueue } from "../../events/queue.js";
 import { isRouter, isProcedure } from "../../router/index.js";
-import type { APIInstance, RequestInfo, EventEmitterAny } from "../types/api.js";
-import type { TypedAPIInstance, PublicRouter } from "../types/proxy.js";
-import type { APIInstanceState, RouterProxyContext } from "../types/internal.js";
+import  { type APIInstance, type RequestInfo, type EventEmitterAny } from "../types/api.js";
+import  { type TypedAPIInstance, type PublicRouter } from "../types/proxy.js";
+import  { type APIInstanceState, type RouterProxyContext } from "../types/internal.js";
 import { createRouterProxy } from "./proxy.js";
-
-// ============================================================
-// Constants
-// ============================================================
-
-const ROOT_PROPERTIES = new Set([
-  "router",
-  "ctx",
-  "plugins",
-  "globalMiddleware",
-  "eventEmitter",
-] as const);
+import  { type Middleware, type Plugin, type Router } from "../../types.js";
 
 // ============================================================
 // Public Router Filter
@@ -32,16 +20,15 @@ const isQueryOrMutation = (procedure: unknown): boolean => {
  * Filters a router to only include public queries and mutations.
  * Internal procedures and unknown types are explicitly excluded.
  */
-export const filterPublicRouter = <TRoutes extends Router<any, any>>(
+export const filterPublicRouter = <TRoutes extends Router<Ctx>, Ctx>(
   router: TRoutes
 ): PublicRouter<TRoutes> => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result: any = {};
+  const result: Record<string, any> = {};
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const key in router as any) {
+  for (const key in router) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const value = (router as any)[key];
+    const value = (router as Record<string, any>)[key];
 
     if (isRouter(value)) {
       // Recursively filter nested routers

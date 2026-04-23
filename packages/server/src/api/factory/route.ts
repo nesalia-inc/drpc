@@ -1,6 +1,6 @@
-import type { Result } from "@deessejs/fp";
-import type { Router, Procedure } from "../../types.js";
-import type { ExecuteRouteContext, ExecuteProcedureContext } from "../types/internal.js";
+import { type Result } from "@deessejs/fp";
+import { type Procedure } from "../../types.js";
+import { type ExecuteRouteContext, type ExecuteProcedureContext } from "../types/internal.js";
 import { splitRoutePath, getProcedureFromPath } from "./utils.js";
 import { routeNotFound } from "../errors.js";
 import { executeProcedure } from "./procedure.js";

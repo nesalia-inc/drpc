@@ -1,7 +1,6 @@
 import { error, err } from "@deessejs/fp";
 import { z } from "zod";
-import type { Result } from "@deessejs/fp";
-import type { ZodIssue } from "zod";
+import  { type Result } from "@deessejs/fp";
 
 /**
  * RouteNotFoundError - Returned when a route path cannot be resolved.
@@ -56,6 +55,7 @@ export const ServerError = error({
  * Create a route not found error result.
  */
 export const routeNotFound = (route: string): Result<never, ReturnType<typeof RouteNotFoundError>> =>
+  // eslint-disable-next-line unicorn/throw-new-error -- error() returns a factory function, not a class
   err(RouteNotFoundError({ route }));
 
 /**
@@ -63,9 +63,10 @@ export const routeNotFound = (route: string): Result<never, ReturnType<typeof Ro
  */
 export const validationFailed = (
   route: string,
-  zodIssues: ZodIssue[]
+  zodIssues: z.ZodError["issues"]
 ): Result<never, ReturnType<typeof ValidationError>> =>
   err(
+    // eslint-disable-next-line unicorn/throw-new-error -- error() returns a factory function, not a class
     ValidationError({
       route,
       errors: zodIssues.map((e) => ({
@@ -79,6 +80,7 @@ export const validationFailed = (
  * Create an internal error result.
  */
 export const internalError = (context: string): Result<never, ReturnType<typeof InternalError>> =>
+  // eslint-disable-next-line unicorn/throw-new-error -- error() returns a factory function, not a class
   err(InternalError({ context }));
 
 /**
@@ -87,4 +89,6 @@ export const internalError = (context: string): Result<never, ReturnType<typeof 
 export const serverError = (
   code: string,
   message: string
-): Result<never, ReturnType<typeof ServerError>> => err(ServerError({ code, message }));
+): Result<never, ReturnType<typeof ServerError>> =>
+  // eslint-disable-next-line unicorn/throw-new-error -- error() returns a factory function, not a class
+  err(ServerError({ code, message }));

@@ -1,9 +1,9 @@
-import type { Result } from "@deessejs/fp";
-import type { Middleware, Plugin, Router, Procedure, EventRegistry, HandlerContext } from "../../types.js";
-import type { EventEmitterAny } from "./api.js";
-import type { EventQueue } from "../../events/queue.js";
+import  { type Result } from "@deessejs/fp";
+import  { type Middleware, type Plugin, type Router, type Procedure, type EventRegistry, type HandlerContext } from "../../types.js";
+import  { type EventEmitterAny } from "./api.js";
+import  { type EventQueue } from "../../events/queue.js";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 // Procedure augmented with internal hooks and metadata (used internally in API execution)
 export type ProcedureWithHooks<Ctx, Args, Output> = Readonly<{

@@ -1,6 +1,6 @@
-import type { Result } from "@deessejs/fp";
-import type { Router, Procedure } from "../../types.js";
-import type { APIInstance } from "./api.js";
+import  { type Result } from "@deessejs/fp";
+import  { type Router, type Procedure } from "../../types.js";
+import  { type APIInstance } from "./api.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

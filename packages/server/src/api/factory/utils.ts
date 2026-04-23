@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/consistent-return */
 import { none } from "@deessejs/fp";
-import type { Router, Procedure } from "../../types.js";
+import { type Router, type Procedure } from "../../types.js";
 import { isProcedure } from "../../router/index.js";
 
 // ============================================================
@@ -8,6 +9,7 @@ import { isProcedure } from "../../router/index.js";
 
 export const splitRoutePath = (route: string): readonly string[] => route.split(".");
 
+// eslint-disable-next-line @typescript-eslint/consistent-return
 export const getProcedureFromPath = (
   router: Router<unknown>,
   pathParts: readonly string[]
@@ -17,10 +19,17 @@ export const getProcedureFromPath = (
   for (let i = 0; i < pathParts.length - 1; i++) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     current = current[pathParts[i]] as any;
-    if (!current) return undefined;
+    if (!current) {
+      return undefined;
+    }
   }
   const procedure = current[pathParts.at(-1)!];
-  return isProcedure(procedure) ? procedure : undefined;
+  const procIsProcedure = isProcedure(procedure);
+  if (!procIsProcedure) {
+    // eslint-disable-next-line @typescript-eslint/consistent-return
+    return undefined;
+  }
+  return procedure;
 };
 
 // Invalid symbols that Proxy's get trap will be called with
@@ -37,13 +46,14 @@ export const isValidSymbol = (prop: string | symbol): boolean => {
   return !INVALID_SYMBOLS.has(prop);
 };
 
-export const getSymbolProperty = (prop: string | symbol): unknown => {
-  if (typeof prop !== "string") return none();
+export const getSymbolProperty = (_prop: string | symbol): unknown => {
+  // eslint-disable-next-line @typescript-eslint/consistent-return -- all branches return
   return none();
 };
 
-export const buildFullPath = (path: readonly string[], prop: string): string =>
-  [...path, prop].join(".");
+export const buildFullPath = (path: readonly string[], prop: string): string => {
+  return [...path, prop].join(".");
+};
 
 export const isNoArgsProcedure = (procedure: unknown): boolean => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,6 +1,6 @@
 import { type EventRegistry } from "../types.js";
 import { type RequestInfo } from "../api/types/api.js";
-import type { Plugin } from "../types.js";
+import  { type Plugin } from "../types.js";
 
 export interface DefineContextConfig<Ctx, Events extends EventRegistry = EventRegistry> {
   context?: Ctx;

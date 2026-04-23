@@ -1,6 +1,6 @@
 import { type PendingEvent } from "../types.js";
 import { type EventEmitter } from "./emitter.js";
-import type { Result, Unit } from "@deessejs/fp";
+import  { type Result, type Unit } from "@deessejs/fp";
 import { ok, err, unit, error } from "@deessejs/fp";
 
 export interface PendingEventQueue {

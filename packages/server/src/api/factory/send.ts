@@ -1,5 +1,5 @@
-import type { Plugin, EventRegistry, SendOptions, HandlerContext } from "../../types.js";
-import type { EventQueue } from "../../events/queue.js";
+import  { type Plugin, type EventRegistry, type SendOptions, type HandlerContext } from "../../types.js";
+import  { type EventQueue } from "../../events/queue.js";
 import { applyPlugins } from "./plugins.js";
 
 // ============================================================

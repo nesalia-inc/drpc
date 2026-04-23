@@ -1,0 +1,1 @@
+{"version":3,"file":"procedure.d.ts","sourceRoot":"","sources":["../../../src/api/factory/procedure.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,cAAc,CAAC;AAK3C,OAAO,KAAK,EAAE,uBAAuB,EAAE,MAAM,sBAAsB,CAAC;AAoGpE,eAAO,MAAM,gBAAgB,GAAU,GAAG,EAAE,IAAI,EAAE,MAAM,EACtD,KAAK,uBAAuB,CAAC,GAAG,EAAE,IAAI,EAAE,MAAM,CAAC,KAC9C,OAAO,CAAC,MAAM,CAAC,MAAM,CAAC,CA6CxB,CAAC"}

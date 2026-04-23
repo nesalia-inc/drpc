@@ -1,4 +1,4 @@
-import type { Plugin } from "../../types.js";
+import  { type Plugin } from "../../types.js";
 
 // ============================================================
 // L1: Plugin Application (Performance Rule)
