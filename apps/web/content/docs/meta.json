@@ -1,0 +1,13 @@
+{
+  "title": "Framework",
+  "description": "DeesseJS RPC framework documentation",
+  "icon": "Building",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "index",
+    "what-is-deessejs-rpc",
+    "comparisons",
+    "manual-installation"
+  ]
+}
