@@ -4,9 +4,27 @@ description: Get started with DeesseJS RPC in minutes
 icon: Rocket
 ---
 
+{/* This page follows a strict structure: Introduction, Terminology, Requirements, Installation, Steps (Create Your First API), Setup Server, Setup Client, FAQ, Next Steps. Content can be modified but the structure must remain. */}
+
 import { Cards, Card } from 'fumadocs-ui/components/card';
 import { Callout } from 'fumadocs-ui/components/callout';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
 import { FaqAccordion } from '@/components/faq-accordion';
+
+## Introduction
+
+DeesseJS RPC is a type-safe RPC protocol for Node.js and browsers with full TypeScript inference. Define your API once, call it from anywhere with full type safety.
+
+## Terminology
+
+| Term | Description |
+|------|-------------|
+| **Query** | A public read operation, callable from client and server |
+| **Mutation** | A public write operation, callable from client and server |
+| **Internal Query** | A server-only read operation, not exposed via HTTP |
+| **Internal Mutation** | A server-only write operation, not exposed via HTTP |
+| **Context** | The shared state passed to all procedure handlers |
+| **Router** | A collection of procedures grouped under a namespace |
 
 ## Requirements
 
@@ -19,45 +37,72 @@ import { FaqAccordion } from '@/components/faq-accordion';
 npm install @deessejs/server
 ```
 
-## Create API
+## Create Your First API
 
-<Callout type="info" title="Context">
-The `context` object is shared across all procedures. Add your database, services, or any server-side resource here.
-</Callout>
+<Steps>
+  <Step>
+    ### Define Context
 
-**`src/api.ts`**
+    Start by defining your context with the services you need:
 
-```typescript
-import { defineContext } from '@deessejs/server'
-import { z } from 'zod'
+    ```typescript
+    import { defineContext } from '@deessejs/server'
+    import { z } from 'zod'
 
-const { t, createAPI } = defineContext({
-  context: {},
-})
+    const { t, createAPI } = defineContext({
+      context: {},
+    })
+    ```
 
-const getUser = t.query({
-  args: z.object({ id: z.number() }),
-  handler: async (ctx, args) => {
-    return { id: args.id, name: 'John' }
-  },
-})
+  </Step>
+  <Step>
+    ### Define a Query
 
-const createUser = t.mutation({
-  args: z.object({ name: z.string() }),
-  handler: async (ctx, args) => {
-    return { id: 1, name: args.name }
-  },
-})
+    Create a typed query that fetches data:
 
-export const api = createAPI({
-  router: t.router({
-    users: t.router({
-      get: getUser,
-      create: createUser,
-    }),
-  }),
-})
-```
+    ```typescript
+    const getUser = t.query({
+      args: z.object({ id: z.number() }),
+      handler: async (ctx, args) => {
+        return { id: args.id, name: 'John' }
+      },
+    })
+    ```
+
+  </Step>
+  <Step>
+    ### Define a Mutation
+
+    Create a mutation that modifies data:
+
+    ```typescript
+    const createUser = t.mutation({
+      args: z.object({ name: z.string() }),
+      handler: async (ctx, args) => {
+        return { id: 1, name: args.name }
+      },
+    })
+    ```
+
+  </Step>
+  <Step>
+    ### Export the API
+
+    Combine everything into a router and export:
+
+    ```typescript
+    export const api = createAPI({
+      router: t.router({
+        users: t.router({
+          get: getUser,
+          create: createUser,
+        }),
+      }),
+    })
+    ```
+
+  </Step>
+</Steps>
 
 <Callout type="idea" title="Internal Procedures">
 Use `t.internalQuery` and `t.internalMutation` for server-only procedures that should not be exposed via HTTP.
@@ -102,10 +147,6 @@ const user = await client.users.get.query({ id: 1 })
 await client.users.create.mutation({ name: 'Jane' })
 ```
 
-<Callout type="warn" title="Security">
-Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations.
-</Callout>
-
 **Vanilla** — `src/client.ts`
 
 ```typescript
@@ -116,6 +157,10 @@ export const client = createClient({ url: '/api' })
 // Call procedures
 const user = await client.users.get({ id: 1 })
 ```
+
+<Callout type="warn" title="Security">
+Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations.
+</Callout>
 
 ## FAQ
 
