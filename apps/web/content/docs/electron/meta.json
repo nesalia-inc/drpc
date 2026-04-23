@@ -1,0 +1,13 @@
+{
+  "title": "Electron",
+  "description": "Electron client",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "index",
+    "installation",
+    "usage",
+    "---Other---",
+    "..."
+  ]
+}

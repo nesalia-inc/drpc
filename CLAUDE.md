@@ -47,3 +47,65 @@ When learning something new that improves skills or understanding on a topic, cr
 ### `docs/internal/` Directory
 
 Internal project documentation, especially useful at the start of the project to understand how things work. This is **not** documentation for end users, but for contributors and developers working on the codebase.
+
+### Fumadocs Documentation
+
+When working with Fumadocs, refer to the local documentation in `docs/learnings/fumadocs/` for advanced features and usage examples.
+
+```
+docs/learnings/fumadocs/
+├── page-conventions.md   # Routing, slug generation, folder structure
+├── twoslash.md           # TypeScript interactive code blocks
+├── llms.md               # AI/LLM integrations
+├── validate-links.md     # Link validation
+├── og-images-next.md     # OG image generation
+├── components/           # UI components (accordion, tabs, steps, etc.)
+├── layouts/              # Layout components (docs-layout, navbar, etc.)
+└── headless/             # Headless utilities (page-tree)
+```
+
+**IMPORTANT:** Always check this folder first when working with Fumadocs features.
+
+## Web Research Tools
+
+**IMPORTANT:** For all web searches and content extraction from URLs, use the `fresh` CLI. Never use WebSearch or WebFetch tools directly.
+
+### Fresh CLI
+
+AI-powered web search and fetch tool using Exa.ai.
+
+```bash
+fresh --help
+fresh auth login    # Authenticate first
+fresh search -q "query" -l 10 -t auto
+fresh fetch <url> -p "extraction prompt"
+```
+
+#### Commands
+
+| Command | Description |
+|---------|-------------|
+| `fresh auth` | Authentication (login, logout, status, whoami) |
+| `fresh search` | Search web via Exa.ai |
+| `fresh fetch` | Fetch & extract content from URL with AI |
+
+#### `fresh search` Options
+
+- `-q, --query <text>` - Search query (required)
+- `-l, --limit <number>` - Max results (default: 10)
+- `-t, --type <type>` - Search type: `auto`, `fast`, `deep-lite`, `deep`, `deep-reasoning`, `instant`
+
+#### `fresh fetch` Options
+
+- `url` - URL to fetch (required)
+- `-p, --prompt <text>` - Prompt for content extraction
+
+#### Usage Examples
+
+```bash
+# Search for information
+fresh search -q "fumadocs page conventions" -l 5
+
+# Extract content from a URL
+fresh fetch https://www.fumadocs.dev/docs/page-conventions -p "Extract all features and code examples"
+```

@@ -7,6 +7,21 @@ export function baseOptions(): BaseLayoutProps {
       // JSX supported
       title: appName,
     },
+    links: [
+      {
+        text: 'Docs',
+        url: '/docs',
+      },
+    ],
+    githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
+  };
+}
+
+export function docsBaseOptions(): BaseLayoutProps {
+  return {
+    nav: {
+      title: appName,
+    },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   };
 }
