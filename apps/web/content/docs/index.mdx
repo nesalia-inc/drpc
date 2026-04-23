@@ -4,24 +4,8 @@ description: Get started with DeesseJS RPC in minutes
 icon: Rocket
 ---
 
-import { Step, Steps } from 'fumadocs-ui/components/steps';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 import { FaqAccordion } from '@/components/faq-accordion';
-
-## Introduction
-
-DeesseJS RPC is a type-safe, framework-agnostic RPC protocol for Node.js and browsers with full TypeScript inference. It provides a seamless way to define and consume typed API procedures with built-in support for queries, mutations, caching, and more.
-
-## Terminology
-
-| Term | Description |
-|------|-------------|
-| **Query** | A public read operation, callable from both client and server |
-| **Mutation** | A public write operation, callable from both client and server |
-| **Internal Query** | A server-only read operation, not exposed via HTTP |
-| **Internal Mutation** | A server-only write operation, not exposed via HTTP |
-| **Context** | The shared state passed to all procedure handlers |
-| **Router** | A collection of procedures grouped under a namespace |
 
 ## Requirements
 
@@ -31,171 +15,122 @@ DeesseJS RPC is a type-safe, framework-agnostic RPC protocol for Node.js and bro
 ## Installation
 
 ```bash
-# Install server
 npm install @deessejs/server
-
-# Or using pnpm
-pnpm add @deessejs/server
 ```
 
-## Create Your First API
+## Create API
 
-<Steps>
-  <Step>
-    ### Define Context
-
-    Start by defining your context with the database or services you need:
-
-    ```typescript
-    import { defineContext } from '@deessejs/server'
-
-    const { t, createAPI } = defineContext({
-      context: {
-        db: myDatabase,
-      },
-    })
-    ```
-
-  </Step>
-  <Step>
-    ### Define a Query
-
-    Create a typed query that fetches data:
-
-    ```typescript
-    const getUser = t.query({
-      args: z.object({ id: z.number() }),
-      handler: async (ctx, args) => {
-        const user = await ctx.db.users.find(args.id)
-        return ok(user, { keys: [['users', { id: args.id }]] })
-      }
-    })
-    ```
-
-  </Step>
-  <Step>
-    ### Define a Mutation
-
-    Create a mutation that modifies data:
-
-    ```typescript
-    const createUser = t.mutation({
-      args: z.object({ name: z.string(), email: z.string().email() }),
-      handler: async (ctx, args) => {
-        const user = await ctx.db.users.create(args)
-        return ok(user, { invalidate: ['users:list'] })
-      }
-    })
-    ```
-
-  </Step>
-  <Step>
-    ### Create and Export the API
-
-    Combine everything into a router and export:
-
-    ```typescript
-    const api = createAPI({
-      router: t.router({
-        users: t.router({
-          get: getUser,
-          create: createUser,
-        }),
-      }),
-    })
-
-    export { api }
-    ```
-
-  </Step>
-</Steps>
-
-## Setup the API
-
-### Next.js App Router
+**`src/api.ts`**
 
 ```typescript
-import { createServerHandler } from '@deessejs/server-next';
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
 
-export const { api, startServer } = createServerHandler({ api });
-```
+const { t, createAPI } = defineContext({
+  context: {},
+})
 
-### Hono
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return { id: args.id, name: 'John' }
+  },
+})
 
-```typescript
-import { createHonoHandler } from '@deessejs/server-hono';
-import { Hono } from 'hono';
+const createUser = t.mutation({
+  args: z.object({ name: z.string() }),
+  handler: async (ctx, args) => {
+    return { id: 1, name: args.name }
+  },
+})
 
-const app = new Hono();
-const handler = createHonoHandler({ api });
-
-app.route('/api', handler);
-```
-
-## Setup the Client
-
-### React
-
-```typescript
-import { createClient } from '@deessejs/client-react';
-import { httpBatchLink } from '@deessejs/client';
-
-const client = createClient({
-  links: [
-    httpBatchLink({
-      url: '/api',
+export const api = createAPI({
+  router: t.router({
+    users: t.router({
+      get: getUser,
+      create: createUser,
     }),
-  ],
-});
-
-// Use in components
-const result = await client.users.get.query({ id: 1 });
+  }),
+})
 ```
 
-### Vanilla JS
+## Setup Server
+
+**Next.js App Router** — `app/api/[...route]/route.ts`
 
 ```typescript
-import { createClient } from '@deessejs/client';
+import { createServerHandler } from '@deessejs/server-next'
+import { api } from '@/api'
 
-const client = createClient({
-  url: '/api',
-});
+export const { api: serverApi, startServer } = createServerHandler({ api })
+```
 
-// Use in your app
-const result = await client.users.get({ id: 1 });
+**Hono** — `src/index.ts`
+
+```typescript
+import { createHonoHandler } from '@deessejs/server-hono'
+import { Hono } from 'hono'
+import { api } from './api'
+
+const app = new Hono()
+app.route('/api', createHonoHandler({ api }))
+```
+
+## Setup Client
+
+**React** — `src/lib/client.ts`
+
+```typescript
+import { createClient } from '@deessejs/client-react'
+import { httpBatchLink } from '@deessejs/client'
+
+export const client = createClient({
+  links: [httpBatchLink({ url: '/api' })],
+})
+
+// Call procedures
+const user = await client.users.get.query({ id: 1 })
+await client.users.create.mutation({ name: 'Jane' })
+```
+
+**Vanilla** — `src/client.ts`
+
+```typescript
+import { createClient } from '@deessejs/client'
+
+export const client = createClient({ url: '/api' })
+
+// Call procedures
+const user = await client.users.get({ id: 1 })
 ```
 
 ## FAQ
 
 <FaqAccordion items={[
   {
-    question: "What is the difference between queries and mutations?",
-    answer: "Queries are read operations that can be called from both client and server, while mutations are write operations that modify data. Both are publicly exposed via HTTP."
-  },
-  {
-    question: "What are internal operations?",
-    answer: "Internal operations (internalQuery and internalMutation) are server-only procedures that are not exposed via HTTP. They're useful for administrative tasks or operations that should never be called from the client."
+    question: "What's the difference between queries and mutations?",
+    answer: "Queries are read operations exposed via HTTP. Mutations are write operations. Internal operations (internalQuery/internalMutation) are server-only."
   },
   {
     question: "How does caching work?",
-    answer: "Procedures return cache keys along with the result. The cache system automatically invalidates keys when mutations are called, or you can specify keys to return for automatic cache management."
+    answer: "Procedures return cache keys with results. The cache system automatically invalidates keys when mutations are called."
   },
   {
     question: "Is DeesseJS RPC framework-agnostic?",
-    answer: "Yes, the core package (@deessejs/server) is framework-agnostic. We provide adapters for specific frameworks like Next.js (App Router and Pages Router) and Hono."
+    answer: "Yes. @deessejs/server is core and framework-agnostic. Adapters exist for Next.js, Hono, and Electron."
   }
 ]} />
 
 ## Next Steps
 
 <Cards>
-  <Card href="/docs/what-is-deessejs-rpc" title="What is DeesseJS RPC?">
-    Learn the core concepts and architecture of DeesseJS RPC
+  <Card href="/docs/what-is-deessejs-rpc" title="Core Concepts">
+    Learn about queries, mutations, context, and routers
   </Card>
   <Card href="/docs/manual-installation" title="Manual Installation">
     Install packages individually for fine-grained control
   </Card>
   <Card href="/docs/comparisons" title="Comparisons">
-    See how DeesseJS RPC compares to tRPC, REST, and GraphQL
+    Compare with tRPC, REST, and GraphQL
   </Card>
 </Cards>
