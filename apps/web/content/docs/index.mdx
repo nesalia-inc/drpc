@@ -130,53 +130,92 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
 
 ## Setup Server
 
-**Next.js App Router** — `app/api/[...route]/route.ts`
+<Steps>
+  <Step>
+    ### Next.js App Router
 
-```typescript
-import { createServerHandler } from '@deessejs/server-next'
-import { api } from '@/api'
+    Create the route handler file:
 
-export const { api: serverApi, startServer } = createServerHandler({ api })
-```
+    **`app/api/[...route]/route.ts`**
 
-**Hono** — `src/index.ts`
+    ```typescript
+    import { createServerHandler } from '@deessejs/server-next'
+    import { api } from '@/api'
 
-```typescript
-import { createHonoHandler } from '@deessejs/server-hono'
-import { Hono } from 'hono'
-import { api } from './api'
+    export const { api: serverApi, startServer } = createServerHandler({ api })
+    ```
 
-const app = new Hono()
-app.route('/api', createHonoHandler({ api }))
-```
+  </Step>
+  <Step>
+    ### Hono
+
+    Create the server entry point:
+
+    **`src/index.ts`**
+
+    ```typescript
+    import { createHonoHandler } from '@deessejs/server-hono'
+    import { Hono } from 'hono'
+    import { api } from './api'
+
+    const app = new Hono()
+    app.route('/api', createHonoHandler({ api }))
+    ```
+
+  </Step>
+</Steps>
 
 ## Setup Client
 
-**React** — `src/lib/client.ts`
+<Steps>
+  <Step>
+    ### React
 
-```typescript
-import { createClient } from '@deessejs/client-react'
-import { httpBatchLink } from '@deessejs/client'
+    Create the client configuration:
 
-export const client = createClient({
-  links: [httpBatchLink({ url: '/api' })],
-})
+    **`src/lib/client.ts`**
 
-// Call procedures
-const user = await client.users.get.query({ id: 1 })
-await client.users.create.mutation({ name: 'Jane' })
-```
+    ```typescript
+    import { createClient } from '@deessejs/client-react'
+    import { httpBatchLink } from '@deessejs/client'
 
-**Vanilla** — `src/client.ts`
+    export const client = createClient({
+      links: [httpBatchLink({ url: '/api' })],
+    })
+    ```
 
-```typescript
-import { createClient } from '@deessejs/client'
+  </Step>
+  <Step>
+    ### Call Procedures
 
-export const client = createClient({ url: '/api' })
+    Use the client to call your API:
 
-// Call procedures
-const user = await client.users.get({ id: 1 })
-```
+    ```typescript
+    // Query
+    const user = await client.users.get.query({ id: 1 })
+
+    // Mutation
+    await client.users.create.mutation({ name: 'Jane' })
+    ```
+
+  </Step>
+  <Step>
+    ### Vanilla JS
+
+    For non-React projects:
+
+    **`src/client.ts`**
+
+    ```typescript
+    import { createClient } from '@deessejs/client'
+
+    export const client = createClient({ url: '/api' })
+
+    const user = await client.users.get({ id: 1 })
+    ```
+
+  </Step>
+</Steps>
 
 <Callout type="warn" title="Security">
 Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations.
