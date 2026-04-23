@@ -5,6 +5,7 @@ icon: Rocket
 ---
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
 import { FaqAccordion } from '@/components/faq-accordion';
 
 ## Requirements
@@ -19,6 +20,10 @@ npm install @deessejs/server
 ```
 
 ## Create API
+
+<Callout type="info" title="Context">
+The `context` object is shared across all procedures. Add your database, services, or any server-side resource here.
+</Callout>
 
 **`src/api.ts`**
 
@@ -53,6 +58,10 @@ export const api = createAPI({
   }),
 })
 ```
+
+<Callout type="idea" title="Internal Procedures">
+Use `t.internalQuery` and `t.internalMutation` for server-only procedures that should not be exposed via HTTP.
+</Callout>
 
 ## Setup Server
 
@@ -92,6 +101,10 @@ export const client = createClient({
 const user = await client.users.get.query({ id: 1 })
 await client.users.create.mutation({ name: 'Jane' })
 ```
+
+<Callout type="warn" title="Security">
+Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations.
+</Callout>
 
 **Vanilla** — `src/client.ts`
 
