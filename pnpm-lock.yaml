@@ -82,8 +82,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       tsx:
         specifier: ^4.0.0
@@ -116,8 +116,8 @@ importers:
         specifier: ^18.0.0
         version: 18.3.1(react@18.3.1)
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^20.19.39
@@ -147,8 +147,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server-electron
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -172,8 +172,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       tsx:
         specifier: ^4.0.0
@@ -194,8 +194,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       tsx:
         specifier: ^4.0.0
@@ -216,8 +216,8 @@ importers:
         specifier: ^4.0.0
         version: 4.12.12
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@hono/node-server':
         specifier: ^1.0.0
@@ -241,8 +241,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -365,8 +365,8 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1)(lightningcss@1.32.0)
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
 
   packages/server-electron:
     dependencies:
@@ -390,8 +390,8 @@ importers:
   packages/server-hono:
     dependencies:
       '@deessejs/server':
-        specifier: workspace:*
-        version: link:../server
+        specifier: ^1.2.0
+        version: 1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6)
       hono:
         specifier: ^4.0.0
         version: 4.12.12
@@ -412,27 +412,27 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1)(lightningcss@1.32.0)
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
 
   packages/server-next:
     dependencies:
       '@deessejs/server-hono':
-        specifier: workspace:*
-        version: link:../server-hono
+        specifier: ^1.2.0
+        version: 1.2.1(@deessejs/server@1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6))
       hono:
         specifier: ^4.0.0
         version: 4.12.12
       next:
-        specifier: ^14.0.0 || ^15.0.0
+        specifier: ^14.0.0 || ^15.0.0 || ^16.0.0
         version: 15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
     devDependencies:
       '@deessejs/fp':
         specifier: ^3.0.0
         version: 3.0.0
       '@deessejs/server':
-        specifier: workspace:*
-        version: link:../server
+        specifier: ^1.2.0
+        version: 1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6)
       '@eslint/js':
         specifier: ^9.17.0
         version: 9.39.4
@@ -449,8 +449,8 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1)(lightningcss@1.32.0)
       zod:
-        specifier: ^3.0.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
 
 packages:
 
@@ -640,6 +640,17 @@ packages:
 
   '@deessejs/fp@3.0.0':
     resolution: {integrity: sha512-sFSmCoRtDJFn/teZs9c1aU6Icgw7IaL9vrplgvS+tD9aGfo6xiVMb6pFAtAf1Mo3eZfRkBIsd5D2DWKrp4Aqzg==}
+
+  '@deessejs/server-hono@1.2.1':
+    resolution: {integrity: sha512-9fQxB2eQoJekGQcEuk3s83EbVlerKqbFI/++INlo6IO94B6o6sJIZjkjpFd73JYvXT0nPfGvAM7b66Agz2O+Pg==}
+    peerDependencies:
+      '@deessejs/server': '*'
+
+  '@deessejs/server@1.2.0':
+    resolution: {integrity: sha512-KeMUYf10iFcQ4xoqmDN80UQE4n3o0gt4Z0oj2m+HFft2c70s2N6UTKTP5KVN4lm1MrWn3FbkOnExiz5pwFOagg==}
+    peerDependencies:
+      '@deessejs/fp': '*'
+      zod: ^4.0.0
 
   '@electron/get@2.0.3':
     resolution: {integrity: sha512-Qkzpg2s9GnVV2I2BjRksUi43U5e6+zaQMcjoJy0C+C5oxaKl+fmckGDQFtRpZpZV0NQekuZZ+tGz7EA9TVnQtQ==}
@@ -5339,9 +5350,6 @@ packages:
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
@@ -5646,6 +5654,16 @@ snapshots:
 
   '@deessejs/fp@3.0.0':
     dependencies:
+      zod: 4.3.6
+
+  '@deessejs/server-hono@1.2.1(@deessejs/server@1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6))':
+    dependencies:
+      '@deessejs/server': 1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6)
+      hono: 4.12.12
+
+  '@deessejs/server@1.2.0(@deessejs/fp@3.0.0)(zod@4.3.6)':
+    dependencies:
+      '@deessejs/fp': 3.0.0
       zod: 4.3.6
 
   '@electron/get@2.0.3':
@@ -11032,8 +11050,6 @@ snapshots:
   zod-validation-error@4.0.2(zod@4.3.6):
     dependencies:
       zod: 4.3.6
-
-  zod@3.25.76: {}
 
   zod@4.3.6: {}
 
