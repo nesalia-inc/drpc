@@ -9,6 +9,7 @@ icon: Rocket
 import { Cards, Card } from 'fumadocs-ui/components/card';
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Step, Steps } from 'fumadocs-ui/components/steps';
+import { Tabs, Tab } from '@/components/tabs';
 import { FaqAccordion } from '@/components/faq-accordion';
 import { Rocket, Server, Users, Database } from 'lucide-react';
 
@@ -66,155 +67,195 @@ npm install @deessejs/server
     Start by defining your context with the services you need:
 
     ```typescript
-    import { defineContext } from '@deessejs/server'
+    // src/api.ts
+    import { defineContext, t } from '@deessejs/server'
     import { z } from 'zod'
 
-    const { t, createAPI } = defineContext({
-      context: {},
+    const { router } = defineContext({
+      context: () => ({ db: myDatabase }),
     })
     ```
-
   </Step>
   <Step>
     ### Define a Query
 
-    Create a typed query that fetches data:
+    Create a typed query that fetches data and returns cache keys:
 
     ```typescript
+    // src/api.ts
+    import { ok } from '@deessejs/fp'
+
     const getUser = t.query({
       args: z.object({ id: z.number() }),
       handler: async (ctx, args) => {
-        return { id: args.id, name: 'John' }
+        const user = await ctx.db.users.find(args.id)
+        return ok(user, { keys: [['users', { id: args.id }]] })
       },
     })
     ```
-
   </Step>
   <Step>
     ### Define a Mutation
 
-    Create a mutation that modifies data:
+    Create a mutation that modifies data and invalidates cache:
 
     ```typescript
+    // src/api.ts
     const createUser = t.mutation({
-      args: z.object({ name: z.string() }),
+      args: z.object({ name: z.string(), email: z.string().email() }),
       handler: async (ctx, args) => {
-        return { id: 1, name: args.name }
+        const user = await ctx.db.users.create(args)
+        return ok(user, { invalidate: ['users:list'] })
       },
     })
     ```
-
   </Step>
   <Step>
-    ### Export the API
+    ### Export the Router
 
-    Combine everything into a router and export:
+    Combine everything into a router and export the type:
 
     ```typescript
-    export const api = createAPI({
-      router: t.router({
-        users: t.router({
-          get: getUser,
-          create: createUser,
-        }),
+    // src/api.ts
+    export const appRouter = router({
+      users: router({
+        get: getUser,
+        create: createUser,
       }),
     })
+
+    export type AppRouter = typeof appRouter
     ```
 
+    <Callout type="info" title="Why export the type?">
+    The `AppRouter` type is used by clients to get full TypeScript inference. Import it in your client code.
+    </Callout>
   </Step>
 </Steps>
-
-<Callout type="idea" title="Internal Procedures">
-Use `t.internalQuery` and `t.internalMutation` for server-only procedures that should not be exposed via HTTP.
-</Callout>
 
 ## Setup Server
 
-<Steps>
-  <Step>
-    ### Install the Adapter
+Choose your framework and install the adapter:
 
-    Choose your framework and install the corresponding adapter:
-
-    **Next.js App Router** — `app/api/[...route]/route.ts`
+<Tabs items={['Next.js App Router', 'Hono']} defaultIndex={0}>
+  <Tab value="Next.js App Router">
+    **File:** `app/api/[...route]/route.ts`
 
     ```typescript
+    // app/api/[...route]/route.ts
     import { createServerHandler } from '@deessejs/server-next'
-    import { api } from '@/api'
+    import { appRouter } from '@/api'
 
-    export const { api: serverApi, startServer } = createServerHandler({ api })
+    export const { api: serverApi, startServer } = createServerHandler({
+      router: appRouter,
+    })
     ```
 
-    **Hono** — `src/index.ts`
+    Start the development server with `npm run dev`.
+  </Tab>
+  <Tab value="Hono">
+    **File:** `src/index.ts`
 
     ```typescript
+    // src/index.ts
     import { createHonoHandler } from '@deessejs/server-hono'
     import { Hono } from 'hono'
-    import { api } from './api'
+    import { appRouter } from './api'
 
     const app = new Hono()
-    app.route('/api', createHonoHandler({ api }))
+    app.route('/api', createHonoHandler({ router: appRouter }))
     ```
 
-  </Step>
-</Steps>
+    Start with `bun dev` or `npm run dev`.
+  </Tab>
+</Tabs>
+
+<Callout type="warn" title="Security">
+Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations that should never be callable from clients.
+</Callout>
 
 ## Setup Client
 
-<Steps>
-  <Step>
-    ### Install the Client
+Choose your client library:
 
-    Choose your client library and configure it:
-
-    **React** — `src/lib/client.ts`
+<Tabs items={['React', 'Vanilla JS']} defaultIndex={0}>
+  <Tab value="React">
+    **File:** `src/lib/client.ts`
 
     ```typescript
+    // src/lib/client.ts
     import { createClient } from '@deessejs/client-react'
     import { httpBatchLink } from '@deessejs/client'
+    import type { AppRouter } from '@/api'
 
-    export const client = createClient({
+    export const client = createClient<AppRouter>({
       links: [httpBatchLink({ url: '/api' })],
     })
+    ```
+
+    **Usage in a component:**
+
+    ```typescript
+    // src/components/user-list.tsx
+    import { client } from '@/lib/client'
 
     // Query
     const user = await client.users.get.query({ id: 1 })
+    if (user.ok) {
+      console.log(user.value) // fully typed
+    }
 
     // Mutation
-    await client.users.create.mutation({ name: 'Jane' })
+    const result = await client.users.create.mutation({
+      name: 'Jane',
+      email: 'jane@example.com',
+    })
     ```
-
-    **Vanilla JS** — `src/client.ts`
+  </Tab>
+  <Tab value="Vanilla JS">
+    **File:** `src/client.ts`
 
     ```typescript
+    // src/client.ts
     import { createClient } from '@deessejs/client'
+    import type { AppRouter } from './api'
 
-    export const client = createClient({ url: '/api' })
-
-    const user = await client.users.get({ id: 1 })
+    export const client = createClient<AppRouter>({ url: '/api' })
     ```
 
-  </Step>
-</Steps>
+    **Usage:**
 
-<Callout type="warn" title="Security">
-Only `query` and `mutation` are exposed via HTTP. Use `internalQuery` and `internalMutation` for server-only operations.
-</Callout>
+    ```typescript
+    // src/client.ts
+    import { client } from './client'
+
+    // Query
+    const user = await client.users.get({ id: 1 })
+
+    // Mutation
+    await client.users.create({ name: 'Jane', email: 'jane@example.com' })
+    ```
+  </Tab>
+</Tabs>
 
 ## FAQ
 
 <FaqAccordion items={[
   {
     question: "What's the difference between queries and mutations?",
-    answer: "Queries are read operations exposed via HTTP. Mutations are write operations. Internal operations (internalQuery/internalMutation) are server-only."
+    answer: "Queries are read operations that can be cached. Mutations are write operations that trigger cache invalidation. Both are exposed via HTTP and callable from clients."
   },
   {
-    question: "How does caching work?",
-    answer: "Procedures return cache keys with results. The cache system automatically invalidates keys when mutations are called."
+    question: "How does the cache system work?",
+    answer: "Procedures return cache keys with results using the `ok()` helper. The cache system automatically invalidates related keys when mutations are called. Use `{ keys: [...] }` for queries and `{ invalidate: [...] }` for mutations."
+  },
+  {
+    question: "What's the difference between public and internal procedures?",
+    answer: "Use `t.query` and `t.mutation` for client-callable procedures. Use `t.internalQuery` and `t.internalMutation` for server-only operations that should not be exposed via HTTP."
   },
   {
     question: "Is DeesseJS RPC framework-agnostic?",
-    answer: "Yes. @deessejs/server is core and framework-agnostic. Adapters exist for Next.js, Hono, and Electron."
+    answer: "Yes. @deessejs/server is core and framework-agnostic. Official adapters exist for Next.js, Hono, and Electron."
   }
 ]} />
 
