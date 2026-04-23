@@ -132,11 +132,11 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
 
 <Steps>
   <Step>
-    ### Next.js App Router
+    ### Install the Adapter
 
-    Create the route handler file:
+    Choose your framework and install the corresponding adapter:
 
-    **`app/api/[...route]/route.ts`**
+    **Next.js App Router** — `app/api/[...route]/route.ts`
 
     ```typescript
     import { createServerHandler } from '@deessejs/server-next'
@@ -145,13 +145,7 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
     export const { api: serverApi, startServer } = createServerHandler({ api })
     ```
 
-  </Step>
-  <Step>
-    ### Hono
-
-    Create the server entry point:
-
-    **`src/index.ts`**
+    **Hono** — `src/index.ts`
 
     ```typescript
     import { createHonoHandler } from '@deessejs/server-hono'
@@ -169,11 +163,11 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
 
 <Steps>
   <Step>
-    ### React
+    ### Install the Client
 
-    Create the client configuration:
+    Choose your client library and configure it:
 
-    **`src/lib/client.ts`**
+    **React** — `src/lib/client.ts`
 
     ```typescript
     import { createClient } from '@deessejs/client-react'
@@ -182,15 +176,7 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
     export const client = createClient({
       links: [httpBatchLink({ url: '/api' })],
     })
-    ```
 
-  </Step>
-  <Step>
-    ### Call Procedures
-
-    Use the client to call your API:
-
-    ```typescript
     // Query
     const user = await client.users.get.query({ id: 1 })
 
@@ -198,13 +184,7 @@ Use `t.internalQuery` and `t.internalMutation` for server-only procedures that s
     await client.users.create.mutation({ name: 'Jane' })
     ```
 
-  </Step>
-  <Step>
-    ### Vanilla JS
-
-    For non-React projects:
-
-    **`src/client.ts`**
+    **Vanilla JS** — `src/client.ts`
 
     ```typescript
     import { createClient } from '@deessejs/client'
