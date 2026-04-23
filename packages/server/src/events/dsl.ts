@@ -6,12 +6,15 @@
  */
 
 import { z } from "zod";
+import { __deesseEventBrand } from "./emitter.js";
 
 /**
  * Event definition interface
  */
 export interface EventDefinition {
   data?: unknown;
+  response?: unknown;
+  [__deesseEventBrand]: true;
 }
 
 /**
@@ -19,10 +22,10 @@ export interface EventDefinition {
  *
  * @example
  * const eventDef = event({ args: z.object({ id: z.number(), name: z.string() }) });
- * // Returns: { data: z.object({ id: z.number(), name: z.string() }) }
+ * // Returns: { data: z.object({ id: z.number(), name: z.string() }), [__deesseEventBrand]: true }
  */
 export function event({ args }: { args: z.ZodType }): EventDefinition {
-  return { data: args };
+  return { data: args, [__deesseEventBrand]: true };
 }
 
 /**

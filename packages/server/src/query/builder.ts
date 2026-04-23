@@ -1,6 +1,6 @@
 import { type ZodType } from "zod";
 import { type Result } from "@deessejs/fp";
-import { type Query, type HandlerContext, type EventRegistry, type ProcedureType, type Middleware, type Router, type EventPayload } from "../types.js";
+import { type EventRegistry, type Middleware, type Router, type EventPayload } from "../types.js";
 import { type BeforeInvokeHook, type AfterInvokeHook, type OnSuccessHook, type OnErrorHook } from "../types.js";
 import { type EventEmitter } from "../events/emitter.js";
 import { type QueryConfig, type QueryWithHooks } from "./types.js";

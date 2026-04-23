@@ -1,6 +1,6 @@
-import type { EventEmitter } from "../../events/emitter.js";
-import type { Router } from "../../types.js";
-import type { Plugin, Middleware } from "../../types.js";
+import  { type EventEmitter } from "../../events/emitter.js";
+import  { type Router } from "../../types.js";
+import  { type Plugin, type Middleware } from "../../types.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

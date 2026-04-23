@@ -1,8 +1,9 @@
-import type { Result } from "@deessejs/fp";
-import type { Middleware, Plugin, Router, Procedure, EventRegistry, HandlerContext } from "../../types.js";
-import type { EventEmitterAny } from "./api.js";
+import  { type Result } from "@deessejs/fp";
+import  { type Middleware, type Plugin, type Router, type Procedure, type EventRegistry, type HandlerContext } from "../../types.js";
+import  { type EventEmitterAny } from "./api.js";
+import  { type EventQueue } from "../../events/queue.js";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 // Procedure augmented with internal hooks and metadata (used internally in API execution)
 export type ProcedureWithHooks<Ctx, Args, Output> = Readonly<{
@@ -25,4 +26,37 @@ export type APIInstanceState<Ctx, TRoutes extends Router<Ctx>> = Readonly<{
   plugins: readonly Plugin<Ctx>[];
   globalMiddleware: readonly Middleware<Ctx>[];
   eventEmitter?: EventEmitterAny;
+}>;
+
+// Context objects to reduce parameters to max 3
+export type RouterProxyContext<Ctx> = Readonly<{
+  readonly router: Router<Ctx>;
+  readonly ctx: Ctx;
+  readonly globalMiddleware: readonly Middleware<Ctx>[];
+  readonly rootRouter: Router<Ctx>;
+  readonly eventEmitter: EventEmitterAny | undefined;
+  readonly queue: EventQueue;
+  readonly plugins: readonly Plugin<Ctx>[];
+  readonly routeCache?: Map<string, Procedure<unknown, unknown, unknown>>;
+}>;
+
+export type ExecuteRouteContext<Ctx> = Readonly<{
+  readonly router: Router<Ctx>;
+  readonly ctx: Ctx;
+  readonly globalMiddleware: readonly Middleware<Ctx>[];
+  readonly eventEmitter: EventEmitterAny | undefined;
+  readonly queue: EventQueue;
+  readonly plugins: readonly Plugin<Ctx>[];
+  readonly routeCache?: Map<string, Procedure<unknown, unknown, unknown>>;
+}>;
+
+export type ExecuteProcedureContext<Ctx, Args, Output> = Readonly<{
+  readonly procedure: Procedure<Ctx, Args, Output>;
+  readonly ctx: Ctx;
+  readonly args: Args;
+  readonly middleware: readonly Middleware<Ctx>[];
+  readonly eventEmitter: EventEmitterAny | undefined;
+  readonly queue: EventQueue;
+  readonly route: string;
+  readonly plugins: readonly Plugin<Ctx>[];
 }>;

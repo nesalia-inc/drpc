@@ -1,7 +1,47 @@
-import  { type EventRegistry, type EventPayload } from "../types.js";
+import { type EventRegistry, type EventPayload } from "../types.js";
 import { ok, err, unit, error, type Result, type Unit } from "@deessejs/fp";
 
 const MAX_EVENT_LOG_SIZE = 1000;
+
+/**
+ * Unique symbol to brand event definitions for type-safe detection.
+ * This avoids magic number/key detection (e.g., Object.keys().length <= 2).
+ * Follows docs/rules/typing-rule.md - no magic numbers/keys.
+ */
+export const __deesseEventBrand = Symbol("__deesseEventBrand");
+
+/**
+ * Type guard to check if an object is a properly branded EventDefinition.
+ * Also supports backward compatibility with plain event definitions that have 'data' property
+ * but lack the brand symbol.
+ *
+ * @param value - The value to check
+ * @returns True if the value is an EventDefinition with the brand symbol OR
+ *          a backward-compatible event definition with 'data' property
+ *
+ * @example
+ * if (isEventDefinition(value)) {
+ *   // value is typed as EventDefinition here
+ * }
+ */
+export function isEventDefinition(value: unknown): value is { data?: unknown; response?: unknown } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  // Primary check: brand symbol (new style)
+  if (__deesseEventBrand in value) {
+    return true;
+  }
+
+  // Backward compatibility: plain object with 'data' property and <= 2 keys (old style)
+  // This allows existing code using { "event.name": { data: ... } } to still work
+  if ("data" in value && Object.keys(value).length <= 2) {
+    return true;
+  }
+
+  return false;
+}
 
 export class EventEmitter<Events extends EventRegistry = EventRegistry> {
   private listeners: Map<string, Set<(payload: EventPayload) => void | Promise<void>>> = new Map();
@@ -232,6 +272,9 @@ export function defineEvents(events: Record<string, unknown>): EventRegistry {
  * Flattens a nested event object into a flat EventRegistry.
  * { user: { created: { data: T } } } => { "user.created": { data: T } }
  *
+ * Uses __deesseEventBrand symbol for type-safe detection instead of
+ * magic key counts (Object.keys().length <= 2).
+ *
  * This is used internally to support the namespace DSL while
  * maintaining backward compatibility with nested object access.
  */
@@ -243,9 +286,8 @@ export function flattenEvents<Events extends EventRegistry>(
   for (const key of Object.keys(events)) {
     const fullKey = prefix ? `${prefix}.${key}` : key;
     const value = events[key] as unknown;
-    // Check if value is an event definition (has 'data' property) or a namespace
-    if (value && typeof value === "object" && "data" in value && Object.keys(value).length <= 2) {
-      // This is an event definition (has data and optionally response)
+    // Use type guard instead of magic key count detection
+    if (isEventDefinition(value)) {
       result[fullKey] = value;
     } else if (value && typeof value === "object") {
       // This is a namespace (nested object), recurse into it

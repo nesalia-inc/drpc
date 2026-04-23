@@ -1,0 +1,28 @@
+{
+  "name": "@deessejs/example-electron",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Electron example demonstrating @deessejs/server-electron and @deessejs/electron-client integration",
+  "main": "dist/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.preload.json && node scripts/rename-preload.mjs && node scripts/copy-static.js && node scripts/bundle-renderer.js",
+    "dev": "npm run build && electron ."
+  },
+  "dependencies": {
+    "@deessejs/electron-client": "workspace:*",
+    "@deessejs/fp": "^3.0.0",
+    "@deessejs/server": "workspace:*",
+    "@deessejs/server-electron": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^33.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.0.0"
+  }
+}

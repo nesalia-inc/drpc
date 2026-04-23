@@ -1,0 +1,35 @@
+{
+  "name": "@deessejs/server-electron",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Electron adapter for @deessejs/server",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@deessejs/server": "workspace:*",
+    "@deessejs/fp": "^3.0.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "peerDependencies": {
+    "@deessejs/server": "*",
+    "@deessejs/fp": "*"
+  }
+}

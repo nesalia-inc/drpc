@@ -1,7 +1,7 @@
 import { type EventRegistry, type Middleware, type Router } from "../types.js";
 import { QueryBuilder } from "../query/builder.js";
 import { EventEmitter } from "../events/emitter.js";
-import { createAPI } from "../api/factory.js";
+import { createAPI } from "../api/factory/index.js";
 import { type TypedAPIInstance } from "../api/types/proxy.js";
 import { type DefineContextConfig } from "./types.js";
 

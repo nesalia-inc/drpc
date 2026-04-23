@@ -1,6 +1,7 @@
-import  { type PendingEvent } from "../types.js";
-import  { type EventEmitter } from "./emitter.js";
-import { ok, err, unit, error, type Result, type Unit } from "@deessejs/fp";
+import { type PendingEvent } from "../types.js";
+import { type EventEmitter } from "./emitter.js";
+import  { type Result, type Unit } from "@deessejs/fp";
+import { ok, err, unit, error } from "@deessejs/fp";
 
 export interface PendingEventQueue {
   enqueue(event: PendingEvent): Result<{ eventName: string; data: unknown; processed: boolean; timestamp: string; namespace: string }>;
@@ -10,6 +11,9 @@ export interface PendingEventQueue {
   events(): PendingEvent[];
   size(): number;
 }
+
+// Type alias for queue instances
+export type EventQueue = PendingEventQueue;
 
 export const createPendingEventQueue = (): PendingEventQueue => {
   let _events: PendingEvent[] = [];
