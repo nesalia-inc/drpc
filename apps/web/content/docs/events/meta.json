@@ -1,7 +1,6 @@
 {
   "title": "Events",
   "description": "Event system",
-  "icon": "Zap",
   "pages": [
     "event-system",
     "event-namespaces"

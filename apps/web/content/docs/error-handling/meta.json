@@ -1,7 +1,6 @@
 {
   "title": "Error Handling",
   "description": "Error handling patterns",
-  "icon": "AlertCircle",
   "pages": [
     "result-type",
     "server-error",
