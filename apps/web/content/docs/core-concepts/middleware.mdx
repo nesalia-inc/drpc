@@ -218,10 +218,10 @@ const auditedMutation = withMutation(auditMiddleware)
 
 ## Anti-Patterns
 
-### ❌ Don't Block in Middleware Without Error
+### Don't Block in Middleware Without Error
 
 ```typescript
-// ❌ Don't - silent block
+// Don't - silent block
 const badMiddleware = createMiddleware({
   name: 'bad',
   handler: async (ctx, opts) => {
@@ -230,7 +230,7 @@ const badMiddleware = createMiddleware({
   },
 })
 
-// ✅ Do - return error or call next
+// Do - return error or call next
 const goodMiddleware = createMiddleware({
   name: 'good',
   handler: async (ctx, opts) => {
@@ -242,10 +242,10 @@ const goodMiddleware = createMiddleware({
 })
 ```
 
-### ❌ Don't Modify Args in Middleware
+### Don't Modify Args in Middleware
 
 ```typescript
-// ❌ Don't - modifying args is confusing
+// Don't - modifying args is confusing
 const modifyArgs = createMiddleware({
   name: 'modifyArgs',
   handler: async (ctx, opts) => {
@@ -254,7 +254,7 @@ const modifyArgs = createMiddleware({
   },
 })
 
-// ✅ Do - use context for modifications
+// Do - use context for modifications
 const enrichContext = createMiddleware({
   name: 'enrichContext',
   handler: async (ctx, opts) => {

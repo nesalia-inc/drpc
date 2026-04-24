@@ -113,7 +113,7 @@ const getUser = t.query({
 Only include what's actually needed in handlers:
 
 ```typescript
-// ❌ Don't - unnecessary dependencies
+// Don't - unnecessary dependencies
 context: {
   logger: myLogger,
   cache: redisCache,
@@ -122,7 +122,7 @@ context: {
   utils: helperFunctions,
 }
 
-// ✅ Do - only what handlers need
+// Do - only what handlers need
 context: {
   db: database,
   auth: authService,
@@ -132,13 +132,13 @@ context: {
 ### 2. Use Lazy Creation for Expensive Resources
 
 ```typescript
-// ❌ Don't - connection at definition time
+// Don't - connection at definition time
 const db = await createDatabase()
 context: {
   db,
 }
 
-// ✅ Do - lazy factory
+// Do - lazy factory
 createContext: () => ({
   db: myDatabase,
 })

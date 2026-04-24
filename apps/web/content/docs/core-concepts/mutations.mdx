@@ -251,10 +251,10 @@ Always validate input and return meaningful errors:
 
 ## Anti-Patterns
 
-### ❌ Don't Use Mutations for Reads
+### Don't Use Mutations for Reads
 
 ```typescript
-// ❌ Don't - mutations should not be used for reads
+// Don't - mutations should not be used for reads
 const getUser = t.mutation({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -262,7 +262,7 @@ const getUser = t.mutation({
   },
 })
 
-// ✅ Do - queries are for reads
+// Do - queries are for reads
 const getUser = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -271,29 +271,29 @@ const getUser = t.query({
 })
 ```
 
-### ❌ Don't Forget to Invalidate
+### Don't Forget to Invalidate
 
 ```typescript
-// ❌ Don't - cache becomes stale
+// Don't - cache becomes stale
 handler: async (ctx, args) => {
   await ctx.db.users.update(args.id, args)
   return ok({ success: true })
 }
 
-// ✅ Do - invalidate related cache
+// Do - invalidate related cache
 handler: async (ctx, args) => {
   await ctx.db.users.update(args.id, args)
   return ok({ success: true }, { invalidate: [['users', { id: args.id }]] })
 }
 ```
 
-### ❌ Don't Invalidate Too Much
+### Don't Invalidate Too Much
 
 ```typescript
-// ❌ Don't - too aggressive, defeats caching purpose
+// Don't - too aggressive, defeats caching purpose
 return ok(user, { invalidate: ['users:*', 'posts:*', 'comments:*'] })
 
-// ✅ Do - invalidate only what changed
+// Do - invalidate only what changed
 return ok(user, { invalidate: [['users', { id: user.id }]] })
 ```
 

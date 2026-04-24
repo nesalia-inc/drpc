@@ -69,14 +69,14 @@ const processPayment = t.internalMutation({
 ### 1. Secret Operations
 
 ```typescript
-// ❌ Don't - secret exposed to client
+// Don't - secret exposed to client
 const getApiKeys = t.query({
   handler: async (ctx) => {
     return ok(await ctx.db.apiKeys.findAll())
   },
 })
 
-// ✅ Do - internal keeps secrets server-only
+// Do - internal keeps secrets server-only
 const getApiKeys = t.internalQuery({
   handler: async (ctx) => {
     return ok(await ctx.db.apiKeys.findAll())
@@ -168,10 +168,10 @@ const getUserStats = t.query({
 
 ## Anti-Patterns
 
-### ❌ Don't Expose Sensitive Data via Query
+### Don't Expose Sensitive Data via Query
 
 ```typescript
-// ❌ Don't - sensitive data exposed
+// Don't - sensitive data exposed
 const getUser = t.query({
   handler: async (ctx) => {
     return ok({
@@ -182,17 +182,17 @@ const getUser = t.query({
 })
 ```
 
-### ❌ Don't Use internalQuery for Client Data
+### Don't Use internalQuery for Client Data
 
 ```typescript
-// ❌ Don't - client needs this data
+// Don't - client needs this data
 const getUserProfile = t.internalQuery({
   handler: async (ctx) => {
     return ok(await ctx.db.users.find(ctx.user.id))
   },
 })
 
-// ✅ Do - use public query
+// Do - use public query
 const getUserProfile = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {

@@ -156,7 +156,7 @@ export type AppRouter = typeof appRouter
 ### 1. Keep Naming Consistent
 
 ```typescript
-// ✅ Do - consistent naming
+// Do - consistent naming
 router({
   users: router({
     get: getUser,
@@ -166,7 +166,7 @@ router({
   }),
 })
 
-// ❌ Don't - inconsistent naming
+// Don't - inconsistent naming
 router({
   users: router({
     fetch: getUser,
@@ -180,7 +180,7 @@ router({
 ### 2. Group Related Procedures
 
 ```typescript
-// ✅ Do - related procedures grouped
+// Do - related procedures grouped
 router({
   users: router({
     get: getUser,
@@ -193,7 +193,7 @@ router({
   }),
 })
 
-// ❌ Don't - unrelated procedures mixed
+// Don't - unrelated procedures mixed
 router({
   users: router({ get: getUser }),
   posts: router({ get: getPost }),
@@ -205,7 +205,7 @@ router({
 ### 3. Use Descriptive Names
 
 ```typescript
-// ✅ Do - clear intent
+// Do - clear intent
 router({
   users: router({
     getById: getUser,
@@ -213,7 +213,7 @@ router({
   }),
 })
 
-// ❌ Don't - unclear
+// Don't - unclear
 router({
   users: router({
     g1: getUser,
@@ -224,10 +224,10 @@ router({
 
 ## Anti-Patterns
 
-### ❌ Don't Create Flat Routers for Complex APIs
+### Don't Create Flat Routers for Complex APIs
 
 ```typescript
-// ❌ Don't - flat structure for complex API
+// Don't - flat structure for complex API
 export const appRouter = router({
   getUser: getUser,
   createUser: createUser,
@@ -238,7 +238,7 @@ export const appRouter = router({
   // ... becomes hard to navigate
 })
 
-// ✅ Do - hierarchical structure
+// Do - hierarchical structure
 export const appRouter = router({
   users: router({
     get: getUser,
@@ -253,16 +253,16 @@ export const appRouter = router({
 })
 ```
 
-### ❌ Don't Use Abbreviations
+### Don't Use Abbreviations
 
 ```typescript
-// ❌ Don't - abbreviations
+// Don't - abbreviations
 router({
   usr: router({ get: getUser }),
   pst: router({ get: getPost }),
 })
 
-// ✅ Do - full words
+// Do - full words
 router({
   users: router({ get: getUser }),
   posts: router({ get: getPost }),

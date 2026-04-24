@@ -139,10 +139,10 @@ export const appRouter = router({
 
 ## Anti-Patterns
 
-### ❌ Don't Use Queries for Writes
+### Don't Use Queries for Writes
 
 ```typescript
-// ❌ Don't - queries should not modify data
+// Don't - queries should not modify data
 const updateUser = t.query({
   args: z.object({ id: z.number(), name: z.string() }),
   handler: async (ctx, args) => {
@@ -151,7 +151,7 @@ const updateUser = t.query({
   },
 })
 
-// ✅ Do - use mutations for writes
+// Do - use mutations for writes
 const updateUser = t.mutation({
   args: z.object({ id: z.number(), name: z.string() }),
   handler: async (ctx, args) => {
@@ -161,30 +161,30 @@ const updateUser = t.mutation({
 })
 ```
 
-### ❌ Don't Return Untyped Data
+### Don't Return Untyped Data
 
 ```typescript
-// ❌ Don't - no type safety
+// Don't - no type safety
 handler: async (ctx, args) => {
   return ok(await ctx.db.rawQuery('SELECT * FROM users'))
 }
 
-// ✅ Do - return typed data
+// Do - return typed data
 handler: async (ctx, args) => {
   const users = await ctx.db.query<User>('SELECT * FROM users')
   return ok(users)
 }
 ```
 
-### ❌ Don't Forget Cache Keys
+### Don't Forget Cache Keys
 
 ```typescript
-// ❌ Don't - no caching
+// Don't - no caching
 handler: async (ctx, args) => {
   return ok(await ctx.db.users.find(args.id))
 }
 
-// ✅ Do - specify cache keys
+// Do - specify cache keys
 handler: async (ctx, args) => {
   const user = await ctx.db.users.find(args.id)
   return ok(user, { keys: [['users', { id: args.id }]] })
