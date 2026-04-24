@@ -7,6 +7,8 @@ Routers organize procedures into namespaces, creating a hierarchical API structu
 
 ## Basic Usage
 
+To organize your procedures into namespaces, you use the router to group related functionality. This creates a hierarchical API structure where routes use dot notation.
+
 ```typescript
 // src/api.ts
 import { defineContext, t, router } from '@deessejs/server'
@@ -36,7 +38,7 @@ export const appRouter = router({
 
 ## Nested Routers
 
-Routers can be nested for deeper hierarchies:
+To create deeper hierarchies, you can nest routers within routers. This allows you to organize procedures at multiple levels of specificity.
 
 ```typescript
 // src/api.ts
@@ -57,7 +59,7 @@ This creates routes: `users.get`, `users.create`, `users.posts.getUserPosts`, et
 
 ## Route Paths
 
-The route path is determined by the router hierarchy:
+The route path is determined by the router hierarchy. You can see how the nesting creates the dot-separated route names.
 
 ```typescript
 router({
@@ -71,6 +73,8 @@ router({
 ```
 
 ## Complete Example
+
+To see how all these concepts work together, here is a complete example that defines procedures, organizes them into routers, and exports the final router.
 
 ```typescript
 // src/api.ts
@@ -121,7 +125,7 @@ export const appRouter = router({
 
 ## Accessing Routes
 
-When calling from the client, routes are accessed via dot notation:
+When calling from the client, you access routes via dot notation. The client mirrors the router structure you defined on the server.
 
 ```typescript
 // Client code
@@ -139,7 +143,7 @@ const post = await client.posts.get({ id: 1 })
 
 ## Type Safety
 
-Routers provide full type inference:
+Routers provide full type inference across your entire application. When you define your router, the types flow automatically to your client.
 
 ```typescript
 // The client type is inferred from the router
@@ -152,6 +156,8 @@ export type AppRouter = typeof appRouter
 ## Best Practices
 
 ### 1. Keep Naming Consistent
+
+To maintain clarity, you should use consistent naming conventions across your router. This makes your API predictable and easier to use.
 
 ```typescript
 // Do - consistent naming
@@ -176,6 +182,8 @@ router({
 ```
 
 ### 2. Group Related Procedures
+
+To keep your API logical, you should group related procedures together under the same router. This makes your API easier to navigate.
 
 ```typescript
 // Do - related procedures grouped
@@ -202,6 +210,8 @@ router({
 
 ### 3. Use Descriptive Names
 
+To make your API self-documenting, you should use descriptive names for your procedures. This helps developers understand what each procedure does without needing comments.
+
 ```typescript
 // Do - clear intent
 router({
@@ -223,6 +233,8 @@ router({
 ## Anti-Patterns
 
 ### Don't Create Flat Routers for Complex APIs
+
+When your API grows complex, you should avoid flat routers. A hierarchical structure keeps your API organized and navigable as it scales.
 
 ```typescript
 // Don't - flat structure for complex API
@@ -252,6 +264,8 @@ export const appRouter = router({
 ```
 
 ### Don't Use Abbreviations
+
+To keep your API readable, you should avoid abbreviations in router and procedure names. Full words make your API easier to understand.
 
 ```typescript
 // Don't - abbreviations
