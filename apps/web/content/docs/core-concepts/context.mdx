@@ -3,6 +3,8 @@ title: Context
 description: Define shared state for all procedures
 ---
 
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
 ## Overview
 
 Context is the shared state passed to all procedure handlers. It allows you to inject dependencies like database connections, authentication info, or any other service your procedures need.
@@ -144,12 +146,27 @@ createContext: (headers) => {
 
 ### defineContext Config
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `context` | `Ctx` or `() => Ctx` | Static context or factory |
-| `createContext` | `(headers?) => Ctx` | Per-request context factory |
-| `plugins` | `Plugin[]` | Context extending plugins |
-| `events` | `EventRegistry` | Event definitions |
+<TypeTable
+  type={{
+    context: {
+      description: 'Static context or factory function created once at startup',
+      type: 'Ctx | () => Ctx',
+    },
+    createContext: {
+      description: 'Factory function to create context per request, receives optional RequestInfo for per-request enrichment',
+      type: '(requestInfo?: RequestInfo) => Ctx',
+    },
+    plugins: {
+      description: 'Array of plugins to extend the context',
+      type: 'Plugin<Ctx>[]',
+      default: '[]',
+    },
+    events: {
+      description: 'Event registry for the event system',
+      type: 'Events extends EventRegistry',
+    },
+  }}
+/>
 
 ## Next Steps
 
