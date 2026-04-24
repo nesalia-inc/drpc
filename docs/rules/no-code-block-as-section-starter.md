@@ -78,3 +78,52 @@ Inline code should not be the first character in a paragraph. Add a word before 
 <!-- Do -->
 The `defineContext` function returns an object.
 ```
+
+## Rule 3: Section Introductions Must Use Connecting Words
+
+Section intro paragraphs should lead with connecting words like When, To, The, Unlike, From, After, Before, etc. This creates flow and helps readers understand context before encountering code.
+
+### Forbidden
+
+```mdx
+## Creating Middleware
+
+`createMiddleware` is a function that returns middleware.
+```
+
+### Allowed
+
+```mdx
+## Creating Middleware
+
+Use `createMiddleware` to build custom middleware for your API.
+```
+
+### Recommended Opening Words
+
+Use these words to start section introductions:
+
+| Word | Use Case |
+|------|----------|
+| When | Describing conditions or triggers |
+| To | Describing purpose or goal |
+| The | Introducing a concept or object |
+| Unlike | Making comparisons |
+| From | Showing origin or source |
+| After | Describing sequence |
+| Before | Describing prerequisites |
+| Use | Giving instructions |
+| Call | Referring to function invocations |
+| Define | Creating new definitions |
+
+### Pattern
+
+Always lead with a word, not with backtick-wrapped code:
+
+```mdx
+<!-- Don't -->
+`defineContext` returns t.
+
+<!-- Do -->
+When you call `defineContext`, it returns t.
+```
