@@ -9,7 +9,7 @@ Queries are public read operations exposed via HTTP. You use them to fetch data 
 
 ## Defining a Query
 
-`defineContext` returns an object containing `t`. This `t` object provides procedure builders:
+When you call `defineContext`, it returns an object containing `t`. This `t` object provides procedure builders:
 
 ```typescript title="api.ts"
 const { router, t } = defineContext({
@@ -19,7 +19,7 @@ const { router, t } = defineContext({
 
 ### The t.query() Builder
 
-`t.query()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
+The `t.query()` function is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
 const getUser = t.query({
@@ -50,7 +50,7 @@ const getUser = t.query({
 
 **What you get back:**
 
-`t.query()` returns a procedure - a function with metadata attached. You can:
+The `t.query()` function returns a procedure - a function with metadata attached. You can:
 
 1. **Register it in a router:**
    ```typescript title="api.ts"
@@ -98,6 +98,8 @@ The `keys` option tells the cache system which entries to store or retrieve:
 | `['entity', id, 'relation']` | `['users', 1, 'posts']` | Nested relations |
 
 ## Complete Example
+
+This example shows a full queries implementation with getUser and listUsers:
 
 ```typescript title="api.ts"
 import { defineContext, t } from '@deessejs/server'
