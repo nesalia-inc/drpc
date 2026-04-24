@@ -44,6 +44,7 @@ When you fetch a single resource by an identifier, use an entity name followed b
 import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
+import { withMetadata } from '@deessejs/server'
 
 const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
@@ -58,7 +59,7 @@ const getUser = t.query({
       return err(new Error('User not found'))
     }
 
-    return ok(user, { keys: [['users', { id: args.id }]] })
+    return withMetadata(user, { keys: [['users', { id: args.id }]] })
   },
 })
 ```
@@ -74,6 +75,7 @@ For instance, a query that lists users probably also wants the total count for p
 ```typescript title="api.ts"
 import { defineContext } from '@deessejs/server'
 import { ok } from '@deessejs/fp'
+import { withMetadata } from '@deessejs/server'
 
 const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
@@ -91,7 +93,7 @@ const listUsers = t.query({
     })
     const count = await ctx.db.users.count()
 
-    return ok(
+    return withMetadata(
       { users, count },
       {
         keys: [
@@ -163,6 +165,7 @@ Use TTL for data that changes but not frequently, such as configuration settings
 ```typescript title="api.ts"
 import { defineContext } from '@deessejs/server'
 import { ok } from '@deessejs/fp'
+import { withMetadata } from '@deessejs/server'
 
 const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
@@ -172,7 +175,7 @@ const getConfig = t.query({
   handler: async (ctx) => {
     const config = await ctx.db.config.findUnique()
 
-    return ok(config, { keys: ['config'], ttl: 60000 })
+    return withMetadata(config, { keys: ['config'], ttl: 60000 })
   },
 })
 ```
@@ -216,10 +219,10 @@ When you define cache keys for a query, ensure mutations that modify the same da
 
 ```typescript
 // Query defines this key
-keys: [['users', { id: args.id }]]
+return withMetadata(user, { keys: [['users', { id: args.id }]] })
 
 // Mutation must invalidate the same key
-return ok(user, {
+return withMetadata(user, {
   invalidate: [
     ['users', { id: user.id }],
     ['users', 'list'],

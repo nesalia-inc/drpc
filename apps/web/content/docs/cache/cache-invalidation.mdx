@@ -9,14 +9,15 @@ When a mutation modifies data, the corresponding cached queries become stale. Th
 
 ## Returning Invalidation Keys
 
-To trigger cache invalidation after a mutation, you return an `ok()` result with an `invalidate` option. This option accepts an array of key paths that should be cleared from the cache. The keys follow the same structure you use when defining queries with `t.query`.
+To trigger cache invalidation after a mutation, you return `withMetadata()` with an `invalidate` option. This option accepts an array of key paths that should be cleared from the cache. The keys follow the same structure you use when defining queries with `t.query`.
 
-When you return `ok(value, { invalidate: [...] })`, the framework automatically clears any cached query entries matching those keys. On the client side, React components watching those keys will automatically refetch to keep the UI in sync with the server state.
+When you return `withMetadata(value, { invalidate: [...] })`, the framework automatically clears any cached query entries matching those keys. On the client side, React components watching those keys will automatically refetch to keep the UI in sync with the server state.
 
 ```typescript
 import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
+import { withMetadata } from '@deessejs/server'
 
 const { t } = defineContext({
   context: () => ({ db: myDatabase }),
@@ -42,7 +43,7 @@ const createUser = t.mutation({
       name: args.name,
       email: args.email,
     })
-    return ok(user, { invalidate: [['users', 'list'], ['users', 'count']] })
+    return withMetadata(user, { invalidate: [['users', 'list'], ['users', 'count']] })
   },
 })
 ```
@@ -61,7 +62,7 @@ const updateUser = t.mutation({
     const user = await ctx.db.users.update(args.id, {
       name: args.name,
     })
-    return ok(user, {
+    return withMetadata(user, {
       invalidate: [['users', { id: args.id }], ['users', 'list']],
     })
   },
@@ -79,7 +80,7 @@ const deleteUser = t.mutation({
   }),
   handler: async (ctx, args) => {
     await ctx.db.users.delete(args.id)
-    return ok({ success: true }, {
+    return withMetadata({ success: true }, {
       invalidate: [
         ['users', { id: args.id }],
         ['users', 'list'],
