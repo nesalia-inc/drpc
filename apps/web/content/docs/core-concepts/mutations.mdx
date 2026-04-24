@@ -3,97 +3,13 @@ title: Mutations
 description: Public write operations
 ---
 
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
 ## Overview
 
-Mutations are public write operations exposed via HTTP. They trigger cache invalidation and are used for any data modification.
+Mutations are public write operations exposed via HTTP. You use them to modify data. When data changes, you must invalidate related cache keys so clients see fresh data on their next query.
 
 ## Defining a Mutation
-
-```typescript
-// src/api.ts
-import { defineContext, t } from '@deessejs/server'
-import { z } from 'zod'
-import { ok } from '@deessejs/fp'
-
-const { router } = defineContext({
-  context: () => ({ db: myDatabase }),
-})
-
-const createUser = t.mutation({
-  args: z.object({
-    name: z.string().min(1),
-    email: z.string().email(),
-  }),
-  handler: async (ctx, args) => {
-    const user = await ctx.db.users.create(args)
-    return ok(user, { invalidate: ['users:list'] })
-  },
-})
-```
-
-## Mutation Properties
-
-### args
-
-Zod schema for input validation:
-
-```typescript
-args: z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  role: z.enum(['admin', 'user']).default('user'),
-})
-```
-
-### handler
-
-Async function receiving context and args:
-
-```typescript
-handler: async (ctx, args) => {
-  // ctx: { db: Database }
-  // args: { name: string; email: string }
-  const user = await ctx.db.users.create(args)
-  return ok(user)
-}
-```
-
-### Return Value
-
-Use `ok()` with `invalidate` to clear related cache:
-
-```typescript
-return ok(result, { invalidate: [['users', { id: args.id }]] })
-```
-
-## Cache Invalidation
-
-Mutations automatically invalidate cache keys:
-
-```typescript
-// src/api.ts
-import { ok } from '@deessejs/fp'
-
-const createUser = t.mutation({
-  args: z.object({ name: z.string(), email: z.string().email() }),
-  handler: async (ctx, args) => {
-    const user = await ctx.db.users.create(args)
-    // Invalidate the users list cache
-    return ok(user, { invalidate: ['users:list'] })
-  },
-})
-```
-
-### Invalidation Patterns
-
-| Pattern | Use Case |
-|---------|----------|
-| `['users:list']` | Invalidate specific key |
-| `[['users', { id: 1 }]]` | Invalidate by composite key |
-| `['users:*']` | Wildcard invalidation |
-| `{ invalidate: [...], keys: [...] }` | Return AND invalidate |
-
-## Complete Example
 
 ```typescript
 // src/api.ts
@@ -108,12 +24,132 @@ const { router } = defineContext({
 
 const createUser = t.mutation({
   args: z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.users.findByEmail(args.email)
+
+    if (existing) {
+      return err(new ValidationException('Email already exists'))
+    }
+
+    const user = await ctx.db.users.create(args)
+
+    return ok(user, {
+      invalidate: [
+        'users:list',
+        ['users', { id: user.id }],
+      ],
+    })
+  },
+})
+```
+
+**Key points:**
+- `args` - Zod schema for input validation
+- `handler` - Async function receiving `ctx` and `args`
+- Return `ok()` with `invalidate` keys, or `err()` on failure
+
+## Mutation Properties
+
+<TypeTable
+  type={{
+    args: {
+      description: 'Zod schema for validating input',
+      type: 'ZodSchema',
+    },
+    handler: {
+      description: 'Async function: (ctx: Ctx, args: inferred) => Promise<Result>',
+      type: '(ctx: Ctx, args: Args) => Promise<Result<T>>',
+    },
+  }}
+/>
+
+## Return Value
+
+Use `ok()` with `invalidate` to clear related cache:
+
+```typescript
+return ok(result, { invalidate: [['users', { id: args.id }]] })
+```
+
+The `invalidate` option tells the cache system which entries to clear:
+
+| Format | Example | Use Case |
+|--------|---------|----------|
+| `['entity:list']` | `['users:list']` | Invalidate a list cache |
+| `['entity', { filter }]` | `['users', { id: 1 }]` | Invalidate specific entity |
+| `['entity:*']` | `['users:*']` | Wildcard - invalidate all entity caches |
+
+## Cache Invalidation
+
+Mutations automatically clear cache entries you specify. This ensures clients get fresh data on their next query.
+
+```typescript
+// src/api.ts
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+
+    // Clear the users list and the new user cache
+    return ok(user, {
+      invalidate: [
+        'users:list',
+        ['users', { id: user.id }],
+      ],
+    })
+  },
+})
+```
+
+### When to Invalidate
+
+| Action | Keys to Invalidate |
+|--------|-------------------|
+| Create entity | List cache + new entity cache |
+| Update entity | Entity cache (and list if ordering matters) |
+| Delete entity | Entity cache + list cache |
+
+```typescript
+// Create
+return ok(user, {
+  invalidate: ['users:list', ['users', { id: user.id }]]
+})
+
+// Update
+return ok(user, {
+  invalidate: [['users', { id: args.id }]]
+})
+
+// Delete
+return ok({ success: true }, {
+  invalidate: [['users', { id: args.id }], 'users:list']
+})
+```
+
+## Complete Example
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { ValidationException, NotFoundException } from '@deessejs/server'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const createUser = t.mutation({
+  args: z.object({
     name: z.string().min(1).max(100),
     email: z.string().email(),
   }),
   handler: async (ctx, args) => {
-    // Check for duplicate email
     const existing = await ctx.db.users.findByEmail(args.email)
+
     if (existing) {
       return err(new ValidationException('Email already exists'))
     }
@@ -129,9 +165,62 @@ const createUser = t.mutation({
   },
 })
 
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string().min(1).max(100).optional(),
+    email: z.string().email().optional(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new NotFoundException(`User ${args.id} not found`))
+    }
+
+    if (args.email) {
+      const existing = await ctx.db.users.findByEmail(args.email)
+      if (existing && existing.id !== args.id) {
+        return err(new ValidationException('Email already taken'))
+      }
+    }
+
+    const updated = await ctx.db.users.update(args.id, args)
+
+    return ok(updated, {
+      invalidate: [
+        ['users', { id: args.id }],
+        'users:list',
+      ],
+    })
+  },
+})
+
+const deleteUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new NotFoundException(`User ${args.id} not found`))
+    }
+
+    await ctx.db.users.delete(args.id)
+
+    return ok({ success: true }, {
+      invalidate: [
+        ['users', { id: args.id }],
+        'users:list',
+      ],
+    })
+  },
+})
+
 export const appRouter = router({
   users: router({
     create: createUser,
+    update: updateUser,
+    delete: deleteUser,
   }),
 })
 ```
@@ -151,12 +240,21 @@ handler: async (ctx, args) => {
 }
 ```
 
+Always validate input and return meaningful errors:
+
+| Exception | Use When |
+|-----------|----------|
+| `ValidationException` | Input fails validation (bad email, missing fields) |
+| `NotFoundException` | Entity doesn't exist |
+| `UnauthorizedException` | Not authenticated |
+| `ForbiddenException` | Not allowed to perform action |
+
 ## Anti-Patterns
 
 ### ❌ Don't Use Mutations for Reads
 
 ```typescript
-// ❌ Don't - use query for reads
+// ❌ Don't - mutations should not be used for reads
 const getUser = t.mutation({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -176,7 +274,7 @@ const getUser = t.query({
 ### ❌ Don't Forget to Invalidate
 
 ```typescript
-// ❌ Don't - cache not invalidated
+// ❌ Don't - cache becomes stale
 handler: async (ctx, args) => {
   await ctx.db.users.update(args.id, args)
   return ok({ success: true })
@@ -189,8 +287,64 @@ handler: async (ctx, args) => {
 }
 ```
 
+### ❌ Don't Invalidate Too Much
+
+```typescript
+// ❌ Don't - too aggressive, defeats caching purpose
+return ok(user, { invalidate: ['users:*', 'posts:*', 'comments:*'] })
+
+// ✅ Do - invalidate only what changed
+return ok(user, { invalidate: [['users', { id: user.id }]] })
+```
+
+## Best Practices
+
+### 1. Always Return Errors Explicitly
+
+```typescript
+handler: async (ctx, args) => {
+  const existing = await ctx.db.users.findByEmail(args.email)
+
+  if (existing) {
+    return err(new ValidationException('Email already exists'))
+  }
+
+  // Continue with creation...
+}
+```
+
+### 2. Invalidate Specific Keys
+
+Only invalidate what could be affected:
+
+```typescript
+// Creating a user affects the list and the new entity
+return ok(user, {
+  invalidate: ['users:list', ['users', { id: user.id }]]
+})
+
+// Updating a user's name doesn't affect the list ordering
+return ok(user, {
+  invalidate: [['users', { id: user.id }]]
+})
+```
+
+### 3. Validate Before Database Operations
+
+Catch invalid input early:
+
+```typescript
+handler: async (ctx, args) => {
+  if (args.name.length < 1 || args.name.length > 100) {
+    return err(new ValidationException('Name must be 1-100 characters'))
+  }
+
+  // Database operation...
+}
+```
+
 ## Next Steps
 
 - [Internal Procedures](/docs/core-concepts/internal-procedures) - Server-only operations
+- [Routers](/docs/core-concepts/routers) - Organize procedures into namespaces
 - [Cache Invalidation](/docs/cache/cache-invalidation) - More invalidation patterns
-- [Error Handling](/docs/error-handling/result-type) - ok() and err() pattern
