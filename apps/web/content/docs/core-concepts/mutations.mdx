@@ -5,8 +5,6 @@ description: Public write operations
 
 import { TypeTable } from 'fumadocs-ui/components/type-table'
 
-## Overview
-
 Mutations are public write operations exposed via HTTP. You use them to modify data. When data changes, you must invalidate related cache keys so clients see fresh data on their next query.
 
 ## Defining a Mutation
@@ -19,7 +17,7 @@ const { router, t } = defineContext({
 })
 ```
 
-### The `t.mutation()` Builder
+### The t.mutation() Builder
 
 `t.mutation()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 

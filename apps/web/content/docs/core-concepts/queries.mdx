@@ -5,8 +5,6 @@ description: Public read operations
 
 import { TypeTable } from 'fumadocs-ui/components/type-table'
 
-## Overview
-
 Queries are public read operations exposed via HTTP. You use them to fetch data without modifying it. The framework handles caching automatically based on the keys you return.
 
 ## Defining a Query
@@ -19,7 +17,7 @@ const { router, t } = defineContext({
 })
 ```
 
-### The `t.query()` Builder
+### The t.query() Builder
 
 `t.query()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
