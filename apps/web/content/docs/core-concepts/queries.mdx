@@ -94,7 +94,7 @@ The `t.query()` function returns a procedure - a function with metadata attached
 
 ## Return Value
 
-Use `ok()` from `@deessejs/fp` to return results with cache keys:
+To return results with cache keys, use the `ok()` helper from `@deessejs/fp`:
 
 ```typescript
 return ok(result, { keys: [['users', { id: args.id }]] })
@@ -110,7 +110,7 @@ The `keys` option tells the cache system which entries to store or retrieve:
 
 ## Complete Example
 
-This example shows a full queries implementation with getUser and listUsers:
+The example below shows a full queries implementation with `getUser` and `listUsers`. You can see how to structure query definitions, handle errors with `err()`, and return typed results with cache keys:
 
 ```typescript title="api.ts"
 import { defineContext, t } from '@deessejs/server'
@@ -176,6 +176,8 @@ export const appRouter = router({
 
 ### Don't Use Queries for Writes
 
+Queries should only read data, never modify it. When you need to write, use a mutation instead:
+
 ```typescript
 import { defineContext, t } from '@deessejs/server'
 import { z } from 'zod'
@@ -202,6 +204,8 @@ const updateUser = t.mutation({
 
 ### Don't Return Untyped Data
 
+Always return typed data from your handlers to maintain type safety throughout your application:
+
 ```typescript
 // Don't - no type safety
 handler: async (ctx, args) => {
@@ -216,6 +220,8 @@ handler: async (ctx, args) => {
 ```
 
 ### Don't Forget Cache Keys
+
+When you return results without cache keys, the framework cannot cache them automatically. Always specify cache keys to enable caching:
 
 ```typescript
 // Don't - no caching
@@ -234,7 +240,7 @@ handler: async (ctx, args) => {
 
 ### 1. Return Errors with err()
 
-Always handle not-found cases explicitly:
+When a query cannot find the requested data, return an error using the `err()` helper instead of throwing exceptions:
 
 ```typescript
 handler: async (ctx, args) => {
@@ -250,7 +256,7 @@ handler: async (ctx, args) => {
 
 ### 2. Use Appropriate Cache Keys
 
-Match cache keys to your access patterns:
+When you define cache keys, match them to how your code accesses the data to ensure cache hits:
 
 ```typescript
 // Single user lookup - entity with filter

@@ -21,7 +21,7 @@ const { router, t } = defineContext({
 
 ### Mutation Builder
 
-The `t.mutation()` function is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
+To define a mutation, you use the `t.mutation()` function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
 import { defineContext, t } from '@deessejs/server'
@@ -110,7 +110,7 @@ The `t.mutation()` function returns a procedure - a function with metadata attac
 
 ## Return Value
 
-Use `ok()` with `invalidate` to clear related cache:
+To signal a successful mutation and invalidate related cache entries, you use `ok()` with the `invalidate` option. This tells the cache system which entries to clear:
 
 ```typescript
 return ok(result, { invalidate: [['users', { id: args.id }]] })
@@ -126,7 +126,7 @@ The `invalidate` option tells the cache system which entries to clear:
 
 ## Cache Invalidation
 
-Mutations automatically clear cache entries you specify. This ensures clients get fresh data on their next query.
+When a mutation succeeds, you need to clear related cache entries so clients see fresh data. You do this by returning `ok()` with the `invalidate` option listing the cache keys to clear:
 
 ```typescript title="api.ts"
 const createUser = t.mutation({
@@ -147,11 +147,7 @@ const createUser = t.mutation({
 
 ### When to Invalidate
 
-| Action | Keys to Invalidate |
-|--------|-------------------|
-| Create entity | List cache + new entity cache |
-| Update entity | Entity cache (and list if ordering matters) |
-| Delete entity | Entity cache + list cache |
+To know which keys to invalidate, consider what data your mutation changes. The table below shows the recommended keys based on the action type:
 
 ```typescript
 // Create
@@ -172,7 +168,7 @@ return ok({ success: true }, {
 
 ## Complete Example
 
-This example shows a full mutations implementation with createUser, updateUser, and deleteUser:
+The following example shows a full mutations implementation with createUser, updateUser, and deleteUser. You can see how each mutation returns the appropriate cache keys to invalidate:
 
 ```typescript title="api.ts"
 import { defineContext, t } from '@deessejs/server'
@@ -269,7 +265,7 @@ export const appRouter = router({
 
 ## Error Handling
 
-Return errors using `err()`:
+When a mutation fails, you should return an error using `err()`. This allows clients to handle failures gracefully and receive meaningful error messages:
 
 ```typescript
 handler: async (ctx, args) => {
@@ -295,6 +291,8 @@ Always validate input and return meaningful errors:
 
 ### Don't Use Mutations for Reads
 
+Mutations are for write operations, not reads. Using mutations for reads defeats the purpose of having separate query and mutation procedures:
+
 ```typescript
 // Don't - mutations should not be used for reads
 const getUser = t.mutation({
@@ -315,6 +313,8 @@ const getUser = t.query({
 
 ### Don't Forget to Invalidate
 
+After a mutation succeeds, you must invalidate the related cache keys. Otherwise, clients will continue to see stale cached data:
+
 ```typescript
 // Don't - cache becomes stale
 handler: async (ctx, args) => {
@@ -331,6 +331,8 @@ handler: async (ctx, args) => {
 
 ### Don't Invalidate Too Much
 
+When invalidating cache keys, be specific about what you clear. Invalidating too aggressively defeats the purpose of caching and can cause unnecessary performance issues:
+
 ```typescript
 // Don't - too aggressive, defeats caching purpose
 return ok(user, { invalidate: ['users:*', 'posts:*', 'comments:*'] })
@@ -342,6 +344,8 @@ return ok(user, { invalidate: [['users', { id: user.id }]] })
 ## Best Practices
 
 ### 1. Always Return Errors Explicitly
+
+When validation fails or an error occurs, use `err()` to return the error explicitly. This gives clients clear feedback about what went wrong:
 
 ```typescript
 handler: async (ctx, args) => {
@@ -357,7 +361,7 @@ handler: async (ctx, args) => {
 
 ### 2. Invalidate Specific Keys
 
-Only invalidate what could be affected:
+Only invalidate cache keys that could be affected by your mutation. Invalidate too much and you lose the benefits of caching:
 
 ```typescript
 // Creating a user affects the list and the new entity
@@ -373,7 +377,7 @@ return ok(user, {
 
 ### 3. Validate Before Database Operations
 
-Catch invalid input early:
+Catch invalid input early by validating before performing database operations. This prevents unnecessary database load and gives faster error responses:
 
 ```typescript
 handler: async (ctx, args) => {

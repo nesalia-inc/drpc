@@ -9,7 +9,7 @@ Context is the shared state passed to all procedure handlers. It allows you to i
 
 ## Static Context
 
-Use `context` when you want the exact object you provide to be used as context. This works best for already-initialized dependencies like singletons or connection pools:
+The static context approach initializes dependencies at module load time. This works well when your services are already initialized before the server starts:
 
 ```typescript
 // src/api.ts
@@ -34,7 +34,7 @@ You pass an object directly. No function call happens - the reference is stored 
 
 ## Lazy Context (Factory)
 
-Use `createContext` when you want the factory to run only when `createAPI()` is called, not at module load time. This is best for delaying expensive initialization:
+The lazy context (factory) approach delays initialization until `createAPI()` is called. This is best for delaying expensive initialization:
 
 ```typescript
 // src/api.ts
@@ -57,7 +57,7 @@ You pass a factory function that runs once when `createAPI()` is invoked. This d
 
 ## Initialization Timing
 
-This section explains when context is created:
+To understand when context is created, consider this example showing the timing of initialization:
 
 ```typescript
 // src/api.ts
@@ -79,7 +79,7 @@ The `createContext` factory runs when you call `createAPI()`, not when you call 
 
 ## Type Safety
 
-The context type is fully inferred:
+The context type is fully inferred from your definitions. This example shows how TypeScript automatically types your context:
 
 ```typescript
 // src/api.ts
@@ -108,7 +108,7 @@ const getUser = t.query({
 
 ### 1. Keep Context Minimal
 
-Only include what's actually needed in handlers:
+To keep context minimal, only include what's actually needed in handlers. This example demonstrates the contrast:
 
 ```typescript
 // Don't - unnecessary dependencies
@@ -129,6 +129,8 @@ context: {
 
 ### 2. Use Lazy Creation for Expensive Resources
 
+To avoid expensive initialization at module load time, use lazy creation. This example shows the difference:
+
 ```typescript
 // Don't - connection at definition time
 const db = await createDatabase()
@@ -143,6 +145,8 @@ createContext: () => ({
 ```
 
 ### 3. Handle Missing Auth Gracefully
+
+To handle missing authentication gracefully, initialize context with null user and let middleware enrich it. This example shows the pattern:
 
 ```typescript
 createContext: () => {
@@ -182,6 +186,8 @@ createContext: () => {
 
 ### Database Connection
 
+To add a database connection to your context, define it in the factory function. This example shows the pattern:
+
 ```typescript
 // src/api.ts
 import { defineContext, t } from '@deessejs/server'
@@ -194,6 +200,8 @@ const { router } = defineContext({
 ```
 
 ### Multiple Services
+
+To add multiple services to your context, include each one in the context object. This example shows how to wire up several services:
 
 ```typescript
 // src/api.ts

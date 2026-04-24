@@ -16,7 +16,7 @@ Internal procedures (`internalQuery` and `internalMutation`) are server-only ope
 
 ## Internal Query
 
-To create a server-only read operation, use `t.internalQuery()`:
+To create a server-only read operation, use `t.internalQuery()`. This demonstrates how you can define a procedure that is inaccessible from client-side code.
 
 ```typescript
 // src/api.ts
@@ -38,7 +38,7 @@ const getSecretData = t.internalQuery({
 
 ## Internal Mutation
 
-To create a server-only write operation, use `t.internalMutation()`:
+To create a server-only write operation, use `t.internalMutation()`. This shows how you can safely perform privileged operations that should never be exposed to clients.
 
 ```typescript
 // src/api.ts
@@ -66,6 +66,8 @@ const processPayment = t.internalMutation({
 
 ### 1. Secret Operations
 
+When handling sensitive information like API keys, you should use `internalQuery` to keep secrets server-only. This prevents accidentally exposing privileged data to clients.
+
 ```typescript
 // Don't - secret exposed to client
 const getApiKeys = t.query({
@@ -84,6 +86,8 @@ const getApiKeys = t.internalQuery({
 
 ### 2. Admin Operations
 
+When you need to perform administrative tasks like deleting users, use `internalMutation` to ensure these privileged operations are only callable from trusted server-side code.
+
 ```typescript
 const deleteUser = t.internalMutation({
   args: z.object({ userId: z.number() }),
@@ -96,6 +100,8 @@ const deleteUser = t.internalMutation({
 ```
 
 ### 3. Cross-Service Communication
+
+When other services need to trigger internal operations, use `internalMutation` to expose a secure entry point that clients cannot access.
 
 ```typescript
 // Called internally by other services
@@ -110,6 +116,8 @@ const syncExternalData = t.internalMutation({
 ```
 
 ### 4. Database Transactions
+
+When you need atomic operations across multiple tables, use `internalMutation` with transaction support. This lets you safely perform complex writes that must succeed or fail as a single unit.
 
 ```typescript
 const transferFunds = t.internalMutation({
@@ -130,11 +138,7 @@ const transferFunds = t.internalMutation({
 
 ## Security Model
 
-Internal procedures are:
-
-1. **Not registered in HTTP routes** - No URL endpoint created
-2. **Not exported in public API** - `createPublicAPI()` excludes them
-3. **Callable only from server context** - Other procedures, plugins, or server code
+Internal procedures are excluded from the public API by design. This example shows how `createPublicAPI` only exports regular queries and mutations, keeping internal procedures server-only.
 
 ```typescript
 // Public API (createPublicAPI) only exports query and mutation
@@ -149,7 +153,7 @@ export const api = createPublicAPI({
 
 ## Calling Internal Procedures
 
-Internal procedures can be called from other procedures:
+When you need to call internal procedures from other procedures, you can invoke them directly through the context. This example shows how a public query can securely call internal operations.
 
 ```typescript
 // src/api.ts
@@ -168,6 +172,8 @@ const getUserStats = t.query({
 
 ### Don't Expose Sensitive Data via Query
 
+When you accidentally expose sensitive fields like passwords or API keys in a public query, clients can access privileged information. Use `internalQuery` for sensitive data instead.
+
 ```typescript
 // Don't - sensitive data exposed
 const getUser = t.query({
@@ -181,6 +187,8 @@ const getUser = t.query({
 ```
 
 ### Don't Use internalQuery for Client Data
+
+When a query result is needed by clients, use `query` instead of `internalQuery`. Internal queries are only for server-side operations, so using them for client-required data creates an accessibility problem.
 
 ```typescript
 // Don't - client needs this data
