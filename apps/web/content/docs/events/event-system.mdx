@@ -2,3 +2,115 @@
 title: Event System
 description: emit/subscribe pattern
 ---
+
+## Overview
+
+The event system provides an emit/subscribe mechanism that allows you to decouple side effects from your API handlers. When you need to trigger actions outside the normal request-response cycle—such as sending notifications, logging changes, or integrating with external services—the event system lets you emit events from your handlers without blocking the response. This separation keeps your handler logic clean while ensuring events are processed reliably after the handler completes.
+
+## Defining Events
+
+To define events, you pass an `events` object to `defineContext`. Each key in the events object becomes an event name, and its value is an event handler function that receives the context and the event payload. The context provides access to your services and state, while the event payload contains the data you emitted.
+
+The following example demonstrates how to set up a context with two event handlers: one for user creation and another for user deletion.
+
+```typescript
+import { defineContext, t, createAPI, ok } from '@deessejs/server'
+import { z } from 'zod'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    userCreated: (ctx, event) => {
+      console.log('User created:', event.data)
+    },
+    userDeleted: (ctx, event) => {
+      console.log('User deleted with ID:', event.data.id)
+    }
+  }
+})
+```
+
+You can define as many events as your application requires. Each event handler is isolated, so heavy operations within an event handler do not slow down the API response that triggered the event.
+
+## Emitting Events
+
+Once you have defined your events, you can emit them from any handler by calling `ctx.events.<eventName>(payload)` inside a mutation or query handler. The event name must match one of the keys you defined in the events object.
+
+The next example shows a mutation that creates a user and then emits a `userCreated` event with the newly created user data.
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string()
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    ctx.events.userCreated({ id: user.id, name: user.name, email: user.email })
+    return ok(user)
+  }
+})
+```
+
+You emit events from both mutations and queries. The event is delivered to its handler after the handler function returns, so you do not need to await or handle errors from the event handler within your API logic.
+
+## Event Payloads
+
+Event payloads should contain all the information that event handlers need to perform their work. Structure your payloads around the domain concept they represent, and include identifiers and relevant attributes that handlers can use to react to the event.
+
+When emitting multiple events for the same domain entity, keep the payload structure consistent across all related events so handlers can rely on a predictable shape. The following example shows a set of related events for a product domain with consistent payload structures.
+
+```typescript
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    productCreated: (ctx, event) => {
+      // event.data: { id, name, price, sku }
+    },
+    productUpdated: (ctx, event) => {
+      // event.data: { id, name, price, sku, changedFields }
+    },
+    productArchived: (ctx, event) => {
+      // event.data: { id, name, reason }
+    }
+  }
+})
+```
+
+Keep payloads serializable and avoid passing non-serializable values such as class instances, functions, or database connections. Pass plain objects with primitive values or simple nested structures that can be safely stored or transmitted.
+
+## Event Flow
+
+When an event is emitted, it enters the event queue and is processed after the current handler completes. This processing order means that your API response is not blocked by event handling logic.
+
+The typical flow works as follows: a client sends a request that triggers a mutation handler. The handler performs its work, emits one or more events, and returns a response to the client. After the response is sent, the framework processes the queued events and calls the corresponding event handlers. If multiple events are emitted in sequence, they are processed in the order they were emitted.
+
+Consider this sequence for a user registration and welcome email flow:
+
+```typescript
+const registerUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string()
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    ctx.events.userCreated({ id: user.id, name: user.name, email: user.email })
+    return ok(user)
+  }
+})
+```
+
+In this flow, the client receives the `ok(user)` response immediately after the user is created. The `userCreated` event is queued and processed afterward, so the welcome email handler can run independently without delaying the registration response.
+
+## Best Practices
+
+Keep event handlers focused on a single responsibility. Each handler should perform one logical piece of work rather than trying to handle multiple concerns. This makes handlers easier to test and reason about.
+
+Use descriptive event names that reflect what happened in the past tense, such as `userCreated`, `paymentProcessed`, or `orderShipped`. This convention makes it clear that the event represents something that has already occurred.
+
+Emit events at the boundary of your system, such as after a successful mutation, rather than deep within utility functions. This ensures that events accurately represent meaningful state changes rather than intermediate steps.
+
+Do not rely on event handlers to modify the response or throw errors that the client needs to see. Events are processed asynchronously and do not have a direct way to communicate back to the originating request. Keep all logic that affects the API response inside the handler itself.
+
+When you need to react to the same event in multiple ways, define separate event handlers for each reaction rather than combining logic into one handler. This separation allows you to scale and modify individual reactions independently.

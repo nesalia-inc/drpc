@@ -1,4 +1,300 @@
 ---
 title: Event Namespaces
-description: Organizing events
+description: Organizing events into logical groups for better code structure and collision prevention.
 ---
+
+Event namespaces let you organize events into logical groups, preventing name collisions and making your codebase easier to navigate. When your application grows to handle many different event types, namespaces keep everything structured and predictable.
+
+## Overview
+
+Namespacing events follows the same pattern you use for organizing procedures in routers. Instead of flat event names like `user_created` or `post_published`, you group related events under a common namespace. This creates a clear hierarchy that mirrors your domain model.
+
+The `defineContext` function accepts an `events` property where you define your namespaced event handlers. Each namespace is an object containing event handler functions, and those handlers can be nested further if needed.
+
+## Defining Namespaces
+
+When you call `defineContext`, you pass an `events` object with nested structures. Each level of nesting represents a namespace, and the final level contains the event handler functions. This approach keeps related events grouped together and makes the API surface more discoverable.
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    users: {
+      created: (ctx, event) => {
+        // Handle user creation event
+        return ok(null)
+      },
+      updated: (ctx, event) => {
+        // Handle user update event
+        return ok(null)
+      },
+      deleted: (ctx, event) => {
+        // Handle user deletion event
+        return ok(null)
+      },
+    },
+    posts: {
+      published: (ctx, event) => {
+        // Handle post publication event
+        return ok(null)
+      },
+      archived: (ctx, event) => {
+        // Handle post archival event
+        return ok(null)
+      },
+    },
+  },
+})
+```
+
+The structure is straightforward: the top-level keys (`users`, `posts`) are namespaces, and the nested keys (`created`, `updated`, `published`) are event names. You can nest as deeply as your domain requires, though two levels usually cover most use cases.
+
+### Event Handler Signature
+
+Each event handler receives two arguments: the context object and the event payload. The context object contains everything you defined in your context factory, and the event payload contains the data passed when the event was emitted.
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    orders: {
+      placed: (ctx, event) => {
+        // ctx.db is available here
+        // event contains the order data
+        return ok(null)
+      },
+    },
+  },
+})
+```
+
+The return value from event handlers follows the same `Result` pattern used elsewhere in the framework. Return `ok(null)` when the handler completes successfully, or return an error if something goes wrong.
+
+## Emitting Namespaced Events
+
+Once you have defined your namespaced events, you can emit them from anywhere in your code by calling through the context. The context exposes your event namespaces as callable functions that accept the event payload.
+
+When you call a namespaced event, the handler registered for that event runs with the context you provided. This happens synchronously unless you explicitly make the handler async.
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    users: {
+      created: (ctx, event) => {
+        console.log('User created:', event)
+        return ok(null)
+      },
+      updated: (ctx, event) => {
+        console.log('User updated:', event)
+        return ok(null)
+      },
+    },
+    posts: {
+      published: (ctx, event) => {
+        console.log('Post published:', event)
+        return ok(null)
+      },
+    },
+  },
+})
+
+// Example: emit from a mutation handler
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+
+    // Emit the namespaced event with the user data
+    await ctx.events.users.created({ id: user.id, name: user.name })
+
+    return ok(user, {
+      invalidate: ['users:list', ['users', { id: user.id }]],
+    })
+  },
+})
+
+const publishPost = t.mutation({
+  args: z.object({
+    postId: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    const post = await ctx.db.posts.find(args.postId)
+    post.published = true
+    await ctx.db.posts.save(post)
+
+    // Emit a different namespace event
+    await ctx.events.posts.published({ postId: post.id, authorId: post.authorId })
+
+    return ok(post, {
+      invalidate: [['posts', { id: post.id }]],
+    })
+  },
+})
+```
+
+Notice how `ctx.events.users.created()` and `ctx.events.posts.published()` follow a natural naming pattern. The dot notation makes it clear which namespace and event you are working with.
+
+## Benefits of Namespaces
+
+Organizing events into namespaces provides several advantages that become more apparent as your codebase grows.
+
+### Avoiding Name Collisions
+
+When multiple parts of your application emit events, flat naming quickly leads to collisions. You might have `created` events for users, posts, comments, and orders. Without namespaces, you would need verbose names like `user_created`, `post_created`, `comment_created`. Namespaces let you keep the event name short while avoiding conflicts:
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    users: {
+      created: (ctx, event) => { /* ... */ },
+      updated: (ctx, event) => { /* ... */ },
+    },
+    posts: {
+      created: (ctx, event) => { /* ... */ },
+      published: (ctx, event) => { /* ... */ },
+    },
+    comments: {
+      created: (ctx, event) => { /* ... */ },
+    },
+  },
+})
+```
+
+Both `users.created` and `posts.created` exist independently, and they are clearly differentiated by their namespace.
+
+### Logical Organization
+
+Namespaces mirror your domain model. When you look at `ctx.events`, you see the structure of your application in a single glance. This makes it easier to discover what events exist and where to add new ones.
+
+You can also use namespaces to group events by their trigger source. Events that happen during mutations go in one namespace, events from scheduled jobs in another, and so on.
+
+### Discoverability
+
+When you type `ctx.events.` in your editor, you get a dropdown of available namespaces. From there, you can explore the events within each namespace. This autocomplete-friendly structure helps you find the right event quickly.
+
+## Best Practices
+
+Following these guidelines helps you get the most out of namespaced events while avoiding common pitfalls.
+
+### Keep Namespace Names Consistent
+
+Use plural nouns for namespace names (`users`, `posts`, `orders`) to indicate that they contain multiple events. Keep the naming consistent across your codebase so that `ctx.events.products.` and `ctx.events.users.` follow the same pattern.
+
+### Keep Event Names Focused
+
+Each event name should describe a single thing that happened. If you find yourself creating events like `userPostCommentCreated`, that is a sign that your structure needs rethinking. Break it into separate namespaces or events.
+
+### Prefer Short, Descriptive Event Names
+
+Within a namespace, event names should be concise but meaningful. `created`, `updated`, and `deleted` work well for lifecycle events. `published`, `archived`, and `restored` work for content state changes. Avoid redundant prefixes within a namespace since the namespace already provides context.
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+
+// Good: concise names within logical namespaces
+events: {
+  users: {
+    created: (ctx, event) => { /* ... */ },
+    deleted: (ctx, event) => { /* ... */ },
+  },
+  posts: {
+    published: (ctx, event) => { /* ... */ },
+    archived: (ctx, event) => { /* ... */ },
+  },
+}
+
+// Avoid: redundant prefixes inside namespaces
+events: {
+  users: {
+    userCreated: (ctx, event) => { /* ... */ },
+    userDeleted: (ctx, event) => { /* ... */ },
+  },
+}
+```
+
+### Emit Events After Successful Operations
+
+According to the event rule, you should emit events only after successful operations. Never emit an event inside a handler that might fail, because the event should represent something that actually happened.
+
+```typescript title="api.ts"
+const deleteUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new NotFoundException(`User ${args.id} not found`))
+    }
+
+    await ctx.db.users.delete(args.id)
+
+    // Emit only after successful deletion
+    await ctx.events.users.deleted({ id: args.id })
+
+    return ok({ success: true }, {
+      invalidate: [['users', { id: args.id }], 'users:list'],
+    })
+  },
+})
+```
+
+### Use Async Handlers for Side Effects
+
+If your event handler performs asynchronous work like sending notifications or logging to external services, make the handler async. Always await the event emission to ensure the handler completes before you continue.
+
+```typescript title="api.ts"
+import { defineContext, t, createAPI } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: { db: myDatabase },
+  events: {
+    users: {
+      created: async (ctx, event) => {
+        // Async work like sending a welcome email
+        await sendWelcomeEmail(event.email)
+        return ok(null)
+      },
+    },
+  },
+})
+
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+
+    // Await the async event handler
+    await ctx.events.users.created({ id: user.id, email: user.email })
+
+    return ok(user, {
+      invalidate: ['users:list', ['users', { id: user.id }]],
+    })
+  },
+})
+```
+
+## Next Steps
+
+- [Event System](/docs/events/event-system) - The emit/subscribe pattern in depth
+- [Internal Procedures](/docs/core-concepts/internal-procedures) - Server-only operations
+- [Routers](/docs/core-concepts/routers) - Organize procedures into namespaces
