@@ -9,7 +9,7 @@ Context is the shared state passed to all procedure handlers. It allows you to i
 
 ## Static Context
 
-Use `context` when you want the exact object you provide to be used as context. Best for already-initialized dependencies like singletons or connection pools.
+Use `context` when you want the exact object you provide to be used as context. This works best for already-initialized dependencies like singletons or connection pools:
 
 ```typescript
 // src/api.ts
@@ -34,7 +34,7 @@ You pass an object directly. No function call happens - the reference is stored 
 
 ## Lazy Context (Factory)
 
-Use `createContext` when you want the factory to run only when `createAPI()` is called, not at module load time. Best for delaying expensive initialization.
+Use `createContext` when you want the factory to run only when `createAPI()` is called, not at module load time. This is best for delaying expensive initialization:
 
 ```typescript
 // src/api.ts
@@ -57,7 +57,7 @@ You pass a factory function that runs once when `createAPI()` is invoked. This d
 
 ## Initialization Timing
 
-Understanding when context is created:
+This section explains when context is created:
 
 ```typescript
 // src/api.ts

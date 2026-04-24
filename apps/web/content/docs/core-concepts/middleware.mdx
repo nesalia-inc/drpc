@@ -7,6 +7,8 @@ Middleware allows you to add global, cross-cutting concerns to your API. It runs
 
 ## Creating Middleware
 
+To create middleware, use `createMiddleware` and return an error or call `opts.next()`:
+
 ```typescript
 // src/middleware/auth.ts
 import { createMiddleware } from '@deessejs/server'
@@ -64,6 +66,8 @@ const privateQuery = t.query({
 ```
 
 ## Middleware with Arguments
+
+To pass arguments to middleware, return a function from `createMiddleware`:
 
 ```typescript
 // src/middleware/requireRole.ts
@@ -130,6 +134,8 @@ export const api = createAPI({
 ```
 
 ## Complete Example
+
+This example shows a full middleware setup with auth, requireAdmin, and rateLimit:
 
 ```typescript
 // src/middleware/index.ts

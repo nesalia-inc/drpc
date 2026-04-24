@@ -16,7 +16,7 @@ Internal procedures (`internalQuery` and `internalMutation`) are server-only ope
 
 ## Internal Query
 
-Use `t.internalQuery()` for server-only read operations:
+To create a server-only read operation, use `t.internalQuery()`:
 
 ```typescript
 // src/api.ts
@@ -38,7 +38,7 @@ const getSecretData = t.internalQuery({
 
 ## Internal Mutation
 
-Use `t.internalMutation()` for server-only write operations:
+To create a server-only write operation, use `t.internalMutation()`:
 
 ```typescript
 // src/api.ts
