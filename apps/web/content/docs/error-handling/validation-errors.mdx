@@ -1,4 +1,172 @@
 ---
 title: Validation Errors
-description: Input validation
+description: Input validation with Zod schemas in your API handlers
 ---
+
+## Overview
+
+The framework provides automatic input validation for your API handlers through Zod schemas. When you define a schema in the `args` field of a mutation or query, the framework validates incoming request data against that schema before the handler ever executes. This means you can trust that the arguments passed to your handler have already been sanitized and type-checked, eliminating an entire class of runtime errors from your codebase.
+
+To use validation, you define a Zod schema alongside your handler. The schema acts as both documentation for the expected input shape and an enforcement mechanism that runs on every request.
+
+## Basic Validation
+
+To add validation to your handler, you attach a Zod schema to the `args` field. The framework uses this schema to validate the incoming arguments automatically. When the data passes validation, your handler receives the parsed and typed arguments. When validation fails, the framework returns a structured error response without calling your handler.
+
+The following example demonstrates a mutation that creates a user with validated input. The Zod schema defines the required fields and their constraints, so you do not need to write any manual validation code.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string().min(1).max(100),
+    email: z.string().email(),
+    age: z.number().min(0).max(150).optional(),
+  }),
+  handler: async (ctx, args) => {
+    // args is already validated by Zod
+    // No need to check for missing fields or type coercion
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+```
+
+You can use any Zod type to define your schema, including strings, numbers, booleans, arrays, objects, enums, unions, and more complex nested structures. The validated arguments are automatically coerced to their proper types, so a `z.number()` field will arrive as a JavaScript number rather than a string.
+
+## Validation Errors
+
+When a request contains invalid data, the framework returns a validation error response. These errors include information about which fields failed validation and why, making it easy for clients to display helpful feedback to users. Validation errors are returned as structured error objects that include the field path, the validation rule that failed, and the received value.
+
+The following example shows how validation errors appear in the response structure when a client sends malformed data.
+
+```typescript
+// Response when validation fails:
+{
+  ok: false,
+  error: {
+    type: 'validation',
+    errors: [
+      {
+        path: ['email'],
+        message: 'Invalid email address',
+        received: 'not-an-email',
+      },
+      {
+        path: ['age'],
+        message: 'Number must be greater than or equal to 0',
+        received: -5,
+      },
+    ],
+  },
+}
+```
+
+You do not need to handle these errors manually in your handler. The framework intercepts invalid requests and constructs the error response automatically before your handler is called.
+
+## Custom Validation
+
+Sometimes a Zod schema alone cannot express your validation requirements. When you need to perform checks that go beyond what Zod types can express, such as checking for uniqueness in a database or validating a combination of fields, you can raise a `ValidationException` manually from within your handler. This lets you return the same structured validation error format while executing arbitrary validation logic.
+
+The `ValidationException` class accepts an error message that describes what went wrong. When you return it wrapped in `err()`, the framework recognizes it as a validation error and formats it appropriately in the response.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { ValidationException } from '@deessejs/server'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    // Custom validation beyond Zod schema
+    if (args.name.toLowerCase() === 'admin') {
+      return err(new ValidationException('Username cannot be "admin"'))
+    }
+
+    // Check for duplicate email in database
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing && existing.id !== args.id) {
+      return err(new ValidationException('Email already in use'))
+    }
+
+    const user = await ctx.db.users.update(args.id, {
+      name: args.name,
+      email: args.email,
+    })
+    return ok(user)
+  }
+})
+```
+
+When you raise a `ValidationException`, the framework treats it identically to a schema validation failure. The error appears in the same `errors` array structure, making it straightforward for clients to handle all validation errors uniformly.
+
+## Error Messages
+
+The framework provides detailed validation error messages that include the path to the failing field, the rule that was violated, and the actual value that was received. You can customize error messages in your Zod schemas to provide clearer feedback, or you can transform error messages in your client code to match your application's terminology.
+
+To customize a validation message in your Zod schema, you use the `z.string()` methods with descriptive error overrides.
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string().min(1, 'Name is required').max(100, 'Name cannot exceed 100 characters'),
+    email: z.string().email('Please provide a valid email address'),
+    age: z.number().min(0, 'Age must be a positive number').max(150, 'Age cannot exceed 150'),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+```
+
+When constructing error messages, you should write them from the user's perspective, indicating what action they need to take rather than what went wrong technically. Messages like "Email is required" or "Age must be at least 0" are more helpful than raw validation rule descriptions.
+
+## Best Practices
+
+When designing your validation strategy, you should leverage Zod schemas for most validation because they keep your validation logic declarative and centralized. By defining all your input constraints in schemas, you create a single source of truth that serves both as documentation and enforcement, reducing the chance of inconsistencies between validation logic scattered across different handlers.
+
+To keep your schemas maintainable, prefer using descriptive error messages that guide users toward correct input. Generic messages like "Invalid value" force users to guess what went wrong, while specific messages like "Password must be at least 8 characters long" enable users to correct their input on the first attempt.
+
+You should reserve `ValidationException` for business rule validation that cannot be expressed in Zod, such as checking whether a username is already taken or validating that a discount code has not expired. For structural validation like required fields and type checking, rely on Zod schemas to keep your handler code clean and focused on business logic.
+
+When defining schemas, use the `optional()` modifier judiciously. Required fields should not be optional, and optional fields should have sensible defaults or be handled gracefully in your handler. Avoid making fields optional simply to avoid validation errors; instead, design your API contracts to require the data your application actually needs.
+
+Finally, consider grouping related validation rules into reusable schema components. If multiple mutations accept a `UserId` or a `Pagination` object, define those schemas once and reuse them across your handlers. This reduces duplication and ensures consistent validation behavior throughout your API.
+
+```typescript
+// Reusable schema components
+const UserIdSchema = z.object({ userId: z.number() })
+const PaginationSchema = z.object({
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(20),
+})
+
+// Reuse across handlers
+const getUserPosts = t.query({
+  args: UserIdSchema.merge(PaginationSchema),
+  handler: async (ctx, args) => {
+    // args.userId and args.page/args.limit are validated
+    const posts = await ctx.db.posts.findByUser(args.userId, {
+      page: args.page,
+      limit: args.limit,
+    })
+    return ok(posts)
+  },
+})
+```

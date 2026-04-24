@@ -1,4 +1,155 @@
 ---
 title: Result Type
-description: ok and err pattern
+description: ok and err pattern for explicit error handling
 ---
+
+## Overview
+
+The Result type is a functional programming pattern that provides a structured way to handle success and failure cases without relying on exceptions. Instead of throwing errors and hoping they get caught somewhere up the call stack, you return results explicitly from your handlers. This approach makes error handling predictable and forces callers to deal with failures rather than forget about them.
+
+When you use the Result type, every operation that can fail returns either an `ok` result containing the successful value or an `err` result containing the error. The shape of the returned object tells you immediately whether the operation succeeded or failed, and your code can react accordingly.
+
+## Why Not Throw
+
+Throwing exceptions creates several problems that the Result type solves. When you throw an error, you have no guarantee that the caller will catch it—they might forget the try-catch entirely, and the error bubbles up silently until it crashes the application or gets caught by a generic handler somewhere distant in the code.
+
+To illustrate the problem with exceptions, consider a thrown error that carries no type safety. You might throw a string, or a number, or an object with an unpredictable shape. The catching code has no way to know what to expect, leading to defensive checks and potential runtime errors.
+
+The Result type makes error handling explicit in the function signature. When a function returns a Result type, it's clear to every caller that the operation might fail. You cannot ignore the error case because the compiler or runtime forces you to handle both paths. This leads to more robust code with fewer unexpected crashes and better-defined behavior at every boundary of your system.
+
+## Basic Usage
+
+The framework provides two functions for creating Result values: `ok()` and `err()`. You use `ok()` when an operation succeeds and want to return the successful value, and `err()` when something goes wrong and want to return error information instead of throwing.
+
+To return a successful result, wrap your value with `ok()`. The function accepts a single argument—the value you want to return—and wraps it in an object that signals success.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err(new Error('User not found'))
+    }
+    return ok(user)
+  }
+})
+```
+
+To return an error, wrap your error with `err()`. This signals to the caller that the operation failed and provides the error details. The error can be any value, though using `Error` instances is the most common pattern.
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    email: z.string().email(),
+    name: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing) {
+      return err(new Error('Email already in use'))
+    }
+    const user = await ctx.db.users.create(args)
+    return ok(user)
+  }
+})
+```
+
+## The Result Type Structure
+
+Understanding the structure of Result values is essential for working with them effectively. Each Result is an object with a discriminant property that identifies whether it is a success or failure, along with the associated payload.
+
+A successful Result—created with `ok()`—has the shape `{ ok: true, value: YourValueType }`. The `ok` property is `true`, and the `value` property contains your successful return value. This structure makes it easy to destructure and extract the value when you know the operation succeeded.
+
+```typescript
+const result = ok({ id: 1, name: 'Alice' })
+
+// result is { ok: true, value: { id: 1, name: 'Alice' } }
+console.log(result.ok)    // true
+console.log(result.value) // { id: 1, name: 'Alice' }
+```
+
+An error Result—created with `err()`—has the shape `{ ok: false, error: YourErrorType }`. The `ok` property is `false`, and the `error` property contains the error that caused the failure. The error is typically an `Error` instance but can be any value you find appropriate for your domain.
+
+```typescript
+const result = err(new Error('Something went wrong'))
+
+// result is { ok: false, error: Error('Something went wrong') }
+console.log(result.ok)    // false
+console.log(result.error) // Error('Something went wrong')
+```
+
+The boolean `ok` property acts as a discriminant, allowing you to distinguish between success and failure with a simple check. This pattern is more explicit and safer than checking for thrown exceptions.
+
+## Chaining Results
+
+One of the powerful aspects of the Result type is that you can work with results without embedding yourself in nested if statements. Instead of checking `if (result.ok)` and then unwrapping the value only to pass it to another function that returns a result, you can chain operations together.
+
+Consider a scenario where you need to fetch a user and then fetch their posts. Without chaining, you would write nested checks at every step. With chaining, you can flatten this logic and make it more readable.
+
+```typescript
+const getUserWithPosts = t.query({
+  args: z.object({ userId: z.number() }),
+  handler: async (ctx, args) => {
+    const userResult = await ctx.db.users.find(args.userId)
+    if (!userResult.ok) {
+      return userResult
+    }
+
+    const postsResult = await ctx.db.posts.findByUser(args.userId)
+    if (!postsResult.ok) {
+      return postsResult
+    }
+
+    return ok({
+      user: userResult.value,
+      posts: postsResult.value,
+    })
+  }
+})
+```
+
+While this example still uses early returns, it demonstrates the pattern clearly. Each operation that might fail returns a Result, and you pass successful results forward while propagating errors immediately. This approach keeps your error handling localized and prevents error cases from cluttering your success path.
+
+The key principle is that when a Result is `err`, you should return it immediately rather than trying to continue processing. This propagates the error up the call stack without mixing error handling with your business logic. When a Result is `ok`, you unwrap the `value` and continue with your operation.
+
+## Best Practices
+
+Following consistent practices with the Result type will help you build reliable systems. These guidelines will help you use the pattern effectively and avoid common pitfalls.
+
+The most important rule is to return errors with `err()` rather than throwing exceptions. Throwing bypasses the Result type system and creates the exact problem you are trying to solve—unpredictable error handling that callers might forget to handle. When an operation fails, return `err(someError)` to signal the failure through the Result type.
+
+Choose meaningful error types for your errors. Using plain strings like `err('User not found')` works, but using structured error types or Error subclasses gives callers more information to work with. You can define custom error classes that carry additional context about what went wrong and how to recover.
+
+Be explicit about which functions return Results and which do not. When every function in your system consistently returns Results for failure cases, you create a predictable mental model that makes reasoning about your code easier. If a helper function can fail, it should return a Result rather than throwing.
+
+When you call a function that returns a Result, always check the `ok` property before accessing the `value`. Accessing `value` on an error Result will give you `undefined`, and continuing as if the operation succeeded will lead to bugs. Either use an early return pattern to propagate errors or use the provided chaining utilities if available.
+
+Handle all error cases rather than ignoring them. When you receive an error Result, decide what to do—either propagate it up, return a different error, or provide a fallback value. Empty catch blocks or ignoring error Results defeat the purpose of explicit error handling and leave your application in undefined states when failures occur.
+
+```typescript
+// Good: explicit error handling
+const getUserData = async (ctx, userId) => {
+  const userResult = await ctx.db.users.find(userId)
+  if (!userResult.ok) {
+    return err(new Error('Failed to load user'))
+  }
+
+  return ok(userResult.value)
+}
+
+// Avoid: ignoring errors
+const getUserData = async (ctx, userId) => {
+  const user = await ctx.db.users.find(userId)
+  // No check - will crash if user is null
+  return ok(user)
+}
+```

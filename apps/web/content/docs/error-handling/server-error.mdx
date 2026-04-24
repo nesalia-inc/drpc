@@ -1,4 +1,339 @@
 ---
 title: ServerError
-description: Error codes and messages
+description: Server exceptions, error codes, and status codes
 ---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Server exceptions let you signal errors from your handlers in a structured way. Instead of throwing exceptions that crash your server, you return errors using the `err()` helper. Each exception carries a code, message, and HTTP status code that the framework translates into proper API responses.
+
+## Overview
+
+When you need to signal an error in your handler, you use the `err()` function from `@deessejs/fp` with an exception instance. The framework catches these exceptions and converts them to appropriate HTTP responses with the correct status code and error format.
+
+The `ServerException` class is the foundation for all built-in exceptions. It extends the native `Error` class and adds properties for error codes, HTTP status codes, and optional additional data.
+
+Here is a basic example showing how to return a not found error:
+
+```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { NotFoundException } from '@deessejs/server'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new NotFoundException('User not found'))
+    }
+
+    return ok(user)
+  },
+})
+```
+
+## Built-in Exceptions
+
+The framework provides several built-in exceptions for common error scenarios. Each exception maps to a specific HTTP status code and has a predefined error code.
+
+### NotFoundException
+
+Use this exception when a requested resource does not exist. It returns HTTP 404 and the error code `NOT_FOUND`.
+
+The following example shows how to return a not found error when a user does not exist:
+
+```typescript
+handler: async (ctx, args) => {
+  const user = await ctx.db.users.find(args.id)
+
+  if (!user) {
+    return err(new NotFoundException('User not found'))
+  }
+
+  return ok(user)
+}
+```
+
+### UnauthorizedException
+
+Use this exception when a request lacks authentication or has invalid credentials. It returns HTTP 401 and the error code `UNAUTHORIZED`.
+
+The example below demonstrates how to check for authentication and return an unauthorized error:
+
+```typescript
+handler: async (ctx, args) => {
+  if (!ctx.auth || !ctx.auth.userId) {
+    return err(new UnauthorizedException('Authentication required'))
+  }
+
+  return ok({ userId: ctx.auth.userId })
+}
+```
+
+### ValidationException
+
+Use this exception when input validation fails, such as invalid email formats, duplicate entries, or any business logic validation error. It returns HTTP 400 and the error code `VALIDATION_ERROR`.
+
+The example below shows how to validate a unique constraint and return a validation error:
+
+```typescript
+handler: async (ctx, args) => {
+  const existing = await ctx.db.users.findByEmail(args.email)
+
+  if (existing) {
+    return err(new ValidationException('Email already exists'))
+  }
+
+  const user = await ctx.db.users.create(args)
+  return ok(user)
+}
+```
+
+### Exception Properties
+
+<TypeTable
+  type={{
+    code: {
+      description: 'Machine-readable error code string',
+      type: 'string',
+    },
+    statusCode: {
+      description: 'HTTP status code for this error type',
+      type: 'number',
+    },
+    message: {
+      description: 'Human-readable error description',
+      type: 'string',
+    },
+    data: {
+      description: 'Optional additional error metadata',
+      type: 'Record<string, unknown> | undefined',
+    },
+  }}
+/>
+
+## Creating Custom Exceptions
+
+When you need domain-specific errors beyond the built-in exceptions, you can extend `ServerException` to create your own exception classes. This lets you define custom error codes and HTTP status codes that fit your application's needs.
+
+To create a custom exception, you extend `ServerException` and call the parent constructor with your error code, message, and status code.
+
+The example below shows how to create a ForbiddenException for access control scenarios:
+
+```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+import { ServerException } from '@deessejs/server'
+
+class ForbiddenException extends ServerException {
+  constructor(message = 'Access denied') {
+    super('FORBIDDEN', message, 403)
+    this.name = 'ForbiddenException'
+  }
+}
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const deleteUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const currentUser = await ctx.db.users.find(ctx.auth.userId)
+
+    if (!currentUser?.isAdmin) {
+      return err(new ForbiddenException('Only administrators can delete users'))
+    }
+
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true })
+  },
+})
+```
+
+You can also pass additional data to your exceptions by providing a fourth argument to the constructor. This is useful when you need to include extra context about the error.
+
+The following example shows how to include additional data with a custom exception:
+
+```typescript
+class QuotaExceededException extends ServerException {
+  constructor(current: number, limit: number) {
+    super('QUOTA_EXCEEDED', 'Storage quota exceeded', 403, { current, limit })
+    this.name = 'QuotaExceededException'
+  }
+}
+
+// Usage
+return err(new QuotaExceededException(150, 100))
+```
+
+## HTTP Status Codes
+
+Each exception maps to a specific HTTP status code that clients use to understand the result of their request. When you return an error, the framework translates your exception into the appropriate HTTP response.
+
+The table below shows the built-in exceptions and their corresponding HTTP status codes:
+
+| Exception | Status Code | Description |
+|-----------|-------------|-------------|
+| `ServerException` (base) | 500 | Internal server error |
+| `NotFoundException` | 404 | Resource not found |
+| `UnauthorizedException` | 401 | Authentication required |
+| `ValidationException` | 400 | Bad request or validation failure |
+| `ForbiddenException` (custom) | 403 | Access denied |
+| `ConflictException` (custom) | 409 | Resource conflict |
+
+When you create custom exceptions, you choose the status code that best fits your error scenario. Use 400 for client errors, 401 for authentication issues, 403 for authorization failures, 404 for missing resources, and 409 for conflicts.
+
+## Error Codes
+
+Error codes are machine-readable strings that clients can use to programmatically handle different error types. The framework provides a predefined list of error codes through the `ErrorCodes` constant.
+
+To use error codes in your handlers, import `ErrorCodes` and reference the appropriate code:
+
+```typescript title="api.ts"
+import { defineContext, ErrorCodes } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { ServerException } from '@deessejs/server'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Using ErrorCodes for custom exceptions
+class BusinessRuleException extends ServerException {
+  constructor(message: string) {
+    super(ErrorCodes.CONFLICT, message, 409)
+    this.name = 'BusinessRuleException'
+  }
+}
+
+const placeOrder = t.mutation({
+  args: z.object({ productId: z.number() }),
+  handler: async (ctx, args) => {
+    const product = await ctx.db.products.find(args.productId)
+
+    if (!product) {
+      return err(new NotFoundException('Product not found'))
+    }
+
+    if (product.stock === 0) {
+      return err(new BusinessRuleException('Product is out of stock'))
+    }
+
+    return ok({ orderId: 123 })
+  },
+})
+```
+
+The `ErrorCodes` constant includes the following predefined codes:
+
+| Code | Description |
+|------|-------------|
+| `NOT_FOUND` | Resource not found |
+| `UNAUTHORIZED` | Authentication required |
+| `VALIDATION_ERROR` | Input validation failed |
+| `FORBIDDEN` | Access denied |
+| `CONFLICT` | Resource conflict |
+| `INTERNAL_ERROR` | Internal server error |
+| `ROUTE_NOT_FOUND` | API route not found |
+| `INVALID_ARGS` | Invalid procedure arguments |
+
+## Best Practices
+
+When you design your error handling strategy, consider the following guidelines to create consistent and useful error responses for your API consumers.
+
+### Use the Most Specific Exception
+
+Choose the exception that most accurately describes the error. When a resource is not found, use `NotFoundException`. When validation fails, use `ValidationException`. This helps clients handle errors appropriately without inspecting error messages.
+
+The following example shows the correct exception for each scenario:
+
+```typescript
+// Don't - use the wrong exception type
+if (!user) {
+  return err(new ValidationException('User not found'))
+}
+
+// Do - use the appropriate exception
+if (!user) {
+  return err(new NotFoundException('User not found'))
+}
+```
+
+### Provide Meaningful Messages
+
+When you create error messages, be specific enough that clients can understand what went wrong and how to fix it. Avoid generic messages like "An error occurred" or "Invalid input."
+
+The example below shows how to write helpful error messages:
+
+```typescript
+// Don't - vague error message
+return err(new ValidationException('Invalid input'))
+
+// Do - specific error message
+return err(new ValidationException('Email must be a valid email address'))
+
+// Do - include actionable information
+return err(new ValidationException('User with email user@example.com already exists'))
+```
+
+### Return Errors Explicitly
+
+Always use `err()` to return errors from your handlers. This makes error handling explicit and allows the framework to properly serialize errors for clients.
+
+The pattern below demonstrates the correct way to handle errors:
+
+```typescript
+handler: async (ctx, args) => {
+  // Validate input
+  if (!args.email.includes('@')) {
+    return err(new ValidationException('Invalid email format'))
+  }
+
+  // Check for existing resource
+  const existing = await ctx.db.users.findByEmail(args.email)
+  if (existing) {
+    return err(new ValidationException('Email already registered'))
+  }
+
+  // Success case
+  const user = await ctx.db.users.create(args)
+  return ok(user)
+}
+```
+
+### Handle Errors at the Boundary
+
+When you have middleware or lifecycle hooks, handle errors at the appropriate boundary. Do not catch and swallow exceptions in your handlers if they should propagate to clients.
+
+The following pattern shows proper error handling:
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    // Let the framework handle database errors
+    // Return only expected errors (not found, validation)
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new NotFoundException(`User ${args.id} not found`))
+    }
+
+    return ok(user)
+  },
+})
+```
+
+## Next Steps
+
+- [Result Type](/docs/error-handling/result-type) - Understand the ok() and err() pattern
+- [Validation Errors](/docs/error-handling/validation-errors) - Handle input validation
+- [Lifecycle Hooks](/docs/lifecycle-hooks/on-error) - Global error handling
