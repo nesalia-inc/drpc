@@ -29,6 +29,10 @@ import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
 import { NotFoundException } from '@deessejs/server'
 
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
 const getUser = t.query({
   args: z.object({
     id: z.number(),
