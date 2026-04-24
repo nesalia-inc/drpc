@@ -2,3 +2,275 @@
 title: Routers
 description: Organizing procedures into namespaces
 ---
+
+## Overview
+
+Routers organize procedures into namespaces, creating a hierarchical API structure. Routes use dot notation (e.g., `users.get`, `posts.create`).
+
+## Basic Usage
+
+```typescript
+// src/api.ts
+import { defineContext, t, router } from '@deessejs/server'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Define procedures
+const getUser = t.query({ ... })
+const createUser = t.mutation({ ... })
+const getPost = t.query({ ... })
+const createPost = t.mutation({ ... })
+
+// Organize into a router
+export const appRouter = router({
+  users: router({
+    get: getUser,
+    create: createUser,
+  }),
+  posts: router({
+    get: getPost,
+    create: createPost,
+  }),
+})
+```
+
+## Nested Routers
+
+Routers can be nested for deeper hierarchies:
+
+```typescript
+// src/api.ts
+export const appRouter = router({
+  users: router({
+    get: getUser,
+    create: createUser,
+    // Nested router for user-related operations
+    posts: router({
+      getUserPosts: getUserPosts,
+      createUserPost: createUserPost,
+    }),
+  }),
+})
+```
+
+This creates routes: `users.get`, `users.create`, `users.posts.getUserPosts`, etc.
+
+## Route Paths
+
+The route path is determined by the router hierarchy:
+
+```typescript
+router({
+  users: router({
+    get: getUser,
+  }),
+})
+
+// Route path: users.get
+// HTTP endpoint: POST /api/users.get
+```
+
+## Complete Example
+
+```typescript
+// src/api.ts
+import { defineContext, t, router } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// User procedures
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+
+// Post procedures
+const getPost = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const post = await ctx.db.posts.find(args.id)
+    return ok(post, { keys: [['posts', { id: args.id }]] })
+  },
+})
+
+export const appRouter = router({
+  users: router({
+    get: getUser,
+    create: createUser,
+  }),
+  posts: router({
+    get: getPost,
+  }),
+})
+```
+
+## Accessing Routes
+
+From the client:
+
+```typescript
+// Client code
+import { client } from './lib/client'
+
+// Call users.get
+const user = await client.users.get({ id: 1 })
+
+// Call users.create
+await client.users.create({ name: 'Jane', email: 'jane@example.com' })
+
+// Call posts.get
+const post = await client.posts.get({ id: 1 })
+```
+
+## Type Safety
+
+Routers provide full type inference:
+
+```typescript
+// The client type is inferred from the router
+export type AppRouter = typeof appRouter
+
+// client.users.get.query({ id: 1 })
+//                  └─ inferred from router definition
+```
+
+## Best Practices
+
+### 1. Keep Naming Consistent
+
+```typescript
+// ✅ Do - consistent naming
+router({
+  users: router({
+    get: getUser,
+    create: createUser,
+    update: updateUser,
+    delete: deleteUser,
+  }),
+})
+
+// ❌ Don't - inconsistent naming
+router({
+  users: router({
+    fetch: getUser,
+    add: createUser,
+    modify: updateUser,
+    remove: deleteUser,
+  }),
+})
+```
+
+### 2. Group Related Procedures
+
+```typescript
+// ✅ Do - related procedures grouped
+router({
+  users: router({
+    get: getUser,
+    update: updateUser,
+    delete: deleteUser,
+  }),
+  posts: router({
+    get: getPost,
+    create: createPost,
+  }),
+})
+
+// ❌ Don't - unrelated procedures mixed
+router({
+  users: router({ get: getUser }),
+  posts: router({ get: getPost }),
+  // Should be under users or separate category
+  getEmail: getEmail,
+})
+```
+
+### 3. Use Descriptive Names
+
+```typescript
+// ✅ Do - clear intent
+router({
+  users: router({
+    getById: getUser,
+    getByEmail: getUserByEmail,
+  }),
+})
+
+// ❌ Don't - unclear
+router({
+  users: router({
+    g1: getUser,
+    g2: getUserByEmail,
+  }),
+})
+```
+
+## Anti-Patterns
+
+### ❌ Don't Create Flat Routers for Complex APIs
+
+```typescript
+// ❌ Don't - flat structure for complex API
+export const appRouter = router({
+  getUser: getUser,
+  createUser: createUser,
+  updateUser: updateUser,
+  deleteUser: deleteUser,
+  getPost: getPost,
+  createPost: createPost,
+  // ... becomes hard to navigate
+})
+
+// ✅ Do - hierarchical structure
+export const appRouter = router({
+  users: router({
+    get: getUser,
+    create: createUser,
+    update: updateUser,
+    delete: deleteUser,
+  }),
+  posts: router({
+    get: getPost,
+    create: createPost,
+  }),
+})
+```
+
+### ❌ Don't Use Abbreviations
+
+```typescript
+// ❌ Don't - abbreviations
+router({
+  usr: router({ get: getUser }),
+  pst: router({ get: getPost }),
+})
+
+// ✅ Do - full words
+router({
+  users: router({ get: getUser }),
+  posts: router({ get: getPost }),
+})
+```
+
+## Next Steps
+
+- [Middleware](/docs/core-concepts/middleware) - Add global hooks
+- [Server Adapters](/docs/server-adapters/nextjs) - Set up HTTP handler
+- [Client Libraries](/docs/client-libraries/react-hooks) - Use from client

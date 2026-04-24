@@ -2,3 +2,169 @@
 title: Queries
 description: Public read operations
 ---
+
+## Overview
+
+Queries are public read operations exposed via HTTP. They can be called from clients and other servers.
+
+## Defining a Query
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+```
+
+## Query Properties
+
+### args
+
+Zod schema for input validation:
+
+```typescript
+args: z.object({
+  id: z.number(),
+  include: z.array(z.string()).optional(),
+})
+```
+
+### handler
+
+Async function receiving context and args:
+
+```typescript
+handler: async (ctx, args) => {
+  // ctx: { db: Database }
+  // args: { id: number }
+  const user = await ctx.db.users.find(args.id)
+  return ok(user)
+}
+```
+
+### Return Value
+
+Use `ok()` from `@deessejs/fp` to return results with cache keys:
+
+```typescript
+return ok(result, { keys: [['users', { id: args.id }]] })
+```
+
+## Cache Keys
+
+Queries return cache keys for automatic caching:
+
+```typescript
+// src/api.ts
+import { ok } from '@deessejs/fp'
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    // Cache key format: ['entity', { filter }]
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+```
+
+## Complete Example
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({
+    id: z.number(),
+    include: z.array(z.string()).optional().default([]),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err(new NotFoundException('User not found'))
+    }
+
+    let data = { ...user }
+    if (args.include.includes('posts')) {
+      data.posts = await ctx.db.posts.findByUser(args.id)
+    }
+
+    return ok(data, {
+      keys: [
+        ['users', { id: args.id }],
+        ...(args.include.includes('posts') ? [['users', args.id, 'posts']] : []),
+      ],
+    })
+  },
+})
+
+export const appRouter = router({
+  users: router({
+    get: getUser,
+  }),
+})
+```
+
+## Anti-Patterns
+
+### ❌ Don't Use Queries for Writes
+
+```typescript
+// ❌ Don't - use mutation for writes
+const updateUser = t.query({
+  args: z.object({ id: z.number(), name: z.string() }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.update(args.id, { name: args.name })
+    return ok({ success: true })
+  },
+})
+
+// ✅ Do - mutations are for writes
+const updateUser = t.mutation({
+  args: z.object({ id: z.number(), name: z.string() }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.update(args.id, { name: args.name })
+    return ok({ success: true }, { invalidate: [['users', { id: args.id }]] })
+  },
+})
+```
+
+### ❌ Don't Return Untyped Data
+
+```typescript
+// ❌ Don't - no type safety
+handler: async (ctx, args) => {
+  return ok(await ctx.db.rawQuery('SELECT * FROM users'))
+}
+
+// ✅ Do - return typed data
+handler: async (ctx, args) => {
+  const users = await ctx.db.query<User>('SELECT * FROM users')
+  return ok(users)
+}
+```
+
+## Next Steps
+
+- [Mutations](/docs/core-concepts/mutations) - Define write operations
+- [Internal Procedures](/docs/core-concepts/internal-procedures) - Server-only operations
+- [Cache Keys](/docs/cache/cache-keys) - Learn about cache keys

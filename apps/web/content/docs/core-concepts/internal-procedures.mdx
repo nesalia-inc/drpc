@@ -2,3 +2,207 @@
 title: Internal Procedures
 description: Server-only operations
 ---
+
+## Overview
+
+Internal procedures (`internalQuery` and `internalMutation`) are server-only operations that are NOT exposed via HTTP. They're ideal for operations that should never be callable from clients.
+
+## Why Internal Procedures?
+
+| Type | Exposed via HTTP | Use Case |
+|------|------------------|----------|
+| `query` | Yes | Client read operations |
+| `mutation` | Yes | Client write operations |
+| `internalQuery` | No | Server-only reads |
+| `internalMutation` | No | Server-only writes |
+
+## Internal Query
+
+Use `t.internalQuery()` for server-only read operations:
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Server-only: not accessible from client
+const getSecretData = t.internalQuery({
+  handler: async (ctx) => {
+    const secrets = await ctx.db.secrets.findAll()
+    return ok(secrets)
+  },
+})
+```
+
+## Internal Mutation
+
+Use `t.internalMutation()` for server-only write operations:
+
+```typescript
+// src/api.ts
+import { ok } from '@deessejs/fp'
+
+// Server-only: not accessible from client
+const processPayment = t.internalMutation({
+  args: z.object({
+    userId: z.number(),
+    amount: z.number().positive(),
+    currency: z.string().default('USD'),
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.payment.process({
+      userId: args.userId,
+      amount: args.amount,
+      currency: args.currency,
+    })
+    return ok(result)
+  },
+})
+```
+
+## Use Cases
+
+### 1. Secret Operations
+
+```typescript
+// ❌ Don't - secret exposed to client
+const getApiKeys = t.query({
+  handler: async (ctx) => {
+    return ok(await ctx.db.apiKeys.findAll())
+  },
+})
+
+// ✅ Do - internal keeps secrets server-only
+const getApiKeys = t.internalQuery({
+  handler: async (ctx) => {
+    return ok(await ctx.db.apiKeys.findAll())
+  },
+})
+```
+
+### 2. Admin Operations
+
+```typescript
+const deleteUser = t.internalMutation({
+  args: z.object({ userId: z.number() }),
+  handler: async (ctx, args) => {
+    // Admin-only logic
+    await ctx.db.users.delete(args.userId)
+    return ok({ deleted: true })
+  },
+})
+```
+
+### 3. Cross-Service Communication
+
+```typescript
+// Called internally by other services
+const syncExternalData = t.internalMutation({
+  args: z.object({ source: z.string() }),
+  handler: async (ctx, args) => {
+    const data = await fetchExternalData(args.source)
+    await ctx.db.externalData.upsert(data)
+    return ok({ synced: true })
+  },
+})
+```
+
+### 4. Database Transactions
+
+```typescript
+const transferFunds = t.internalMutation({
+  args: z.object({
+    fromUserId: z.number(),
+    toUserId: z.number(),
+    amount: z.number().positive(),
+  }),
+  handler: async (ctx, args) => {
+    await ctx.db.transaction(async (trx) => {
+      await trx.users.decrementBalance(args.fromUserId, args.amount)
+      await trx.users.incrementBalance(args.toUserId, args.amount)
+    })
+    return ok({ success: true })
+  },
+})
+```
+
+## Security Model
+
+Internal procedures are:
+
+1. **Not registered in HTTP routes** - No URL endpoint created
+2. **Not exported in public API** - `createPublicAPI()` excludes them
+3. **Callable only from server context** - Other procedures, plugins, or server code
+
+```typescript
+// Public API (createPublicAPI) only exports query and mutation
+// internalQuery and internalMutation are excluded
+
+export const api = createPublicAPI({
+  router: appRouter,
+})
+// Only users.get, users.create, etc. are exposed
+// internal procedures are NOT accessible
+```
+
+## Calling Internal Procedures
+
+Internal procedures can be called from other procedures:
+
+```typescript
+// src/api.ts
+const getUserStats = t.query({
+  args: z.object({ userId: z.number() }),
+  handler: async (ctx, args) => {
+    // Call internal procedure internally
+    const user = await ctx.db.internal.getUser(args.userId)
+    const orders = await ctx.db.internal.getOrders(args.userId)
+    return ok({ user, orders })
+  },
+})
+```
+
+## Anti-Patterns
+
+### ❌ Don't Expose Sensitive Data via Query
+
+```typescript
+// ❌ Don't - sensitive data exposed
+const getUser = t.query({
+  handler: async (ctx) => {
+    return ok({
+      password: ctx.user.password,
+      apiKeys: await ctx.db.apiKeys.findAll(),
+    })
+  },
+})
+```
+
+### ❌ Don't Use internalQuery for Client Data
+
+```typescript
+// ❌ Don't - client needs this data
+const getUserProfile = t.internalQuery({
+  handler: async (ctx) => {
+    return ok(await ctx.db.users.find(ctx.user.id))
+  },
+})
+
+// ✅ Do - use public query
+const getUserProfile = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.find(args.id))
+  },
+})
+```
+
+## Next Steps
+
+- [Routers](/docs/core-concepts/routers) - Organize procedures
+- [Security: Public vs Internal](/docs/security/public-vs-internal) - Security model
+- [createPublicAPI](/docs/security/create-public-api) - Create client-safe API

@@ -2,3 +2,195 @@
 title: Mutations
 description: Public write operations
 ---
+
+## Overview
+
+Mutations are public write operations exposed via HTTP. They trigger cache invalidation and are used for any data modification.
+
+## Defining a Mutation
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+```
+
+## Mutation Properties
+
+### args
+
+Zod schema for input validation:
+
+```typescript
+args: z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user']).default('user'),
+})
+```
+
+### handler
+
+Async function receiving context and args:
+
+```typescript
+handler: async (ctx, args) => {
+  // ctx: { db: Database }
+  // args: { name: string; email: string }
+  const user = await ctx.db.users.create(args)
+  return ok(user)
+}
+```
+
+### Return Value
+
+Use `ok()` with `invalidate` to clear related cache:
+
+```typescript
+return ok(result, { invalidate: [['users', { id: args.id }]] })
+```
+
+## Cache Invalidation
+
+Mutations automatically invalidate cache keys:
+
+```typescript
+// src/api.ts
+import { ok } from '@deessejs/fp'
+
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string().email() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    // Invalidate the users list cache
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+```
+
+### Invalidation Patterns
+
+| Pattern | Use Case |
+|---------|----------|
+| `['users:list']` | Invalidate specific key |
+| `[['users', { id: 1 }]]` | Invalidate by composite key |
+| `['users:*']` | Wildcard invalidation |
+| `{ invalidate: [...], keys: [...] }` | Return AND invalidate |
+
+## Complete Example
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { ValidationException } from '@deessejs/server'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string().min(1).max(100),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    // Check for duplicate email
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing) {
+      return err(new ValidationException('Email already exists'))
+    }
+
+    const user = await ctx.db.users.create(args)
+
+    return ok(user, {
+      invalidate: [
+        'users:list',
+        ['users', { id: user.id }],
+      ],
+    })
+  },
+})
+
+export const appRouter = router({
+  users: router({
+    create: createUser,
+  }),
+})
+```
+
+## Error Handling
+
+Return errors using `err()`:
+
+```typescript
+handler: async (ctx, args) => {
+  if (!args.email.includes('@')) {
+    return err(new ValidationException('Invalid email'))
+  }
+
+  const user = await ctx.db.users.create(args)
+  return ok(user, { invalidate: ['users:list'] })
+}
+```
+
+## Anti-Patterns
+
+### ❌ Don't Use Mutations for Reads
+
+```typescript
+// ❌ Don't - use query for reads
+const getUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.find(args.id))
+  },
+})
+
+// ✅ Do - queries are for reads
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.find(args.id), { keys: [['users', { id: args.id }]] })
+  },
+})
+```
+
+### ❌ Don't Forget to Invalidate
+
+```typescript
+// ❌ Don't - cache not invalidated
+handler: async (ctx, args) => {
+  await ctx.db.users.update(args.id, args)
+  return ok({ success: true })
+}
+
+// ✅ Do - invalidate related cache
+handler: async (ctx, args) => {
+  await ctx.db.users.update(args.id, args)
+  return ok({ success: true }, { invalidate: [['users', { id: args.id }]] })
+}
+```
+
+## Next Steps
+
+- [Internal Procedures](/docs/core-concepts/internal-procedures) - Server-only operations
+- [Cache Invalidation](/docs/cache/cache-invalidation) - More invalidation patterns
+- [Error Handling](/docs/error-handling/result-type) - ok() and err() pattern

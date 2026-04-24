@@ -2,3 +2,271 @@
 title: Middleware
 description: Global cross-cutting concerns
 ---
+
+## Overview
+
+Middleware allows you to add global, cross-cutting concerns to your API. It runs before procedure handlers and can modify context, validate inputs, or block requests.
+
+## Creating Middleware
+
+```typescript
+// src/middleware/auth.ts
+import { createMiddleware } from '@deessejs/server'
+import { err } from '@deessejs/fp'
+import { UnauthorizedException } from '@deessejs/server'
+
+export const authMiddleware = createMiddleware({
+  name: 'auth',
+  handler: async (ctx, opts) => {
+    // Check for auth token in context
+    if (!ctx.user) {
+      return err(new UnauthorizedException('Not authenticated'))
+    }
+
+    // Continue to next middleware/handler
+    return opts.next()
+  },
+})
+```
+
+## Using Middleware
+
+Apply middleware globally to all procedures:
+
+```typescript
+// src/api.ts
+import { defineContext, t, router } from '@deessejs/server'
+
+const { createAPI } = defineContext({
+  context: () => ({ user: null }),
+})
+
+export const api = createAPI({
+  router: appRouter,
+  middleware: [authMiddleware],
+})
+```
+
+Apply middleware per-procedure using `.use()`:
+
+```typescript
+const publicQuery = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.posts.find(args.id))
+  },
+})
+
+const privateQuery = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.posts.find(args.id))
+  },
+}).use(requireAdmin)
+```
+
+## Middleware with Arguments
+
+```typescript
+// src/middleware/requireRole.ts
+import { createMiddleware } from '@deessejs/server'
+import { err } from '@deessejs/fp'
+import { ForbiddenException } from '@deessejs/server'
+
+export const requireRole = (role: 'admin' | 'moderator') =>
+  createMiddleware({
+    name: 'requireRole',
+    args: { role },
+    handler: async (ctx, opts) => {
+      if (ctx.user.role !== opts.args.role) {
+        return err(new ForbiddenException(`Requires ${opts.args.role} role`))
+      }
+      return opts.next()
+    },
+  })
+
+// Usage
+const adminOnly = t.mutation({
+  handler: async (ctx, args) => {
+    // Only admins reach here
+    return ok({ success: true })
+  },
+}).use(requireRole('admin'))
+```
+
+## Context Modification
+
+Middleware can modify the context for downstream handlers:
+
+```typescript
+const enrichContext = createMiddleware({
+  name: 'enrichContext',
+  handler: async (ctx, opts) => {
+    // Add computed properties to context
+    const enrichedCtx = {
+      ...ctx,
+     ip: getClientIP(ctx),
+     userAgent: getUserAgent(ctx),
+    }
+
+    // Pass enriched context to next handler
+    return opts.next({ ctx: enrichedCtx })
+  },
+})
+```
+
+## Multiple Middleware
+
+Middleware runs in order (first to last):
+
+```typescript
+export const api = createAPI({
+  router: appRouter,
+  middleware: [
+    corsMiddleware,     // 1. Handle CORS
+    authMiddleware,    // 2. Check authentication
+    rateLimitMiddleware, // 3. Apply rate limits
+    requireRole('admin'), // 4. Check admin role
+  ],
+})
+```
+
+## Complete Example
+
+```typescript
+// src/middleware/index.ts
+import { createMiddleware } from '@deessejs/server'
+import { err } from '@deessejs/fp'
+import { UnauthorizedException, ForbiddenException } from '@deessejs/server'
+
+// Authentication middleware
+export const auth = createMiddleware({
+  name: 'auth',
+  handler: async (ctx, opts) => {
+    if (!ctx.user) {
+      return err(new UnauthorizedException('Authentication required'))
+    }
+    return opts.next()
+  },
+})
+
+// Role check middleware
+export const requireAdmin = createMiddleware({
+  name: 'requireAdmin',
+  handler: async (ctx, opts) => {
+    if (ctx.user.role !== 'admin') {
+      return err(new ForbiddenException('Admin access required'))
+    }
+    return opts.next()
+  },
+})
+
+// Rate limiting middleware (simplified)
+export const rateLimit = createMiddleware({
+  name: 'rateLimit',
+  args: { maxRequests: 100 },
+  handler: async (ctx, opts) => {
+    const key = `ratelimit:${ctx.ip}`
+    const count = await redis.incr(key)
+
+    if (count > opts.args.maxRequests) {
+      return err(new Error('Rate limit exceeded'))
+    }
+
+    return opts.next()
+  },
+})
+```
+
+```typescript
+// src/api.ts
+import { defineContext, createAPI } from '@deessejs/server'
+import { auth, requireAdmin, rateLimit } from './middleware'
+
+const { createAPI } = defineContext({
+  context: () => ({ user: null, ip: '' }),
+})
+
+export const api = createAPI({
+  router: appRouter,
+  middleware: [
+    rateLimit({ maxRequests: 100 }),
+    auth,
+  ],
+})
+
+// Admin-only procedure
+const deleteAllUsers = t.mutation({
+  handler: async (ctx, args) => {
+    await ctx.db.users.deleteAll()
+    return ok({ success: true })
+  },
+}).use(requireAdmin)
+```
+
+## Built-in Middleware Helpers
+
+```typescript
+import { withQuery, withMutation } from '@deessejs/server/middleware/helpers'
+
+// Apply to query type
+const loggedQuery = withQuery(authMiddleware)
+
+// Apply to mutation type
+const auditedMutation = withMutation(auditMiddleware)
+```
+
+## Anti-Patterns
+
+### ❌ Don't Block in Middleware Without Error
+
+```typescript
+// ❌ Don't - silent block
+const badMiddleware = createMiddleware({
+  name: 'bad',
+  handler: async (ctx, opts) => {
+    // Just returns without next() or error
+    return
+  },
+})
+
+// ✅ Do - return error or call next
+const goodMiddleware = createMiddleware({
+  name: 'good',
+  handler: async (ctx, opts) => {
+    if (blocked) {
+      return err(new ForbiddenException('Blocked'))
+    }
+    return opts.next()
+  },
+})
+```
+
+### ❌ Don't Modify Args in Middleware
+
+```typescript
+// ❌ Don't - modifying args is confusing
+const modifyArgs = createMiddleware({
+  name: 'modifyArgs',
+  handler: async (ctx, opts) => {
+    opts.args.id = 1 // Confusing side effects
+    return opts.next()
+  },
+})
+
+// ✅ Do - use context for modifications
+const enrichContext = createMiddleware({
+  name: 'enrichContext',
+  handler: async (ctx, opts) => {
+    return opts.next({
+      ctx: { ...ctx, computed: computeFromArgs(opts.args) },
+    })
+  },
+})
+```
+
+## Next Steps
+
+- [Lifecycle Hooks](/docs/lifecycle-hooks/before-invoke) - Procedure-level hooks
+- [Context](/docs/core-concepts/context) - Context best practices
+- [Security](/docs/security/public-vs-internal) - Security model

@@ -2,3 +2,157 @@
 title: Context
 description: Define shared state for all procedures
 ---
+
+## Overview
+
+Context is the shared state passed to all procedure handlers. It allows you to inject dependencies like database connections, authentication info, or any other service your procedures need.
+
+## Defining Context
+
+Use `defineContext()` to create your context:
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+
+const { router } = defineContext({
+  context: () => ({
+    db: myDatabase,
+    auth: authService,
+  }),
+})
+```
+
+### Lazy vs Static Context
+
+**Lazy context** (recommended) - Created on each request:
+
+```typescript
+const { router } = defineContext({
+  createContext: () => ({
+    db: createDatabaseConnection(),
+  }),
+})
+```
+
+**Static context** - Same instance for all requests:
+
+```typescript
+const { router } = defineContext({
+  context: {
+    db: sharedDatabase,
+  },
+})
+```
+
+## Type Safety
+
+The context type is inferred from the factory function:
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({
+    db: myDatabase,
+    user: null as { id: string; name: string } | null,
+  }),
+})
+
+// Handler has full type inference
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    // ctx is fully typed: { db: Database; user: {...} | null }
+    const user = await ctx.db.users.find(args.id)
+    return ok(user)
+  },
+})
+```
+
+## Setting Context Per-Request
+
+Use `createContext` for per-request context (e.g., authentication):
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: {}, // Default context
+  createContext: (headers) => {
+    // Extract user from request headers
+    const token = headers.get('authorization')
+    const user = token ? verifyToken(token) : null
+    return { user }
+  },
+})
+```
+
+## Best Practices
+
+### 1. Keep Context Minimal
+
+Only include what's actually needed in handlers:
+
+```typescript
+// ❌ Don't - unnecessary dependencies
+context: () => ({
+  logger: myLogger,
+  cache: redisCache,
+  db: database,
+  config: appConfig,
+  utils: helperFunctions,
+})
+
+// ✅ Do - only what handlers need
+context: () => ({
+  db: database,
+  auth: authService,
+})
+```
+
+### 2. Use Lazy Creation for DB Connections
+
+```typescript
+// ❌ Don't - connection pool exhausted
+context: () => ({
+  db: mysql.createPool({...}), // Created once at startup
+})
+
+// ✅ Do - fresh connection per request
+createContext: () => ({
+  db: await mysql.createConnection({...}),
+})
+```
+
+### 3. Handle Missing Auth Gracefully
+
+```typescript
+createContext: (headers) => {
+  const token = headers.get('authorization')
+  return {
+    user: token ? await getUser(token) : null
+  }
+}
+```
+
+## API Reference
+
+### defineContext Config
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `context` | `Ctx` or `() => Ctx` | Static context or factory |
+| `createContext` | `(headers?) => Ctx` | Per-request context factory |
+| `plugins` | `Plugin[]` | Context extending plugins |
+| `events` | `EventRegistry` | Event definitions |
+
+## Next Steps
+
+- [Queries](/docs/core-concepts/queries) - Define read operations
+- [Mutations](/docs/core-concepts/mutations) - Define write operations
+- [Routers](/docs/core-concepts/routers) - Organize procedures into namespaces
