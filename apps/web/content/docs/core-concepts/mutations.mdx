@@ -11,17 +11,19 @@ Mutations are public write operations exposed via HTTP. You use them to modify d
 
 ## Defining a Mutation
 
-```typescript
-// src/api.ts
-import { defineContext, t } from '@deessejs/server'
-import { z } from 'zod'
-import { ok, err } from '@deessejs/fp'
-import { ValidationException } from '@deessejs/server'
+`defineContext` returns an object containing `t`. This `t` object provides procedure builders:
 
-const { router } = defineContext({
+```typescript
+const { router, t } = defineContext({
   context: () => ({ db: myDatabase }),
 })
+```
 
+### The `t.mutation()` Builder
+
+`t.mutation()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
+
+```typescript
 const createUser = t.mutation({
   args: z.object({
     name: z.string().min(1),
@@ -46,10 +48,41 @@ const createUser = t.mutation({
 })
 ```
 
-**Key points:**
-- `args` - Zod schema for input validation
-- `handler` - Async function receiving `ctx` and `args`
-- Return `ok()` with `invalidate` keys, or `err()` on failure
+**How it works:**
+
+| Part | Description |
+|------|-------------|
+| `t` | Object returned by `defineContext` with procedure builders |
+| `t.mutation()` | Higher-order function that returns a procedure |
+| `args` | Zod schema for input validation |
+| `handler` | Async function `(ctx, args) => Result` |
+| Return value | A callable procedure you can add to a router |
+
+**What you get back:**
+
+`t.mutation()` returns a procedure - a function with metadata attached. You can:
+
+1. **Register it in a router:**
+   ```typescript
+   export const appRouter = router({
+     users: router({
+       create: createUser,
+     }),
+   })
+   ```
+
+2. **Call it directly (for testing or internal use):**
+   ```typescript
+   const result = await createUser(ctx, { name: 'John', email: 'john@example.com' })
+   ```
+
+**Key differences from queries:**
+
+| Aspect | Query | Mutation |
+|--------|-------|----------|
+| Purpose | Read data | Write data |
+| Return option | `keys` for caching | `invalidate` for cache busting |
+| HTTP method | GET | POST/PATCH/DELETE |
 
 ## Mutation Properties
 

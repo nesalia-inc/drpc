@@ -11,17 +11,19 @@ Queries are public read operations exposed via HTTP. You use them to fetch data 
 
 ## Defining a Query
 
-```typescript
-// src/api.ts
-import { defineContext, t } from '@deessejs/server'
-import { z } from 'zod'
-import { ok, err } from '@deessejs/fp'
-import { NotFoundException } from '@deessejs/server'
+`defineContext` returns an object containing `t`. This `t` object provides procedure builders:
 
-const { router } = defineContext({
+```typescript
+const { router, t } = defineContext({
   context: () => ({ db: myDatabase }),
 })
+```
 
+### The `t.query()` Builder
+
+`t.query()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
+
+```typescript
 const getUser = t.query({
   args: z.object({
     id: z.number(),
@@ -38,10 +40,33 @@ const getUser = t.query({
 })
 ```
 
-**Key points:**
-- `args` - Zod schema for input validation
-- `handler` - Async function receiving `ctx` and `args`
-- Return `ok()` with cache keys, or `err()` on failure
+**How it works:**
+
+| Part | Description |
+|------|-------------|
+| `t` | Object returned by `defineContext` with procedure builders |
+| `t.query()` | Higher-order function that returns a procedure |
+| `args` | Zod schema for input validation |
+| `handler` | Async function `(ctx, args) => Result` |
+| Return value | A callable procedure you can add to a router |
+
+**What you get back:**
+
+`t.query()` returns a procedure - a function with metadata attached. You can:
+
+1. **Register it in a router:**
+   ```typescript
+   export const appRouter = router({
+     users: router({
+       get: getUser,
+     }),
+   })
+   ```
+
+2. **Call it directly (for testing or internal use):**
+   ```typescript
+   const result = await getUser(ctx, { id: 42 })
+   ```
 
 ## Query Properties
 
