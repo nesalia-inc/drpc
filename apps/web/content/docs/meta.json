@@ -11,6 +11,8 @@
     "manual-installation",
     "---Core Concepts---",
     "...core-concepts",
+    "---Events---",
+    "...events",
     "---Lifecycle Hooks---",
     "...lifecycle-hooks",
     "---Cache---",
@@ -25,8 +27,6 @@
     "...client-libraries",
     "---Guides---",
     "...guides",
-    "---Events---",
-    "...events",
     "---API Reference---",
     "...api-reference"
   ]
