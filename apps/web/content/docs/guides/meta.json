@@ -1,0 +1,12 @@
+{
+  "title": "Guides",
+  "description": "Step-by-step tutorials",
+  "icon": "BookOpen",
+  "pages": [
+    "crud-operations",
+    "authentication",
+    "real-time-updates",
+    "testing",
+    "type-safety"
+  ]
+}

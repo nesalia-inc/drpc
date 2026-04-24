@@ -1,0 +1,9 @@
+{
+  "title": "Security",
+  "description": "Security model",
+  "icon": "Lock",
+  "pages": [
+    "public-vs-internal",
+    "create-public-api"
+  ]
+}

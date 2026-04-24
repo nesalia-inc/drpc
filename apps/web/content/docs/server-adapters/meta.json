@@ -1,0 +1,10 @@
+{
+  "title": "Server Adapters",
+  "description": "Framework integrations",
+  "icon": "Server",
+  "pages": [
+    "nextjs",
+    "hono",
+    "electron"
+  ]
+}

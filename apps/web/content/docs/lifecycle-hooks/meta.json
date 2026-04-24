@@ -1,0 +1,10 @@
+{
+  "title": "Lifecycle Hooks",
+  "description": "Hooks for procedure execution",
+  "icon": "Hook",
+  "pages": [
+    "before-invoke",
+    "on-success",
+    "on-error"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "API Reference",
+  "description": "Package API references",
+  "icon": "FileCode",
+  "pages": [
+    "server",
+    "client",
+    "client-react",
+    "server-next",
+    "server-hono",
+    "server-electron"
+  ]
+}

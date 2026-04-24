@@ -4,4 +4,69 @@ description: Understand the core concepts of DeesseJS RPC
 icon: Sparkles
 ---
 
+## Overview
+
 DeesseJS RPC is a type-safe RPC protocol that enables seamless communication between clients and servers with full TypeScript inference.
+
+## Key Features
+
+- **Type Safety** - Full TypeScript inference for queries, mutations, and procedures
+- **Framework Agnostic** - Works with Next.js, Hono, Express, and more
+- **Cache System** - Built-in cache keys and automatic invalidation
+- **Security Model** - Clear separation between public and internal procedures
+- **Plugin System** - Extend context and add routes
+
+## Architecture
+
+```
+Client (@deessejs/client)
+    │
+    │  HTTP Requests
+    ▼
+Server Adapters (Next.js, Hono, etc.)
+    │
+    ▼
+@deessejs/server
+    ├── defineContext()     → Define context
+    ├── t.query()           → Public read
+    ├── t.mutation()        → Public write
+    ├── t.internalQuery()  → Server-only read
+    ├── t.internalMutation()→ Server-only write
+    ├── Middleware          → Global hooks
+    └── Event System        → Pub/sub
+```
+
+## Quick Example
+
+```typescript
+// src/api.ts
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+
+export const appRouter = router({
+  users: router({
+    get: getUser,
+  }),
+})
+
+export type AppRouter = typeof appRouter
+```
+
+## Next Steps
+
+- [Quick Start](/docs) - Get started in 5 minutes
+- [Core Concepts](/docs/core-concepts) - Learn the fundamentals
+- [Comparisons](/docs/comparisons) - How we compare to alternatives

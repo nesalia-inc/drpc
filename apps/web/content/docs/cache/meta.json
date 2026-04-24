@@ -1,0 +1,9 @@
+{
+  "title": "Cache",
+  "description": "Cache system",
+  "icon": "Database",
+  "pages": [
+    "cache-keys",
+    "cache-invalidation"
+  ]
+}

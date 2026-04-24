@@ -1,0 +1,12 @@
+{
+  "title": "Client Libraries",
+  "description": "Client implementations",
+  "icon": "Users",
+  "pages": [
+    "vanilla-client",
+    "react-hooks",
+    "query-options",
+    "mutation-options",
+    "error-boundaries"
+  ]
+}

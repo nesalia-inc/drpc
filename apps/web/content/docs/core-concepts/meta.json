@@ -1,0 +1,13 @@
+{
+  "title": "Core Concepts",
+  "description": "Learn the fundamentals of DeesseJS RPC",
+  "icon": "BookOpen",
+  "pages": [
+    "context",
+    "queries",
+    "mutations",
+    "internal-procedures",
+    "routers",
+    "middleware"
+  ]
+}

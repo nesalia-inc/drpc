@@ -4,10 +4,30 @@
   "icon": "Building",
   "root": true,
   "pages": [
-    "---Introduction---",
+    "---Getting Started---",
     "index",
     "what-is-deessejs-rpc",
     "comparisons",
-    "manual-installation"
+    "manual-installation",
+    "---Core Concepts---",
+    "...core-concepts",
+    "---Lifecycle Hooks---",
+    "...lifecycle-hooks",
+    "---Cache---",
+    "...cache",
+    "---Error Handling---",
+    "...error-handling",
+    "---Security---",
+    "...security",
+    "---Server Adapters---",
+    "...server-adapters",
+    "---Client Libraries---",
+    "...client-libraries",
+    "---Guides---",
+    "...guides",
+    "---Events---",
+    "...events",
+    "---API Reference---",
+    "...api-reference"
   ]
 }
