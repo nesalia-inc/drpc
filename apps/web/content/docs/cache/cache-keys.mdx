@@ -1,4 +1,275 @@
 ---
 title: Cache Keys
-description: Defining cache keys
+description: Defining cache keys to control what gets cached and for how long.
 ---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Cache keys are string arrays that uniquely identify the data your query returns. When you return cache keys with your result, the framework stores the data under those keys so subsequent requests can retrieve it from cache instead of hitting your database.
+
+## Overview
+
+When you define a query, you decide what gets cached by returning cache keys alongside your result. The cache system uses these keys to store, retrieve, and invalidate data automatically. Without cache keys, your query results are not cached and every request hits your database directly.
+
+The key insight is that cache keys should match the way your application accesses data. When a mutation modifies data, it uses the same keys to know which cache entries to invalidate.
+
+## Key Format
+
+A cache key is an array where the first element is the entity name and subsequent elements describe the specific item or collection. The format supports two styles:
+
+**Entity with filter** - When you need to match specific query parameters:
+
+```typescript
+['users', { id: 42 }]
+['posts', { authorId: 10, status: 'published' }]
+```
+
+**Entity with simple identifiers** - When you have a clear path through related data:
+
+```typescript
+['users', 'list']
+['users', 'count']
+['users', 42, 'posts']
+```
+
+Both formats are valid. Use the style that matches how your code structures data access.
+
+## Basic Usage
+
+To return cache keys with your result, you pass the `keys` option to the `ok()` helper from `@deessejs/fp`. The second argument to `ok()` is an options object where `keys` is an array of cache key arrays.
+
+When you fetch a single resource by an identifier, use an entity name followed by a filter object that matches how you looked up the data:
+
+```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+
+    if (!user) {
+      return err(new Error('User not found'))
+    }
+
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+```
+
+In this example, the cache key `['users', { id: args.id }]` tells the cache system: "this result is a user entity filtered by id." When the cache needs to find this entry later, it matches against the same key structure.
+
+## Multiple Keys
+
+When a single query returns data from multiple sources, you can return an array with multiple cache keys. This ensures every relevant piece of data gets cached properly.
+
+For instance, a query that lists users probably also wants the total count for pagination. Return both keys so both pieces of data get cached:
+
+```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const listUsers = t.query({
+  args: z.object({
+    limit: z.number().default(20),
+    offset: z.number().default(0),
+  }),
+  handler: async (ctx, args) => {
+    const users = await ctx.db.users.findMany({
+      limit: args.limit,
+      offset: args.offset,
+    })
+    const count = await ctx.db.users.count()
+
+    return ok(
+      { users, count },
+      {
+        keys: [
+          ['users', 'list'],
+          ['users', 'count'],
+        ],
+      }
+    )
+  },
+})
+```
+
+Now both the user list and the count are cached under their respective keys. When you later invalidate the count key, the list key remains intact, and vice versa.
+
+## Key Patterns
+
+Certain cache key patterns appear repeatedly across applications. Following these patterns makes your codebase consistent and easier to maintain.
+
+### By ID Lookup
+
+The most common pattern is looking up a single entity by its ID. Use an entity name paired with a filter object containing the ID:
+
+```typescript
+keys: [['users', { id: args.id }]]
+keys: [['posts', { id: args.postId }]]
+```
+
+### List Queries
+
+When you return a collection of entities, use a simple string key that marks it as a list:
+
+```typescript
+keys: ['users', 'list']
+keys: ['posts', 'list']
+```
+
+### Count Queries
+
+For pagination and status indicators, cache count queries separately:
+
+```typescript
+keys: ['users', 'count']
+keys: ['posts', { authorId: 5 }, 'count']
+```
+
+### Search Results
+
+When search depends on query parameters, include those parameters in the key so different searches cache independently:
+
+```typescript
+keys: ['posts', 'search', { query: 'developer', status: 'published' }]
+```
+
+### Nested Relations
+
+When accessing related data through a parent entity, include the path in the key:
+
+```typescript
+keys: ['users', args.userId, 'posts']
+keys: ['posts', args.postId, 'comments']
+```
+
+## TTL
+
+Time-to-live (TTL) controls how long a cache entry stays valid before it expires. When you need a cache entry to refresh periodically, specify a `ttl` value in milliseconds alongside your keys.
+
+Use TTL for data that changes but not frequently, such as configuration settings or aggregated statistics:
+
+```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const getConfig = t.query({
+  handler: async (ctx) => {
+    const config = await ctx.db.config.findUnique()
+
+    return ok(config, { keys: ['config'], ttl: 60000 })
+  },
+})
+```
+
+In this example, the config is cached for 60 seconds (60000ms). After that time, the next request fetches fresh data from the database and updates the cache.
+
+For data that rarely changes, a longer TTL reduces database load. For data that changes frequently, a shorter TTL ensures clients see fresher data, though at the cost of more database queries.
+
+## Anti-Patterns
+
+### Dynamic Values in Keys
+
+When constructing cache keys, avoid using values that change frequently or unpredictably. Timestamps, session IDs, and random strings make cache keys useless because they rarely match across requests.
+
+```typescript
+// Don't - timestamp changes every request
+keys: ['users', 'list', Date.now()]
+
+// Don't - session ID is unique per user session
+keys: ['session', sessionId, 'data']
+
+// Do - stable identifier
+keys: ['users', args.userId, 'preferences']
+```
+
+### Overly Specific Keys
+
+While nested keys are useful for relations, creating too many key segments makes cache management difficult and increases memory usage. Keep keys focused on the meaningful dimensions of your data.
+
+```typescript
+// Don't - too many segments, hard to invalidate
+keys: ['users', args.userId, 'posts', args.postId, 'comments', args.commentId, 'author']
+
+// Do - focus on the primary access pattern
+keys: ['users', args.userId, 'posts']
+```
+
+### Returning Keys Without Matching Invalidation
+
+When you define cache keys for a query, ensure mutations that modify the same data include those keys in their `invalidate` array. Without matching invalidation, cached data becomes stale and clients see outdated information.
+
+```typescript
+// Query defines this key
+keys: [['users', { id: args.id }]]
+
+// Mutation must invalidate the same key
+return ok(user, {
+  invalidate: [
+    ['users', { id: user.id }],
+    ['users', 'list'],
+  ],
+})
+```
+
+## Best Practices
+
+### Match Keys to Access Patterns
+
+When deciding on cache keys, think about how your application accesses data. If you query users by ID, your cache key should include the ID. If you query posts by author, include the author filter. Matching keys to access patterns maximizes cache hit rates.
+
+### Keep Keys Consistent Across Procedures
+
+Use the same key structure for the same kind of data everywhere in your codebase. If `getUser` returns `['users', { id: args.id }]`, then mutations that modify users should invalidate `['users', { id: userId }]` using the same structure.
+
+### Use Sparse Keys for Large Collections
+
+For collections that contain many items, consider caching individual items rather than the entire collection. This way, updating one item invalidates only its cache entry rather than the entire list:
+
+```typescript
+// Instead of caching the whole list as one entry
+keys: ['posts', 'list']
+
+// Cache each post individually
+keys: posts.map(post => ['posts', { id: post.id }])
+```
+
+### Consider TTL for Semi-Static Data
+
+Data that changes occasionally but not frequently benefits from a moderate TTL. User profiles, site settings, and category lists are good candidates for TTL-based caching because they reduce database load without causing stale data issues.
+
+## Reference
+
+< TypeTable
+  type={{
+    keys: {
+      description: 'Array of cache key arrays. Each key is an array where the first element is the entity name and remaining elements describe the specific entry.',
+      type: 'Array<Array<string | number | object>>',
+    },
+    ttl: {
+      description: 'Time in milliseconds before the cache entry expires. When specified, the cached data is considered stale after this duration.',
+      type: 'number',
+    },
+  }}
+/>
+
+## See Also
+
+- [Queries](/docs/core-concepts/queries) - Define read operations with caching
+- [Mutations](/docs/core-concepts/mutations) - Define write operations with cache invalidation
+- [Context](/docs/core-concepts/context) - Access dependencies in your handlers

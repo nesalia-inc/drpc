@@ -2,3 +2,139 @@
 title: Cache Invalidation
 description: Automatic invalidation
 ---
+
+# Cache Invalidation
+
+When a mutation modifies data, the corresponding cached queries become stale. The system solves this problem by allowing you to return invalidation keys alongside your mutation result. This ensures that client-side caches are automatically cleared and subsequent queries fetch fresh data.
+
+## Returning Invalidation Keys
+
+To trigger cache invalidation after a mutation, you return an `ok()` result with an `invalidate` option. This option accepts an array of key paths that should be cleared from the cache. The keys follow the same structure you use when defining queries with `t.query`.
+
+When you return `ok(value, { invalidate: [...] })`, the framework automatically clears any cached query entries matching those keys. On the client side, React components watching those keys will automatically refetch to keep the UI in sync with the server state.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+```
+
+## Invalidation Patterns
+
+The keys you invalidate depend on what data the mutation changes. A create mutation should invalidate list queries so that new items appear. An update mutation should invalidate both the specific entity and any lists that might include it. A delete mutation should invalidate the entity, its lists, and any count queries that reflected the deleted item.
+
+### Creating New Records
+
+When you create a record, you need to invalidate the list queries that would now include that record. If your list queries include pagination or filtering, you should invalidate all relevant list variations. For counts that include all records, those should also be cleared.
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create({
+      name: args.name,
+      email: args.email,
+    })
+    return ok(user, { invalidate: [['users', 'list'], ['users', 'count']] })
+  },
+})
+```
+
+### Updating Existing Records
+
+When updating a record, you must invalidate the specific entity cache so that subsequent fetches get the new data. You should also invalidate list queries that might contain the updated record, especially if the list is sorted or filtered based on fields that changed.
+
+```typescript
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.update(args.id, {
+      name: args.name,
+    })
+    return ok(user, {
+      invalidate: [['users', { id: args.id }], ['users', 'list']],
+    })
+  },
+})
+```
+
+### Deleting Records
+
+Deletion requires invalidating the most keys because you are removing data entirely. Invalidate the specific entity so that any cached copy is removed. Invalidate list queries so that the deleted item no longer appears. Invalidate count queries since the total has decreased.
+
+```typescript
+const deleteUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true }, {
+      invalidate: [
+        ['users', { id: args.id }],
+        ['users', 'list'],
+        ['users', 'count'],
+      ],
+    })
+  },
+})
+```
+
+## Key Matching
+
+The invalidation system matches keys against cached query entries using a prefix-matching strategy. When you return `['users', 'list']`, it clears all cached entries whose keys start with `['users', 'list']`. This means pagination variants like `['users', 'list', { page: 1 }]` and `['users', 'list', { page: 2 }]` are all cleared together.
+
+When you specify an entity key like `['users', { id: 5 }]`, it clears only that specific entity entry. The key structure mirrors the query key structure, so `t.query({ key: ['users', { id: 5 }], ... })` produces cache entries that `['users', { id: 5 }]` will invalidate.
+
+For list queries without entity filters, use the flat key like `['users', 'list']`. For entity-specific queries, use the object key like `['users', { id: args.id }]`. Combining both ensures both the individual record and any lists containing it are invalidated.
+
+## Common Scenarios
+
+| Scenario | Keys to Invalidate | Reason |
+|---|---|---|
+| Create a user | `['users', 'list']`, `['users', 'count']` | New record appears in lists and count increases |
+| Update a user | `['users', { id }]`, `['users', 'list']` | Entity data changes and list display updates |
+| Delete a user | `['users', { id }]`, `['users', 'list']`, `['users', 'count']` | Entity removed, list updates, count decreases |
+| Create a post | `['posts', 'list']`, `['posts', 'count']`, `['users', { id }, 'posts']` | Post appears in global lists and author's post list |
+| Update a post | `['posts', { id }]`, `['posts', 'list']` | Post entity and any lists containing it update |
+| Delete a post | `['posts', { id }]`, `['posts', 'list']`, `['posts', 'count']`, `['users', { id }, 'posts']` | All references to the post are cleared |
+
+## Client-Side Automatic Refetch
+
+When a mutation returns invalidation keys, the React SDK automatically triggers refetches for all active queries whose keys match those invalidations. You do not need to manually call refetch functions or manage loading states. Components using `useQuery` or `useInfiniteQuery` will automatically re-fetch in the background and update when fresh data arrives.
+
+This behavior works because the SDK maintains a cache registry keyed by the same key structure you use in `t.query` and invalidation paths. When the server confirms a mutation with invalidation keys, the SDK walks through its cache and enqueues refetches for all matching entries. The UI remains responsive during this process since refetches happen asynchronously without blocking rendering.
+
+If you need to manually trigger a refetch for a specific query, you can use the `invalidateQueries` function from the SDK, but in most cases the automatic invalidation handles everything you need.
+
+## Anti-Patterns
+
+Avoid invalidating keys that do not correspond to actual queries you have defined. Returning invalidation for non-existent cache entries has no effect and creates unnecessary server-side overhead. Ensure your invalidation keys exactly match the key structure your queries use.
+
+Do not return both the result and invalidation in separate steps or through multiple return statements. The invalidation option must be passed directly to `ok()` or `err()` in a single return. Splitting the return will cause the invalidation to be lost.
+
+Avoid broad invalidation when a targeted invalidation would suffice. Invalidation `['users', 'list']` clears all user list queries including every pagination variant. If your mutation only affects a subset of users, consider invalidating more specific keys to avoid triggering unnecessary refetches across your application.
+
+## Best Practices
+
+Always invalidate list queries when creating records. Users expect to see newly created items immediately without needing to refresh the page. Pair list invalidation with count invalidation when the total count would change.
+
+Invalidate the specific entity after updates so that any component holding a copy of the old data receives the updated version. This prevents stale data from persisting in component state.
+
+When deleting, invalidate entity, list, and count keys together. Deleted records should disappear from all views and the total count should reflect the removal immediately.
+
+Use consistent key structures across your queries and mutations. If a query uses a key like `['posts', 'list', { authorId: 1 }]`, your invalidation should match that pattern to properly clear the right cache entries.
+
+Group related invalidations together. When a single mutation affects multiple entity types, return all relevant keys in a single `invalidate` array rather than relying on multiple mutation handlers.
+
+Test invalidation by performing a mutation and verifying that subsequent queries produce fresh data. If a query appears to return stale data after a mutation, check that the invalidation keys exactly match the query key structure.
