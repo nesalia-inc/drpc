@@ -11,6 +11,8 @@
     "manual-installation",
     "---Core Concepts---",
     "...core-concepts",
+    "---Plugin System---",
+    "plugin-system",
     "---Events---",
     "...events",
     "---Lifecycle Hooks---",

@@ -1,0 +1,299 @@
+---
+title: Plugin System
+description: Extend your API with reusable plugins
+---
+
+## Overview
+
+The plugin system allows you to encapsulate reusable functionality and inject it into your API context. When you define a context, you can pass plugins that extend the context object available to all your handlers. This lets you share logic like authentication checks, caching layers, or database connections across multiple procedures without duplicating code.
+
+To create a plugin, you use the `plugin` function which takes a name and an extension function. The extension function receives the base context and returns an object that gets merged into the context for every handler call.
+
+The following example shows the basic pattern for creating and using a plugin that adds authentication helpers to your context.
+
+```typescript
+import { defineContext, plugin, createAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const authPlugin = plugin('auth', (ctx) => ({
+  isAuthenticated: ctx.userId !== null,
+  requireAuth: () => {
+    if (ctx.userId === null) throw new Error('Unauthorized')
+  }
+}))
+
+const { t, createAPI } = defineContext({
+  context: { userId: null },
+  plugins: [authPlugin],
+})
+
+const getProfile = t.query({
+  args: z.object({}),
+  handler: async (ctx, args) => {
+    ctx.requireAuth()
+    return ok({ userId: ctx.userId })
+  },
+})
+```
+
+## Basic Plugin Creation
+
+To build a plugin, call the `plugin` function with a unique name string and a function that receives the base context. Your extension function should return an object containing the properties you want to add to the context. These properties can be simple values, functions, or even nested objects.
+
+The plugin mechanism merges all plugin extensions into a single context object, making the added properties available to every handler in your API. This happens at request time, so each request gets its own fresh copy of the context with all plugin extensions applied.
+
+The example below demonstrates creating a plugin that injects a database connection into the context.
+
+```typescript
+import { defineContext, plugin } from '@deessejs/server'
+
+const dbPlugin = plugin('database', (ctx) => ({
+  db: {
+    query: <T>(sql: string, params: unknown[]): Promise<T[]> => {
+      return ctx.database.query(sql, params)
+    },
+    transaction: async <T>(fn: (trx: DbTransaction) => Promise<T>): Promise<T> => {
+      return ctx.database.transaction(fn)
+    },
+  },
+}))
+```
+
+## Using Plugins in defineContext
+
+When you call `defineContext`, you pass plugins through the `plugins` array in the configuration object. The plugins are applied in the order they appear in the array, and each plugin's extension function receives the context as it exists after the previous plugin has been applied. This means plugins can depend on properties added by earlier plugins in the chain.
+
+The returned object from `defineContext` includes the usual `t` for building queries and mutations, but the handlers you define will now have access to all the properties added by your plugins.
+
+The example below shows how to pass multiple plugins when defining your context.
+
+```typescript
+import { defineContext, plugin, createAPI } from '@deessejs/server'
+
+const authPlugin = plugin('auth', (ctx) => ({
+  isAuthenticated: ctx.userId !== null,
+  requireAuth: () => {
+    if (ctx.userId === null) throw new Error('Unauthorized')
+  },
+}))
+
+const cachePlugin = plugin('cache', () => ({
+  cache: {
+    get: <T>(key: string): T | undefined => {
+      return globalCache.get(key)
+    },
+    set: <T>(key: string, value: T, ttl?: number): void => {
+      globalCache.set(key, value, ttl)
+    },
+    del: (key: string): void => {
+      globalCache.delete(key)
+    },
+  },
+}))
+
+const { t, createAPI } = defineContext({
+  context: { userId: null },
+  plugins: [authPlugin, cachePlugin],
+})
+```
+
+## Plugin Execution Order
+
+Plugins execute in the order they are defined in the `plugins` array. When a handler runs, the context flows through each plugin's extension function sequentially. This means that if plugin B is listed after plugin A, the extension function for plugin B receives a context that already includes all properties added by plugin A.
+
+Understanding execution order is important when one plugin depends on another. Place plugins that others depend on earlier in the array to ensure they are available when needed. The execution order also affects how you structure properties that might be overridden by later plugins.
+
+The example below illustrates how execution order works when plugins depend on each other.
+
+```typescript
+import { defineContext, plugin } from '@deessejs/server'
+
+const contextPlugin = plugin('context', (ctx) => ({
+  requestId: Math.random().toString(36),
+}))
+
+const loggerPlugin = plugin('logger', (ctx) => ({
+  log: (message: string) => {
+    console.log(`[${ctx.requestId}] ${message}`)
+  },
+}))
+
+const { t } = defineContext({
+  context: {},
+  plugins: [contextPlugin, loggerPlugin],
+})
+```
+
+## Real Examples
+
+The following sections demonstrate practical plugins for authentication and caching that you can adapt for your own use case.
+
+### Authentication Plugin
+
+An authentication plugin typically reads user information from the incoming request and makes it available to your handlers. The plugin can also provide helper functions that handlers call to enforce authorization rules.
+
+The example below shows a plugin that extracts a user ID from request headers and provides a `requireAuth` helper to enforce authentication.
+
+```typescript
+import { defineContext, plugin, createAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const authPlugin = plugin('auth', (ctx) => {
+  const userId = ctx.headers['x-user-id'] ?? null
+
+  return {
+    isAuthenticated: userId !== null,
+    requireAuth: () => {
+      if (userId === null) throw new Error('Unauthorized')
+    },
+  }
+})
+
+const { t, createAPI } = defineContext({
+  context: { headers: {} as Record<string, string | undefined> },
+  plugins: [authPlugin],
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    ctx.requireAuth()
+    const user = await db.users.find(ctx.userId!)
+    return ok(user)
+  },
+})
+
+export const appRouter = t.router({ getUser })
+```
+
+### Cache Plugin
+
+A cache plugin provides in-memory storage that handlers can use to avoid repeated expensive operations. The plugin typically exposes `get`, `set`, and `del` methods for reading, writing, and invalidating cached values.
+
+The example below shows a simple in-memory cache plugin with TTL support.
+
+```typescript
+import { defineContext, plugin } from '@deessejs/server'
+
+interface CacheEntry<T> {
+  value: T
+  expiresAt: number | null
+}
+
+const cacheStore = new Map<string, CacheEntry<unknown>>()
+
+const cachePlugin = plugin('cache', () => ({
+  cache: {
+    get: <T>(key: string): T | undefined => {
+      const entry = cacheStore.get(key) as CacheEntry<T> | undefined
+      if (!entry) return undefined
+      if (entry.expiresAt !== null && Date.now() > entry.expiresAt) {
+        cacheStore.delete(key)
+        return undefined
+      }
+      return entry.value
+    },
+    set: <T>(key: string, value: T, ttl?: number): void => {
+      cacheStore.set(key, {
+        value,
+        expiresAt: ttl ? Date.now() + ttl * 1000 : null,
+      })
+    },
+    del: (key: string): void => {
+      cacheStore.delete(key)
+    },
+  },
+}))
+
+const { t } = defineContext({
+  context: {},
+  plugins: [cachePlugin],
+})
+```
+
+## Anti-Patterns
+
+When working with plugins, there are patterns that seem convenient but cause problems as your codebase grows. The following sections describe what you should avoid and why.
+
+### Mutating Global State
+
+Plugins should not mutate global variables or singletons directly. While it may seem practical to store cache or configuration in a global, this makes testing difficult and creates hidden dependencies that are hard to track. Instead, pass mutable state through the base context object that is created fresh for each request.
+
+The following example shows an anti-pattern where a plugin modifies global state rather than returning context extensions.
+
+```typescript
+// Anti-pattern: do not do this
+const badPlugin = plugin('bad', () => {
+  globalCache = new Map() // Mutates global state
+  return {}
+})
+```
+
+### Creating Plugins Inside Handlers
+
+Do not call `plugin` inside a handler function or any code that runs per-request. Plugin definitions belong at the module level so they are evaluated once when the module loads. Creating plugins inside handlers causes memory leaks and degrades performance because a new plugin descriptor is created on every request.
+
+The example below demonstrates this incorrect pattern.
+
+```typescript
+// Anti-pattern: do not do this
+const myHandler = t.query({
+  args: z.object({}),
+  handler: async (ctx, args) => {
+    const dynamicPlugin = plugin('dynamic', () => ({ value: 1 }))
+    // ...
+  },
+})
+```
+
+### Relying on Plugin Order for Critical Logic
+
+Avoid writing code that assumes a plugin's properties are available before they have actually been added. If you need to ensure certain properties exist, place the plugin that provides them earlier in the array. Writing logic that depends on plugin order scattered throughout your handlers creates fragile code that breaks when the plugin list is reordered.
+
+## Best Practices
+
+Following these guidelines helps you build maintainable plugins that integrate cleanly with the rest of your API.
+
+### Keep Plugins Focused
+
+Each plugin should address a single concern. If you find yourself adding unrelated functionality to one plugin, split it into multiple plugins with clearer names. Focused plugins are easier to test, document, and reuse across different projects.
+
+### Document Plugin Properties
+
+Add a clear comment above each plugin definition explaining what properties it adds to the context and what types those properties have. This documentation helps other developers understand the context shape without having to read through the plugin implementation.
+
+### Type Your Context Extensions
+
+When you return an object from a plugin's extension function, ensure the properties have explicit types. This makes the context predictable and helps TypeScript catch mistakes when handlers access plugin properties.
+
+The example below shows a well-typed plugin with documentation.
+
+```typescript
+import { defineContext, plugin } from '@deessejs/server'
+
+interface AuthContext {
+  isAuthenticated: boolean
+  requireAuth: () => void
+}
+
+const authPlugin = plugin('auth', (ctx): AuthContext => {
+  const userId = ctx.headers['x-user-id'] ?? null
+
+  return {
+    isAuthenticated: userId !== null,
+    requireAuth: () => {
+      if (userId === null) throw new Error('Unauthorized')
+    },
+  }
+})
+```
+
+### Test Plugins in Isolation
+
+Write tests for each plugin separately before combining them in `defineContext`. This approach makes it straightforward to identify bugs and verify that the plugin behaves correctly with different base contexts.
+
+### Name Plugins Consistently
+
+Use descriptive names for your plugins that reflect their purpose. Consistent naming makes it easier to discover and understand plugins when you are reviewing code or adding new ones to your context.
