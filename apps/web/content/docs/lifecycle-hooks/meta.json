@@ -4,6 +4,7 @@
   "pages": [
     "before-invoke",
     "on-success",
-    "on-error"
+    "on-error",
+    "after-invoke"
   ]
 }
