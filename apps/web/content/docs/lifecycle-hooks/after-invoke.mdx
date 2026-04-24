@@ -1,0 +1,234 @@
+---
+title: afterInvoke
+description: Run logic after your handler completes, regardless of success or failure
+---
+
+## Overview
+
+The `afterInvoke` hook runs after your handler completes, whether it succeeds or fails. Unlike `onSuccess` which only fires on success, or `onError` which only fires on error, `afterInvoke` fires in all cases. This makes it ideal for cleanup operations, final logging, metrics collection, and any behavior that should happen regardless of the outcome.
+
+The hook receives the context, the original arguments, and the full result from the handler. The result is a `Result<Output>` type, so you can inspect whether it succeeded or failed.
+
+## When to Use afterInvoke
+
+You will find `afterInvoke` useful when you need to perform operations that must happen no matter what. Common use cases include releasing resources that were allocated in `beforeInvoke`, recording final metrics regardless of success or failure, logging completion status with final outcome information, and performing cleanup that must happen even when errors occur.
+
+Unlike `onSuccess` and `onError` which are specific to their respective outcomes, `afterInvoke` gives you a single place to handle concerns that apply to both success and failure paths.
+
+## Basic Example
+
+The following example shows how to attach an `afterInvoke` hook to a query procedure. The hook logs a message after the handler completes, regardless of whether it succeeded.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ logger: console }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) {
+      return err(new Error('User not found'))
+    }
+    return ok(user)
+  }
+})
+
+const getUserWithCompletionLogging = getUser.afterInvoke((ctx, args, result) => {
+  if (result.ok) {
+    ctx.logger.info(`getUser succeeded: fetched user ${args.id}`)
+  } else {
+    ctx.logger.warn(`getUser failed: ${result.error.message} for id ${args.id}`)
+  }
+})
+```
+
+The hook receives the full `Result<Output>` type, allowing you to differentiate between success and failure within the same hook.
+
+## Cleanup Example
+
+When you allocate resources in `beforeInvoke` or within the handler, `afterInvoke` is the right place to release them. This ensures cleanup happens even when the handler throws an exception.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ tempDir: tempDirectory }),
+})
+
+const processData = t.query({
+  args: z.object({ fileId: z.string() }),
+  handler: async (ctx, args) => {
+    // Allocate a temp file for processing
+    const tempFile = ctx.tempDir.create()
+    ctx.currentTempFile = tempFile
+
+    const result = await processFile(tempFile, args.fileId)
+    return ok(result)
+  }
+})
+
+const processDataWithCleanup = processData.afterInvoke((ctx, args, result) => {
+  // Always clean up the temp file, whether succeeded or failed
+  if (ctx.currentTempFile) {
+    ctx.tempDir.delete(ctx.currentTempFile.id)
+    ctx.currentTempFile = null
+  }
+})
+```
+
+By centralizing cleanup in `afterInvoke`, you avoid repeating cleanup logic in every error path within the handler.
+
+## Metrics Collection Example
+
+When you need to record metrics for both successes and failures, `afterInvoke` gives you a single hook to handle both paths.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ metrics: metricsClient }),
+})
+
+const submitOrder = t.mutation({
+  args: z.object({ items: z.array(z.object({ id: z.number(), quantity: z.number() })) }),
+  handler: async (ctx, args) => {
+    const result = await ctx.payment.process(args.items)
+    return ok(result)
+  }
+})
+
+const submitOrderWithMetrics = submitOrder.afterInvoke((ctx, args, result) => {
+  // Record the duration (could be tracked in beforeInvoke too)
+  const duration = Date.now() - ctx.startTime
+
+  // Record metrics regardless of outcome
+  ctx.metrics.record('order.submit.duration', duration)
+
+  if (result.ok) {
+    ctx.metrics.increment('order.submit.success')
+  } else {
+    ctx.metrics.increment('order.submit.failure')
+    ctx.metrics.record('order.submit.error', { message: result.error.message })
+  }
+})
+```
+
+This pattern ensures you always get metrics data, even when errors occur, without needing separate hooks for success and failure.
+
+## Difference from onSuccess and onError
+
+The `afterInvoke` hook is different from `onSuccess` and `onError` in when it fires and what it receives:
+
+| Hook | When it runs | Arguments |
+|------|-------------|-----------|
+| `beforeInvoke` | Before the handler | `(ctx, args)` |
+| `afterInvoke` | After handler (always) | `(ctx, args, result: Result<Output>)` |
+| `onSuccess` | After successful handler | `(ctx, args, data: Output)` |
+| `onError` | After failed handler | `(ctx, args, error)` |
+
+Use `afterInvoke` when you need behavior in both success and failure paths. Use `onSuccess` or `onError` when you need behavior only in one specific path.
+
+```typescript
+const operation = t.query({ ... })
+
+// Runs on both success and failure
+operation.afterInvoke((ctx, args, result) => {
+  // result.ok === true means success, result.ok === false means error
+  ctx.logger.info(`Operation finished: ${result.ok ? 'success' : 'failure'}`)
+})
+
+// Runs only on success
+operation.onSuccess((ctx, args, data) => {
+  // Only runs when handler returns ok
+  ctx.logger.info(`Operation succeeded with data: ${data}`)
+})
+
+// Runs only on failure
+operation.onError((ctx, args, error) => {
+  // Only runs when handler returns err or throws
+  ctx.logger.error(`Operation failed: ${error.message}`)
+})
+```
+
+## Serial Execution with Other Hooks
+
+All lifecycle hooks execute in a predictable order. `beforeInvoke` runs first, then the handler, then `onSuccess` or `onError`, and finally `afterInvoke` runs last.
+
+```typescript
+const operation = t.query({ ... })
+  .beforeInvoke((ctx, args) => {
+    console.log('1. beforeInvoke')
+  })
+  .onSuccess((ctx, args, data) => {
+    console.log('2. onSuccess')
+  })
+  .onError((ctx, args, error) => {
+    console.log('2. onError')
+  })
+  .afterInvoke((ctx, args, result) => {
+    console.log('3. afterInvoke (always last)')
+  })
+```
+
+The execution flow on success: `beforeInvoke` -> handler -> `onSuccess` -> `afterInvoke`
+
+The execution flow on failure: `beforeInvoke` -> handler -> `onError` -> `afterInvoke`
+
+## Anti-Patterns
+
+The following patterns show what you should avoid with `afterInvoke`.
+
+Do not use `afterInvoke` when `onSuccess` or `onError` would be more appropriate. If you only need behavior on one specific path, use the specific hook. Reserve `afterInvoke` for behavior that genuinely needs to run on both paths.
+
+```typescript
+// Anti-pattern: Checking result.ok in afterInvoke when you could use onSuccess/onError
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => { /* ... */ }
+}).afterInvoke((ctx, args, result) => {
+  if (result.ok) {
+    // This should be in onSuccess instead
+    ctx.logger.info('User fetched successfully')
+  }
+})
+```
+
+Do not modify the result in `afterInvoke`. By the time `afterInvoke` runs, the result has already been sent to the caller. Modifying it does not affect what the caller receives.
+
+Do not throw errors in `afterInvoke`. If a hook throws, the error propagates to the caller and may cause confusing behavior. If you need to handle errors, log them instead of throwing.
+
+## Best Practices
+
+Keep `afterInvoke` focused on behavior that must happen regardless of outcome. Cleanup, final logging, and metrics are good candidates. Business logic that should only run on success belongs in `onSuccess`.
+
+```typescript
+const processPayment = t.mutation({
+  args: z.object({ orderId: z.number(), amount: z.number() }),
+  handler: async (ctx, args) => {
+    const result = await ctx.payment.charge(args.amount)
+    return ok(result)
+  }
+})
+  .afterInvoke((ctx, args, result) => {
+    // Always release the payment session resource
+    ctx.paymentSession.release()
+  })
+  .afterInvoke((ctx, args, result) => {
+    // Always record the final duration metric
+    ctx.metrics.record('payment.duration', Date.now() - ctx.startTime)
+  })
+```
+
+Design hooks to be independent of each other. Each hook should handle a single concern so that adding or removing hooks does not affect the behavior of others. This makes your code easier to test and maintain.
+
+When you need different behavior for success and failure within `afterInvoke`, prefer using separate `onSuccess` and `onError` hooks instead. Only use conditional logic inside `afterInvoke` when the behavior genuinely must share the same hook.
