@@ -1,4 +1,201 @@
 ---
 title: onSuccess
-description: Success handlers
+description: React to successful handler execution
 ---
+
+## Overview
+
+The `onSuccess` hook executes after your handler completes successfully. It receives the context, the arguments that were passed to the handler, and the result that the handler returned. This gives you full access to the outcome of the procedure, allowing you to react to successful executions without modifying the response.
+
+The hook runs only when the handler returns an `ok` result. If the handler returns an `err` or throws an exception, `onSuccess` does not fire. Use `onError` for those cases instead.
+
+## When to Use onSuccess
+
+You will use `onSuccess` when you need to perform operations that depend on the handler's output. Common scenarios include logging successful completions with response data, invalidating caches after data changes, recording metrics for successful operations, and triggering side effects that should happen only when work completes successfully.
+
+Unlike `beforeInvoke` which is about preparing for execution, `onSuccess` is about reacting to outcomes. This distinction matters because it determines which hook you should use for a given concern.
+
+## Basic Example
+
+The following example shows how to attach an `onSuccess` hook to a query. The hook logs the result after the handler returns successfully.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ logger: console }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.findUnique({ where: { id: args.id } })
+    return ok(user)
+  }
+})
+
+const getUserWithLogging = getUser.onSuccess((ctx, args, result) => {
+  ctx.logger.info(`getUser completed: user ${args.id} fetched`)
+})
+```
+
+The hook receives three parameters: the context, the original arguments, and the result value. For `ok` results, the result is the value inside the `ok` wrapper.
+
+## Audit Logging Example
+
+Audit logging is a common use case for `onSuccess`. You can record who performed what action and what the outcome was, creating an immutable record for compliance or troubleshooting.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ auditLog: auditService }),
+})
+
+const updateEmail = t.mutation({
+  args: z.object({
+    userId: z.number(),
+    newEmail: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const updated = await ctx.db.users.update({
+      where: { id: args.userId },
+      data: { email: args.newEmail },
+    })
+    return ok(updated)
+  }
+})
+
+const updateEmailWithAudit = updateEmail.onSuccess(async (ctx, args, result) => {
+  await ctx.auditLog.record({
+    userId: ctx.user.id,
+    action: 'email_updated',
+    targetUserId: args.userId,
+    previousEmail: result.previousEmail,
+    newEmail: args.newEmail,
+    timestamp: new Date(),
+  })
+})
+```
+
+This pattern captures the outcome of the mutation and persists it to an audit trail. Because `onSuccess` only runs on successful handlers, you know the audit record reflects a completed action.
+
+## Cache Invalidation Example
+
+After mutating data, you often need to invalidate cached entries so future queries return fresh data. You can do this in the handler itself, or you can centralize cache invalidation in an `onSuccess` hook.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ cache: redisClient }),
+})
+
+const createPost = t.mutation({
+  args: z.object({
+    title: z.string(),
+    content: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const post = await ctx.db.posts.create({ data: args })
+    return ok(post)
+  }
+})
+
+const createPostWithCacheInvalidation = createPost.onSuccess((ctx, args, result) => {
+  // Invalidate the list cache since a new post exists
+  ctx.cache.del('posts:list')
+  // Invalidate the user's post cache
+  ctx.cache.del(`user:${ctx.user.id}:posts`)
+})
+```
+
+By keeping cache invalidation in a hook rather than the handler, you keep the handler focused on business logic and make cache management explicit.
+
+## Multiple Hooks Chaining
+
+You can chain multiple `onSuccess` hooks to a single procedure. Each hook runs in order, and all hooks run after a successful handler execution.
+
+```typescript
+const deletePost = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const deleted = await ctx.db.posts.delete({ where: { id: args.id } })
+    return ok(deleted)
+  }
+})
+
+const deletePostWithHooks = deletePost
+  .onSuccess((ctx, args, result) => {
+    ctx.logger.info(`Post ${args.id} deleted by user ${ctx.user.id}`)
+  })
+  .onSuccess(async (ctx, args, result) => {
+    // Notify external systems
+    await ctx.notifier.notifyPostDeleted(args.id)
+  })
+  .onSuccess((ctx, args, result) => {
+    // Invalidate caches
+    ctx.cache.del(`post:${args.id}`)
+  })
+```
+
+Chaining keeps each hook small and focused, making them easier to test and reason about. You can add or remove hooks without modifying the handler or other hooks.
+
+## Anti-Patterns
+
+The following patterns show what you should avoid with `onSuccess`.
+
+Do not use `onSuccess` for error handling. If you need to react to errors, use the `onError` hook. Using `onSuccess` for error scenarios leads to awkward conditional logic inside the hook and misses the point of the separation.
+
+```typescript
+// Anti-pattern: Error handling in onSuccess
+const riskyOperation = t.query({
+  args: z.object({}),
+  handler: async (ctx, args) => {
+    if (somethingFailed) {
+      return err(new Error('Failed'))
+    }
+    return ok(result)
+  }
+}).onSuccess((ctx, args, result) => {
+  // This never runs when somethingFailed is true
+  // But you might be tempted to check result.ok here
+})
+```
+
+Do not throw errors in `onSuccess`. If a hook throws, it will cause an error in the caller. If you need to signal failure from a hook, use the `onError` hook instead.
+
+Do not modify the return value in `onSuccess`. The result has already been sent to the caller by the time the hook runs. Modifying it does not affect what the caller receives.
+
+## Best Practices
+
+Design `onSuccess` hooks to be idempotent when possible. Because hooks can run multiple times in some configurations, a hook that performs an action like sending a notification should handle the case where the action has already been performed.
+
+```typescript
+const processPayment = t.mutation({
+  args: z.object({ orderId: z.number() }),
+  handler: async (ctx, args) => {
+    // Payment processing
+    return ok(paymentResult)
+  }
+})
+
+const processPaymentWithNotifications = processPayment.onSuccess(async (ctx, args, result) => {
+  // Check if already notified to avoid duplicate notifications
+  const alreadyNotified = await ctx.db.notifications.exists({
+    orderId: args.orderId,
+    type: 'payment_success',
+  })
+  if (!alreadyNotified) {
+    await ctx.notifier.sendPaymentSuccess(args.orderId)
+  }
+})
+```
+
+Keep hooks focused on side effects that should happen after successful operations. For business logic that affects the outcome, keep it in the handler where it belongs.

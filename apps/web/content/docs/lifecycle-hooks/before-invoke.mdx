@@ -1,4 +1,153 @@
 ---
-title: Lifecycle Hooks
-description: Hooks for procedure execution
+title: beforeInvoke
+description: Run logic before your handler executes
 ---
+
+## Overview
+
+The `beforeInvoke` hook lets you execute code before your handler runs. It receives the same context and arguments that your handler will receive, giving you a chance to inspect or transform them before the main logic executes. The hook does not receive the result directly since it runs before the handler.
+
+This hook is synchronous or asynchronous depending on your needs. If you return a value from the hook, it does not affect the handler execution, but throwing an error will prevent the handler from running and propagate the error upward.
+
+## When to Use beforeInvoke
+
+You will find `beforeInvoke` useful when you need to perform operations that should happen before every call to a specific procedure. Common use cases include logging the start of a request, validating arguments that are expensive to check in the handler, or adding custom tracing information to your calls.
+
+The hook is particularly valuable when you want to centralize cross-cutting concerns that apply to specific procedures rather than globally. Unlike middleware which applies to all procedures, hooks attach to individual query or mutation definitions.
+
+## Basic Example
+
+The following example shows how to attach a `beforeInvoke` hook to a query procedure. The hook logs a message whenever the procedure is called, allowing you to track usage patterns.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ logger: console }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    ctx.logger.info(`Fetching user ${args.id}`)
+    // Handler logic here
+    return ok(user)
+  }
+})
+
+const getUserWithLogging = getUser.beforeInvoke((ctx, args) => {
+  ctx.logger.info(`beforeInvoke: getUser called with id=${args.id}`)
+})
+```
+
+In this pattern, the hook runs before the handler body executes. The context and arguments are available to your hook, but the handler's return value is not.
+
+## Validation Example
+
+You can use `beforeInvoke` to perform validation that is distinct from your handler's schema validation. While schema validation happens automatically based on your Zod schema, sometimes you need business-logic validation that depends on the context.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+const updateUser = t.mutation({
+  args: z.object({
+    id: z.number(),
+    name: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    // Handler logic
+    return ok(updatedUser)
+  }
+})
+
+const updateUserWithValidation = updateUser.beforeInvoke(async (ctx, args) => {
+  // Check if user has permission to update this record
+  const hasPermission = await ctx.db.userHasPermission(ctx.user.id, args.id)
+  if (!hasPermission) {
+    throw new Error('Unauthorized')
+  }
+})
+```
+
+When you throw an error inside a `beforeInvoke` hook, the error propagates to the caller and the handler does not execute. This makes hooks effective for early exits when preconditions are not met.
+
+## Conditional Execution
+
+Hooks can contain conditional logic that determines whether to perform an action or skip it entirely. This is useful when you want to enable or disable certain behaviors based on runtime conditions.
+
+```typescript
+const getData = t.query({
+  args: z.object({ key: z.string() }),
+  handler: async (ctx, args) => {
+    return ok(data)
+  }
+})
+
+const getDataWithConditionalLogging = getData.beforeInvoke((ctx, args) => {
+  // Only log in development environment
+  if (ctx.environment === 'development') {
+    ctx.logger.debug(`getData called with key=${args.key}`)
+  }
+})
+```
+
+You can also use conditional logic to selectively apply transformations or checks based on argument values, context state, or external conditions.
+
+## Anti-Patterns
+
+The following patterns show what you should avoid when using `beforeInvoke`.
+
+Do not use `beforeInvoke` for authentication. Authentication should be handled through middleware that applies to all procedures, not attached to individual queries. Middleware runs earlier in the pipeline and ensures that unauthenticated requests are rejected before reaching any hooks.
+
+```typescript
+// Anti-pattern: Authentication in beforeInvoke
+const getSecret = t.query({
+  args: z.object({}),
+  handler: async (ctx, args) => { /* ... */ }
+}).beforeInvoke((ctx, args) => {
+  if (!ctx.user) {
+    throw new Error('Unauthorized') // Don't do this here
+  }
+})
+
+// Correct approach: Use middleware for auth
+const router = t.router({
+  getSecret: t.query({ /* ... */ }),
+}, {
+  middlewares: [authMiddleware],
+})
+```
+
+Do not use `beforeInvoke` for response transformation. Since the hook runs before the handler, you do not have access to the response. Use `onSuccess` or `onError` hooks for post-processing results.
+
+Do not perform slow operations in `beforeInvoke` that could be handled asynchronously in the handler. Hooks should be fast to avoid adding latency to every call.
+
+## Best Practices
+
+When you design hooks, keep them focused on a single responsibility. A hook that logs and validates and tracks metrics becomes hard to maintain and test. Instead, chain multiple hooks to a procedure, each handling one concern.
+
+```typescript
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => { /* ... */ }
+})
+  .beforeInvoke((ctx, args) => {
+    ctx.logger.info(`getUser invoked with id=${args.id}`)
+  })
+  .beforeInvoke(async (ctx, args) => {
+    // Validate rate limit
+    await checkRateLimit(ctx.user.id)
+  })
+```
+
+Keep hook functions lightweight and avoid blocking I/O when possible. If you must perform I/O in a hook, ensure it is fast or consider whether the logic belongs in the handler instead.
+
+Document the purpose of custom hooks clearly so other developers understand what behavior they add to a procedure.

@@ -1,4 +1,213 @@
 ---
 title: onError
-description: Error handlers
+description: Handle errors from procedure execution
 ---
+
+## Overview
+
+The `onError` hook runs when your handler throws an exception or returns an `err` result. It receives the context, the arguments that were passed to the handler, and the error that occurred. This gives you an opportunity to react to failures, log diagnostic information, perform cleanup, or trigger alerting systems.
+
+The hook does not receive the result because no successful result exists when an error occurs. You have access to the error itself, which lets you extract information for logging or decide how to respond.
+
+## When to Use onError
+
+You will use `onError` when you need to handle failure scenarios across your procedures. Common use cases include logging errors with full context for debugging, cleaning up resources that were allocated before the error occurred, sending alerts to monitoring systems when critical failures happen, and rolling back partial operations when a handler fails mid-execution.
+
+The key distinction between `onError` and `onSuccess` is that `onError` handles the failure path. If you find yourself checking for error conditions inside `onSuccess`, that logic likely belongs in `onError` instead.
+
+## Basic Example
+
+The following example shows how to attach an `onError` hook to a query procedure. The hook logs the error details whenever the handler fails.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ logger: console }),
+})
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.findUnique({ where: { id: args.id } })
+    if (!user) {
+      return err(new Error('User not found'))
+    }
+    return ok(user)
+  }
+})
+
+const getUserWithErrorLogging = getUser.onError((ctx, args, error) => {
+  ctx.logger.error(`getUser failed: ${error.message}`, {
+    userId: args.id,
+    stack: error.stack,
+  })
+})
+```
+
+When the handler returns an `err`, the `onError` hook receives the error value. When the handler throws an exception, that exception is passed to the hook as the error parameter.
+
+## Error Logging Example
+
+Comprehensive error logging in hooks helps you diagnose issues in production. You can capture not just the error message but also the context at the time of failure, making it easier to reproduce and fix bugs.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ logger: console, requestId: generateId() }),
+})
+
+const processOrder = t.mutation({
+  args: z.object({ orderId: z.number() }),
+  handler: async (ctx, args) => {
+    const order = await ctx.db.orders.findUnique({ where: { id: args.orderId } })
+    if (!order) {
+      return err(new Error('Order not found'))
+    }
+    if (order.status !== 'pending') {
+      return err(new Error('Order cannot be processed'))
+    }
+    // Process order...
+    return ok(result)
+  }
+})
+
+const processOrderWithLogging = processOrder.onError(async (ctx, args, error) => {
+  await ctx.logger.error('Order processing failed', {
+    requestId: ctx.requestId,
+    userId: ctx.user.id,
+    orderId: args.orderId,
+    error: error.message,
+    errorCode: error.code,
+    timestamp: new Date().toISOString(),
+  })
+})
+```
+
+By structuring your error logging, you create records that can be queried and analyzed to understand failure patterns over time.
+
+## Cleanup Example
+
+When a handler fails partway through its work, you may need to clean up resources or undo partial changes. `onError` hooks provide a place to handle this cleanup consistently across your application.
+
+```typescript
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t, createAPI } = defineContext({
+  context: () => ({ tempFiles: [] }),
+})
+
+const generateReport = t.mutation({
+  args: z.object({ format: z.string() }),
+  handler: async (ctx, args) => {
+    const tempFile = await ctx.tempFiles.create()
+    try {
+      const report = await buildReport(args.format, tempFile)
+      await ctx.tempFiles.cleanup(tempFile.id)
+      return ok(report)
+    } catch (e) {
+      return err(e)
+    }
+  }
+})
+
+const generateReportWithCleanup = generateReport.onError(async (ctx, args, error) => {
+  // Clean up any temp files that were created
+  for (const tempFile of ctx.tempFiles.getAll()) {
+    await ctx.tempFiles.delete(tempFile.id)
+  }
+})
+```
+
+In this pattern, the hook ensures that temporary resources do not leak when failures occur. You centralize cleanup logic so handlers do not need to repeat it in every error path.
+
+## Difference from onSuccess
+
+The `onSuccess` and `onError` hooks serve symmetric purposes but handle different execution paths. When a handler completes successfully, `onSuccess` runs and receives the result. When a handler fails, `onError` runs and receives the error.
+
+Understanding this distinction helps you choose the right hook for each concern. If you are reacting to something that should happen on success, use `onSuccess`. If you are reacting to something that should happen on failure, use `onError`.
+
+```typescript
+const createUser = t.mutation({
+  args: z.object({ name: z.string(), email: z.string() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create({ data: args })
+    return ok(user)
+  }
+})
+
+// onSuccess: Send welcome email (happens only on success)
+const createUserWithWelcome = createUser.onSuccess(async (ctx, args, result) => {
+  await ctx.emailService.sendWelcome(result.id)
+})
+
+// onError: Log the failure (happens only on failure)
+const createUserWithErrorLogging = createUser.onError(async (ctx, args, error) => {
+  ctx.logger.error(`User creation failed: ${error.message}`)
+})
+```
+
+You can attach both hooks to the same procedure to handle both success and failure paths independently.
+
+## Anti-Patterns
+
+The following patterns show what you should avoid when using `onError`.
+
+Do not throw new errors inside `onError` hooks. If a hook throws, the error propagates to the caller and may cause confusing behavior. If you need to signal a failure from a hook, consider whether the hook should be handling the error at all.
+
+```typescript
+// Anti-pattern: Throwing in onError
+const fragileOperation = t.query({
+  args: z.object({}),
+  handler: async (ctx, args) => { /* ... */ }
+}).onError((ctx, args, error) => {
+  // Don't throw here - it complicates the error chain
+  throw new Error('Hook failed')
+})
+```
+
+Do not use `onError` for retry logic. If a handler fails, you should handle retries in the handler itself or through a separate retry mechanism. Hooks are for reacting to outcomes, not controlling flow.
+
+Do not suppress errors in `onError`. The error has already occurred and should be propagated to the caller. If you need to transform the error, do so explicitly and ensure the transformed error still reaches the caller.
+
+## Best Practices
+
+Keep `onError` hooks focused on side effects that should happen when things go wrong. Logging, cleanup, and alerting are appropriate. Business logic that depends on the success of the operation belongs in the handler.
+
+```typescript
+const transferFunds = t.mutation({
+  args: z.object({ from: z.number(), to: z.number(), amount: z.number() }),
+  handler: async (ctx, args) => {
+    // Transfer logic
+    return ok(result)
+  }
+})
+
+const transferFundsWithErrorHandling = transferFunds
+  .onError((ctx, args, error) => {
+    ctx.logger.error('Fund transfer failed', {
+      from: args.from,
+      to: args.to,
+      amount: args.amount,
+      userId: ctx.user.id,
+      error: error.message,
+    })
+  })
+  .onError(async (ctx, args, error) => {
+    // Alert the operations team for large transfers
+    if (args.amount > 10000) {
+      await ctx.alerting.alert('critical', `Large transfer failed: ${error.message}`)
+    }
+  })
+```
+
+Design hooks to be independent of each other. Each hook should handle a single concern so that adding or removing hooks does not affect the behavior of others. This makes your code easier to test and maintain.
+
+When logging errors, capture enough context to be useful for debugging without logging sensitive information that should not be exposed. Strike a balance between verbosity and security.
