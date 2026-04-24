@@ -11,9 +11,9 @@ To organize your procedures into namespaces, you use the router to group related
 
 ```typescript
 // src/api.ts
-import { defineContext, t, router } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -24,12 +24,12 @@ const getPost = t.query({ ... })
 const createPost = t.mutation({ ... })
 
 // Organize into a router
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
     create: createUser,
   }),
-  posts: router({
+  posts: t.router({
     get: getPost,
     create: createPost,
   }),
@@ -42,12 +42,12 @@ To create deeper hierarchies, you can nest routers within routers. This allows y
 
 ```typescript
 // src/api.ts
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
     create: createUser,
     // Nested router for user-related operations
-    posts: router({
+    posts: t.router({
       getUserPosts: getUserPosts,
       createUserPost: createUserPost,
     }),
@@ -62,8 +62,8 @@ This creates routes: `users.get`, `users.create`, `users.posts.getUserPosts`, et
 The route path is determined by the router hierarchy. You can see how the nesting creates the dot-separated route names.
 
 ```typescript
-router({
-  users: router({
+t.router({
+  users: t.router({
     get: getUser,
   }),
 })
@@ -78,11 +78,11 @@ To see how all these concepts work together, here is a complete example that def
 
 ```typescript
 // src/api.ts
-import { defineContext, t, router } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok } from '@deessejs/fp'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -112,12 +112,12 @@ const getPost = t.query({
   },
 })
 
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
     create: createUser,
   }),
-  posts: router({
+  posts: t.router({
     get: getPost,
   }),
 })
@@ -161,8 +161,8 @@ To maintain clarity, you should use consistent naming conventions across your ro
 
 ```typescript
 // Do - consistent naming
-router({
-  users: router({
+t.router({
+  users: t.router({
     get: getUser,
     create: createUser,
     update: updateUser,
@@ -171,8 +171,8 @@ router({
 })
 
 // Don't - inconsistent naming
-router({
-  users: router({
+t.router({
+  users: t.router({
     fetch: getUser,
     add: createUser,
     modify: updateUser,
@@ -187,22 +187,22 @@ To keep your API logical, you should group related procedures together under the
 
 ```typescript
 // Do - related procedures grouped
-router({
-  users: router({
+t.router({
+  users: t.router({
     get: getUser,
     update: updateUser,
     delete: deleteUser,
   }),
-  posts: router({
+  posts: t.router({
     get: getPost,
     create: createPost,
   }),
 })
 
 // Don't - unrelated procedures mixed
-router({
-  users: router({ get: getUser }),
-  posts: router({ get: getPost }),
+t.router({
+  users: t.router({ get: getUser }),
+  posts: t.router({ get: getPost }),
   // Should be under users or separate category
   getEmail: getEmail,
 })
@@ -214,16 +214,16 @@ To make your API self-documenting, you should use descriptive names for your pro
 
 ```typescript
 // Do - clear intent
-router({
-  users: router({
+t.router({
+  users: t.router({
     getById: getUser,
     getByEmail: getUserByEmail,
   }),
 })
 
 // Don't - unclear
-router({
-  users: router({
+t.router({
+  users: t.router({
     g1: getUser,
     g2: getUserByEmail,
   }),
@@ -238,7 +238,7 @@ When your API grows complex, you should avoid flat routers. A hierarchical struc
 
 ```typescript
 // Don't - flat structure for complex API
-export const appRouter = router({
+export const appRouter = t.router({
   getUser: getUser,
   createUser: createUser,
   updateUser: updateUser,
@@ -249,14 +249,14 @@ export const appRouter = router({
 })
 
 // Do - hierarchical structure
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
     create: createUser,
     update: updateUser,
     delete: deleteUser,
   }),
-  posts: router({
+  posts: t.router({
     get: getPost,
     create: createPost,
   }),
@@ -269,15 +269,15 @@ To keep your API readable, you should avoid abbreviations in router and procedur
 
 ```typescript
 // Don't - abbreviations
-router({
-  usr: router({ get: getUser }),
-  pst: router({ get: getPost }),
+t.router({
+  usr: t.router({ get: getUser }),
+  pst: t.router({ get: getPost }),
 })
 
 // Do - full words
-router({
-  users: router({ get: getUser }),
-  posts: router({ get: getPost }),
+t.router({
+  users: t.router({ get: getUser }),
+  posts: t.router({ get: getPost }),
 })
 ```
 

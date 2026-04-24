@@ -20,10 +20,10 @@ To create a server-only read operation, use `t.internalQuery()`. This demonstrat
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { ok } from '@deessejs/fp'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -144,7 +144,7 @@ Internal procedures are excluded from the public API by design. This example sho
 // Public API (createPublicAPI) only exports query and mutation
 // internalQuery and internalMutation are excluded
 
-export const api = createPublicAPI({
+export const api = createAPI({
   router: appRouter,
 })
 // Only users.get, users.create, etc. are exposed

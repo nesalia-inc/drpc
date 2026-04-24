@@ -40,11 +40,11 @@ Server Adapters (Next.js, Hono, etc.)
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok } from '@deessejs/fp'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -56,8 +56,8 @@ const getUser = t.query({
   },
 })
 
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
   }),
 })

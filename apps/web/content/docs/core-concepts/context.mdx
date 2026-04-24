@@ -17,7 +17,7 @@ import { defineContext } from '@deessejs/server'
 
 const db = await createDatabase() // Connection created here
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: {
     db, // This exact object is the context
     auth: authService,
@@ -40,7 +40,7 @@ The lazy context (factory) approach delays initialization until `createAPI()` is
 // src/api.ts
 import { defineContext } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   createContext: () => ({
     db: myDatabase, // Connection created when API is created
     auth: authService,
@@ -83,10 +83,10 @@ The context type is fully inferred from your definitions. This example shows how
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { ok } from '@deessejs/fp'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: {
     db: myDatabase,
     user: null as { id: string; name: string } | null,
@@ -190,9 +190,9 @@ To add a database connection to your context, define it in the factory function.
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   createContext: () => ({
     db: myDatabase,
   }),
@@ -205,9 +205,9 @@ To add multiple services to your context, include each one in the context object
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: {
     db: mysqlDatabase,
     cache: redisCache,

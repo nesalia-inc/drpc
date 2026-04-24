@@ -35,9 +35,9 @@ You can apply middleware globally to all procedures or per-procedure. The exampl
 
 ```typescript
 // src/api.ts
-import { defineContext, t, router } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 
-const { createAPI } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ user: null }),
 })
 
@@ -128,10 +128,10 @@ const enrichContext = createMiddleware({
 When you use multiple middleware, they run in order from first to last. Each middleware can either pass control to the next or block the request:
 
 ```typescript
-import { defineContext, createAPI } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { corsMiddleware, authMiddleware, rateLimitMiddleware, requireRole } from './middleware'
 
-const { createAPI } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ user: null, ip: '' }),
 })
 
@@ -197,10 +197,10 @@ export const rateLimit = createMiddleware({
 
 ```typescript
 // src/api.ts
-import { defineContext, createAPI } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { auth, requireAdmin, rateLimit } from './middleware'
 
-const { createAPI } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ user: null, ip: '' }),
 })
 

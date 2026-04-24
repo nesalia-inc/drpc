@@ -68,10 +68,10 @@ npm install @deessejs/server
 
     ```typescript
     // src/api.ts
-    import { defineContext, t } from '@deessejs/server'
+    import { defineContext } from '@deessejs/server'
     import { z } from 'zod'
 
-    const { router } = defineContext({
+    const { t, createAPI } = defineContext({
       context: () => ({ db: myDatabase }),
     })
     ```
@@ -117,8 +117,8 @@ npm install @deessejs/server
 
     ```typescript
     // src/api.ts
-    export const appRouter = router({
-      users: router({
+    export const appRouter = t.router({
+      users: t.router({
         get: getUser,
         create: createUser,
       }),

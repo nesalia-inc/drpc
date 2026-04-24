@@ -14,7 +14,7 @@ When you call `defineContext`, it returns an object containing `t`. This `t` obj
 ```typescript title="api.ts"
 import { defineContext } from '@deessejs/server'
 
-const { router, t } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 ```
@@ -24,12 +24,12 @@ const { router, t } = defineContext({
 The `t.query()` function is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
 import { NotFoundException } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -65,8 +65,8 @@ The `t.query()` function returns a procedure - a function with metadata attached
 
 1. **Register it in a router:**
    ```typescript title="api.ts"
-   export const appRouter = router({
-     users: router({
+   export const appRouter = t.router({
+     users: t.router({
        get: getUser,
      }),
    })
@@ -113,12 +113,12 @@ The `keys` option tells the cache system which entries to store or retrieve:
 The example below shows a full queries implementation with `getUser` and `listUsers`. You can see how to structure query definitions, handle errors with `err()`, and return typed results with cache keys:
 
 ```typescript title="api.ts"
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
 import { NotFoundException } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -164,8 +164,8 @@ const listUsers = t.query({
   },
 })
 
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     get: getUser,
     list: listUsers,
   }),

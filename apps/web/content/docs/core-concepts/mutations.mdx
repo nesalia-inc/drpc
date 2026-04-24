@@ -14,7 +14,7 @@ When you call `defineContext`, it returns an object containing `t`. This `t` obj
 ```typescript title="api.ts"
 import { defineContext } from '@deessejs/server'
 
-const { router, t } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 ```
@@ -24,12 +24,12 @@ const { router, t } = defineContext({
 To define a mutation, you use the `t.mutation()` function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
 import { ValidationException } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -73,8 +73,8 @@ The `t.mutation()` function returns a procedure - a function with metadata attac
 
 1. **Register it in a router:**
    ```typescript title="api.ts"
-   export const appRouter = router({
-     users: router({
+   export const appRouter = t.router({
+     users: t.router({
        create: createUser,
      }),
    })
@@ -171,12 +171,12 @@ return ok({ success: true }, {
 The following example shows a full mutations implementation with createUser, updateUser, and deleteUser. You can see how each mutation returns the appropriate cache keys to invalidate:
 
 ```typescript title="api.ts"
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
 import { ValidationException, NotFoundException } from '@deessejs/server'
 
-const { router } = defineContext({
+const { t, createAPI } = defineContext({
   context: () => ({ db: myDatabase }),
 })
 
@@ -254,8 +254,8 @@ const deleteUser = t.mutation({
   },
 })
 
-export const appRouter = router({
-  users: router({
+export const appRouter = t.router({
+  users: t.router({
     create: createUser,
     update: updateUser,
     delete: deleteUser,
