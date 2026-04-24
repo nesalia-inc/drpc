@@ -1,6 +1,6 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import './global.css';
-import { GeistSans } from 'geist/font/sans';
+import { GeistSans } from 'next/font/google';
 
 const geistSans = GeistSans({
   subsets: ['latin'],
