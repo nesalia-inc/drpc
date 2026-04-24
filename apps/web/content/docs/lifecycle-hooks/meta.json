@@ -3,8 +3,8 @@
   "description": "Hooks for procedure execution",
   "pages": [
     "before-invoke",
+    "after-invoke",
     "on-success",
-    "on-error",
-    "after-invoke"
+    "on-error"
   ]
 }
