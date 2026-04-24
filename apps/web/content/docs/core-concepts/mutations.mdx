@@ -12,6 +12,8 @@ Mutations are public write operations exposed via HTTP. You use them to modify d
 When you call `defineContext`, it returns an object containing `t`. This `t` object provides procedure builders:
 
 ```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+
 const { router, t } = defineContext({
   context: () => ({ db: myDatabase }),
 })
@@ -22,6 +24,15 @@ const { router, t } = defineContext({
 The `t.mutation()` function is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { ValidationException } from '@deessejs/server'
+
+const { router } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
 const createUser = t.mutation({
   args: z.object({
     name: z.string().min(1),

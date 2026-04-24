@@ -50,6 +50,10 @@ export const api = createAPI({
 Apply middleware per-procedure using `.use()`:
 
 ```typescript
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
 const publicQuery = t.query({
   args: z.object({ id: z.number() }),
   handler: async (ctx, args) => {
@@ -101,6 +105,8 @@ const adminOnly = t.mutation({
 Middleware can modify the context for downstream handlers:
 
 ```typescript
+import { createMiddleware } from '@deessejs/server'
+
 const enrichContext = createMiddleware({
   name: 'enrichContext',
   handler: async (ctx, opts) => {
@@ -122,6 +128,13 @@ const enrichContext = createMiddleware({
 Middleware runs in order (first to last):
 
 ```typescript
+import { defineContext, createAPI } from '@deessejs/server'
+import { corsMiddleware, authMiddleware, rateLimitMiddleware, requireRole } from './middleware'
+
+const { createAPI } = defineContext({
+  context: () => ({ user: null, ip: '' }),
+})
+
 export const api = createAPI({
   router: appRouter,
   middleware: [
@@ -225,6 +238,10 @@ const auditedMutation = withMutation(auditMiddleware)
 ### Don't Block in Middleware Without Error
 
 ```typescript
+import { createMiddleware } from '@deessejs/server'
+import { err } from '@deessejs/fp'
+import { ForbiddenException } from '@deessejs/server'
+
 // Don't - silent block
 const badMiddleware = createMiddleware({
   name: 'bad',
@@ -249,6 +266,8 @@ const goodMiddleware = createMiddleware({
 ### Don't Modify Args in Middleware
 
 ```typescript
+import { createMiddleware } from '@deessejs/server'
+
 // Don't - modifying args is confusing
 const modifyArgs = createMiddleware({
   name: 'modifyArgs',

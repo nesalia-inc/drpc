@@ -12,6 +12,8 @@ Queries are public read operations exposed via HTTP. You use them to fetch data 
 When you call `defineContext`, it returns an object containing `t`. This `t` object provides procedure builders:
 
 ```typescript title="api.ts"
+import { defineContext } from '@deessejs/server'
+
 const { router, t } = defineContext({
   context: () => ({ db: myDatabase }),
 })
@@ -22,6 +24,11 @@ const { router, t } = defineContext({
 The `t.query()` function is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
 ```typescript title="api.ts"
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+import { NotFoundException } from '@deessejs/server'
+
 const getUser = t.query({
   args: z.object({
     id: z.number(),
@@ -166,6 +173,10 @@ export const appRouter = router({
 ### Don't Use Queries for Writes
 
 ```typescript
+import { defineContext, t } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
 // Don't - queries should not modify data
 const updateUser = t.query({
   args: z.object({ id: z.number(), name: z.string() }),
