@@ -11,7 +11,7 @@ Mutations are public write operations exposed via HTTP. You use them to modify d
 
 `defineContext` returns an object containing `t`. This `t` object provides procedure builders:
 
-```typescript title="src/api.ts"
+```typescript title="api.ts"
 const { router, t } = defineContext({
   context: () => ({ db: myDatabase }),
 })
@@ -21,7 +21,7 @@ const { router, t } = defineContext({
 
 `t.mutation()` is a higher-order function. It takes a definition object with `args` and `handler`, and returns a procedure you can call or register in a router:
 
-```typescript title="src/api.ts"
+```typescript title="api.ts"
 const createUser = t.mutation({
   args: z.object({
     name: z.string().min(1),
@@ -61,7 +61,7 @@ const createUser = t.mutation({
 `t.mutation()` returns a procedure - a function with metadata attached. You can:
 
 1. **Register it in a router:**
-   ```typescript title="src/api.ts"
+   ```typescript title="api.ts"
    export const appRouter = router({
      users: router({
        create: createUser,
@@ -117,7 +117,7 @@ The `invalidate` option tells the cache system which entries to clear:
 
 Mutations automatically clear cache entries you specify. This ensures clients get fresh data on their next query.
 
-```typescript title="src/api.ts"
+```typescript title="api.ts"
 const createUser = t.mutation({
   args: z.object({ name: z.string(), email: z.string().email() }),
   handler: async (ctx, args) => {
@@ -161,7 +161,7 @@ return ok({ success: true }, {
 
 ## Complete Example
 
-```typescript title="src/api.ts"
+```typescript title="api.ts"
 import { defineContext, t } from '@deessejs/server'
 import { z } from 'zod'
 import { ok, err } from '@deessejs/fp'
