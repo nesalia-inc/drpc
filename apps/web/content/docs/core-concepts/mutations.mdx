@@ -5,7 +5,7 @@ description: Public write operations
 
 import { TypeTable } from 'fumadocs-ui/components/type-table'
 
-Mutations are public write operations exposed via HTTP. You use them to modify data. When data changes, you must invalidate related cache keys so clients see fresh data on their next query.
+Mutations modify data in your API. They are exposed as HTTP POST/PATCH/DELETE endpoints and automatically invalidate related cache entries so clients see fresh data. Use mutations for any operation that creates, updates, or deletes data.
 
 ## Defining a Mutation
 
