@@ -9,43 +9,75 @@ import { TypeTable } from 'fumadocs-ui/components/type-table'
 
 Context is the shared state passed to all procedure handlers. It allows you to inject dependencies like database connections, authentication info, or any other service your procedures need.
 
-## Two Ways to Define Context
+## Static Context
 
-### Static Context
-
-Use `context` for a static object shared across all requests:
+Use `context` when you want the exact object you provide to be used as context. Best for already-initialized dependencies like singletons or connection pools.
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
+
+const db = await createDatabase() // Connection created here
 
 const { router } = defineContext({
   context: {
-    db: myDatabase,
+    db, // This exact object is the context
     auth: authService,
   },
 })
 ```
 
-### Lazy Context (Factory)
+**When to use:**
+- Your dependencies are already initialized (singletons, pools)
+- You want simpler, more readable code
+- The context doesn't need any setup logic
 
-Use `createContext` for lazy initialization - the factory is called once when the API is created:
+You pass an object directly. No function call happens - the reference is stored as-is.
+
+## Lazy Context (Factory)
+
+Use `createContext` when you want the factory to run only when `createAPI()` is called, not at module load time. Best for delaying expensive initialization.
 
 ```typescript
 // src/api.ts
-import { defineContext, t } from '@deessejs/server'
+import { defineContext } from '@deessejs/server'
 
 const { router } = defineContext({
   createContext: () => ({
-    db: myDatabase,
+    db: myDatabase, // Connection created when API is created
     auth: authService,
   }),
 })
 ```
 
-<Callout type="warn" title="Important Limitation">
-Despite the type signature suggesting per-request context, `createContext` is currently called **once** at API creation time, not per-request. The `requestInfo` parameter is defined but never passed. All requests share the same context instance.
-</Callout>
+**When to use:**
+- You want to delay expensive initialization until the API starts
+- You need setup logic (async initialization, validation)
+- You want to keep initialization logic near the API definition
+
+You pass a factory function that runs once when `createAPI()` is invoked. This delays resource creation until the API is actually initialized.
+
+## Initialization Timing
+
+Understanding when context is created:
+
+```typescript
+// src/api.ts
+const { createAPI } = defineContext({
+  createContext: () => {
+    console.log('Context created!') // This runs when createAPI() is called
+    return { db: myDatabase }
+  },
+})
+
+console.log('defineContext done') // Runs first
+
+// Context not created yet!
+export const api = createAPI({ router: appRouter })
+// NOW "Context created!" prints
+```
+
+The `createContext` factory runs when you call `createAPI()`, not when you call `defineContext()`. This is useful if you want initialization to happen at the point where the server starts, rather than at module load time.
 
 ## Type Safety
 
