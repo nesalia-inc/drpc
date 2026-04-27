@@ -156,17 +156,16 @@ Do not use `onSuccess` for error handling. If you need to react to errors, use t
 ```typescript
 // Anti-pattern: Error handling in onSuccess
 const riskyOperation = t.query({
-  args: z.object({ id: z.number() }),
+  args: z.object({}),
   handler: async (ctx, args) => {
-    const result = await ctx.db.riskyOperation(args.id)
-    if (!result.ok) {
-      return err(result.error)
+    if (somethingFailed) {
+      return err(new Error('Failed'))
     }
-    return ok(result.value)
+    return ok(result)
   }
 }).onSuccess((ctx, args, result) => {
-  // This never runs when result is an error
-  // If you find yourself checking result.ok here, use onError instead
+  // This never runs when somethingFailed is true
+  // But you might be tempted to check result.ok here
 })
 ```
 

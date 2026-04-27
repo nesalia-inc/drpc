@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev --webpack",
     "start": "next start",
-    "types:check": "next typegen && tsc --noEmit",
+    "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
+    "postinstall": "fumadocs-mdx",
     "lint": "eslint"
   },
   "dependencies": {
