@@ -4,4 +4,237 @@ description: See how DeesseJS RPC compares to tRPC, REST, and GraphQL
 icon: Scale
 ---
 
-See how DeesseJS RPC stacks up against other solutions in terms of type safety, performance, and developer experience.
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+import { Cards, Card } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+DeesseJS RPC is a modern alternative to tRPC, REST, and GraphQL. This page shows you the key differences so you can choose the right approach for your project.
+
+## Quick Comparison
+
+| Aspect | DeesseJS RPC | tRPC | REST | GraphQL |
+|--------|-------------|------|------|---------|
+| **Type Safety** | Full end-to-end | Full end-to-end | None (manual) | Full (with codegen) |
+| **API Pattern** | Query/Mutation (direct) | Procedure (chainable) | Resource-based | Schema/Query |
+| **Learning Curve** | Low | Medium | Low | High |
+| **Output Validation** | Not supported | Supported | Manual | Supported |
+| **Internal Operations** | Built-in | Manual (separate router) | N/A | N/A |
+| **Middleware** | Global via createAPI | Per-procedure via .use() | Via framework | Via resolver |
+| **Return Type** | Result<T> via ok()/err() | Direct or throw | Direct or throw | Direct or throw |
+
+## Why Not tRPC?
+
+DeesseJS RPC and tRPC solve similar problems but with different approaches.
+
+### The tRPC Pattern
+
+tRPC uses **procedures** - chainable builder objects where you add input validation, output validation, and middleware step by step:
+
+```typescript
+// tRPC - Chainable procedure builder pattern
+const userProcedure = publicProcedure
+  .input(z.object({ id: z.string() }))   // Input validation
+  .output(z.object({ name: z.string() })) // Output validation
+  .use(authMiddleware)                     // Per-procedure middleware
+  .query(({ ctx, input }) => { ... })     // Handler
+```
+
+### The DeesseJS RPC Pattern
+
+DeesseJS RPC uses **direct objects** - you define a query or mutation with args and a handler, and middleware is applied globally:
+
+```typescript
+// DeesseJS RPC - Direct query/mutation objects
+const getUser = t.query({
+  args: z.object({ id: z.string() }),   // Input validation only
+  handler: async (ctx, args) => { ... }  // Handler returns Result<T>
+})
+
+// Middleware is global, applied via createAPI()
+const api = createAPI({
+  router: t.router({ ... }),
+  middleware: [authMiddleware]
+})
+```
+
+### Key Differences
+
+| Aspect | tRPC | DeesseJS RPC |
+|--------|------|--------------|
+| **Concept** | Procedure (chainable builder) | Query/Mutation (direct object) |
+| **Input validation** | `.input()` in chain | `args` property |
+| **Output validation** | `.output()` in chain | Not supported |
+| **Middleware** | Per-procedure via `.use()` | Global via `createAPI()` |
+| **Internal ops** | Manual (separate router) | Built-in (`internalQuery`, `internalMutation`) |
+| **Lifecycle hooks** | Via middleware | Via `.beforeInvoke()`, `.onSuccess()`, `.onError()` |
+
+### Why Direct Objects?
+
+The direct object pattern simplifies your API:
+
+1. **No chaining needed** - Define your operation in one place
+2. **Handler receives `(ctx, args)` directly** - Simple and predictable
+3. **Returns `Result<T>` for explicit error handling** - No exceptions to catch
+4. **Global middleware for cross-cutting concerns** - Auth, logging, rate limiting in one place
+
+### When to Prefer tRPC
+
+tRPC might be better if you need:
+- **Output validation** - You want to validate responses before sending to client
+- **Procedure chaining** - You prefer the builder pattern for complex procedures
+- **Larger ecosystem** - tRPC has more integrations and community resources
+
+<Callout type="info">
+Both tRPC and DeesseJS RPC provide full TypeScript inference. The choice comes down to API style preference.
+</Callout>
+
+## Why Not REST?
+
+REST is a mature, widely-understood pattern. Here's why you might choose DeesseJS RPC instead.
+
+### REST Characteristics
+
+REST uses resource-based endpoints where you map HTTP methods to CRUD operations:
+
+| Method | Action | Example |
+|--------|--------|---------|
+| GET | Read | `GET /users/123` |
+| POST | Create | `POST /users` |
+| PUT/PATCH | Update | `PATCH /users/123` |
+| DELETE | Delete | `DELETE /users/123` |
+
+### Problems with REST
+
+1. **No type safety** - You write types manually or use OpenAPI codegen
+2. **Overfetching/underfetching** - Fixed response shapes can't adapt to client needs
+3. **N+1 problems** - Multiple round trips for related data
+4. **Documentation burden** - You must document endpoint behavior separately
+
+### How DeesseJS RPC Solves These
+
+```typescript
+// REST - Multiple endpoints, manual types
+const response = await fetch('/api/users/123')
+const user = response.json() // any type
+
+// DeesseJS RPC - Single API, full type inference
+const user = await client.users.get.query({ id: 123 })
+// user is typed: { id: number; name: string; email: string }
+```
+
+### When to Prefer REST
+
+REST might be better if you:
+- Have **non-TypeScript clients** that need standard HTTP
+- Work with **third-party integrations** expecting REST endpoints
+- Already have a **mature REST API** and don't want to migrate
+
+<Callout type="info">
+DeesseJS RPC can generate OpenAPI specs for REST compatibility in future versions.
+</Callout>
+
+## Why Not GraphQL?
+
+GraphQL provides flexible data fetching with a powerful query language. Here's how it compares to DeesseJS RPC.
+
+### GraphQL Characteristics
+
+GraphQL uses a schema to define types and queries, then clients request exactly the fields they need:
+
+```graphql
+# GraphQL schema
+type User {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+type Query {
+  user(id: ID!): User
+}
+
+# Client query - requests only needed fields
+query {
+  user(id: "123") {
+    name
+  }
+}
+```
+
+### Problems with GraphQL
+
+1. **Complexity** - Schema, resolvers, directives, subscriptions
+2. **N+1 solved differently** - Requires DataLoader for efficient batching
+3. **Over-engineering for simple cases** - Heavy setup for small apps
+4. **Caching complexity** - HTTP caching doesn't work well with GraphQL
+
+### How DeesseJS RPC Solves These
+
+```typescript
+// GraphQL - Multiple files, complex setup
+// schema.graphql, resolvers.ts, DataLoader.ts...
+
+// DeesseJS RPC - Single file, simple setup
+const getUser = t.query({
+  args: z.object({ id: z.string() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.find(args.id))
+  },
+})
+```
+
+### When to Prefer GraphQL
+
+GraphQL might be better if you:
+- Have **mobile clients** that need different response shapes
+- Have **many frontend teams** wanting different data shapes
+- Need **subscriptions** for real-time updates
+- Have a **very large API** with complex relationships
+
+## Security Model Comparison
+
+DeesseJS RPC has a key security advantage over tRPC when used with Next.js Server Actions.
+
+### The Server Actions Problem
+
+Next.js Server Actions are exposed via HTTP and can be called by anyone. This means you need to protect public-facing procedures.
+
+### How Each Solution Handles This
+
+| Feature | DeesseJS RPC | tRPC |
+|---------|-------------|------|
+| Public operations | `t.query()`, `t.mutation()` | All procedures |
+| Server-only operations | `t.internalQuery()`, `t.internalMutation()` | Manual (separate router) |
+| Type-safe client API | `createPublicAPI(api)` | Manual |
+
+### DeesseJS RPC's Built-in Solution
+
+```typescript
+// DeesseJS RPC - Clear separation built-in
+const getUser = t.query({ ... })                    // Public - HTTP exposed
+const createUser = t.mutation({ ... })              // Public - HTTP exposed
+const deleteUser = t.internalMutation({ ... })      // Internal - server only
+
+// Create a client-safe API automatically
+const client = createPublicAPI(api)
+
+// Server: api.users.delete() - Works
+// Client: client.users.delete() - TypeScript Error!
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/core-concepts/queries" title="Queries">
+    Learn how to define read operations in DeesseJS RPC
+  </Card>
+  <Card href="/docs/core-concepts/mutations" title="Mutations">
+    Learn how to define write operations in DeesseJS RPC
+  </Card>
+  <Card href="/docs/core-concepts/internal-procedures" title="Internal Procedures">
+    Learn about server-only operations
+  </Card>
+  <Card href="/docs/security/public-vs-internal" title="Security">
+    Understand the security model
+  </Card>
+</Cards>
