@@ -1,4 +1,322 @@
 ---
 title: Public vs Internal
-description: Security model
+description: Understand how DeesseJS RPC separates public and internal operations for security
+icon: Shield
 ---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+import { Cards, Card } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+When you expose an API over HTTP, every operation is potentially callable by anyone. DeesseJS RPC solves this with a clear separation between **public** and **internal** operations.
+
+## The Problem with Server Actions
+
+Next.js Server Actions are exposed via HTTP by default. This means anyone on the internet can call them, even if they're meant only for server-side use.
+
+For example, if you have a "delete all users" function as a Server Action, it's callable from anywhere unless you explicitly protect it.
+
+## How DeesseJS RPC Solves This
+
+DeesseJS RPC gives you four operation types with built-in security boundaries:
+
+| Operation Type | Exposed via HTTP | Callable from Server | Use Case |
+|---------------|------------------|---------------------|----------|
+| `t.query()` | Yes | Yes | Public read operations |
+| `t.mutation()` | Yes | Yes | Public write operations |
+| `t.internalQuery()` | No | Yes | Server-only read operations |
+| `t.internalMutation()` | No | Yes | Server-only write operations |
+
+This means you can explicitly mark sensitive operations as internal, and they will never be exposed over HTTP.
+
+## Defining Operations
+
+### Public Query
+
+Use `t.query()` for operations you want clients to call:
+
+```typescript
+// src/api.ts
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Public - callable from anywhere via HTTP
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    return ok(user, { keys: [['users', { id: args.id }]] })
+  },
+})
+```
+
+### Public Mutation
+
+Use `t.mutation()` for public write operations:
+
+```typescript
+// src/api.ts
+// Public - callable from anywhere via HTTP
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+```
+
+### Internal Query
+
+Use `t.internalQuery()` for server-only read operations:
+
+```typescript
+// src/api.ts
+// Internal - NEVER exposed via HTTP
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    // This runs only on the server
+    const stats = await ctx.db.query(`
+      SELECT COUNT(*) as count FROM users
+    `)
+    return ok(stats)
+  },
+})
+```
+
+### Internal Mutation
+
+Use `t.internalMutation()` for server-only write operations:
+
+```typescript
+// src/api.ts
+// Internal - NEVER exposed via HTTP
+const deleteAllUsers = t.internalMutation({
+  handler: async (ctx) => {
+    // This runs only on the server
+    await ctx.db.users.deleteAll()
+    return ok({ success: true }, { invalidate: ['users:*'] })
+  },
+})
+```
+
+## Why This Matters
+
+### Without Internal Operations
+
+Imagine you have a "delete user" operation that should only be callable from an admin panel:
+
+```typescript
+// Without internal operations - DANGEROUS
+const deleteUser = t.mutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    // Anyone can call this over HTTP!
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true })
+  },
+})
+```
+
+This mutation is exposed via HTTP, meaning anyone can delete users.
+
+### With Internal Operations
+
+```typescript
+// With internal operations - SECURE
+const deleteUser = t.internalMutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx) => {
+    // Only callable from server-side code
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true }, { invalidate: ['users:*'] })
+  },
+})
+```
+
+This internal mutation can only be called from server code - it's never exposed over HTTP.
+
+## Complete Example
+
+Here's how you might structure a user management API with both public and internal operations:
+
+```typescript
+// src/api.ts
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// ============================================
+// PUBLIC OPERATIONS - Exposed via HTTP
+// ============================================
+
+// Query - anyone can read users
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    // Only return safe public fields, not sensitive data
+    return ok({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    }, { keys: [['users', { id: args.id }]] })
+  },
+})
+
+// Query - anyone can list users
+const listUsers = t.query({
+  args: z.object({
+    limit: z.number().default(20),
+    offset: z.number().default(0),
+  }),
+  handler: async (ctx, args) => {
+    const users = await ctx.db.users.findMany({
+      limit: args.limit,
+      offset: args.offset,
+    })
+    return ok(users, { keys: ['users:list'] })
+  },
+})
+
+// Mutation - anyone can create accounts (but you should add auth!)
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string().min(8),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing) {
+      return err({ code: 'DUPLICATE', message: 'Email already exists' })
+    }
+    const user = await ctx.db.users.create(args)
+    return ok({ id: user.id, email: user.email }, {
+      invalidate: ['users:list', ['users', { id: user.id }]]
+    })
+  },
+})
+
+// ============================================
+// INTERNAL OPERATIONS - Server only
+// ============================================
+
+// Internal Query - admin stats never exposed
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    return ok({
+      totalUsers: await ctx.db.users.count(),
+      revenue: await ctx.db.orders.sum(),
+    })
+  },
+})
+
+// Internal Mutation - delete only callable from server
+const deleteUser = t.internalMutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true }, {
+      invalidate: [['users', { id: args.id }], 'users:list']
+    })
+  },
+})
+
+// Export router with type
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    list: listUsers,
+    create: createUser,
+    // Admin-only operations
+    delete: deleteUser,
+    getAdminStats,
+  }),
+})
+
+export type AppRouter = typeof appRouter
+```
+
+## Anti-Patterns
+
+### Don't Use Public Operations for Sensitive Actions
+
+```typescript
+// ❌ Don't - sensitive action exposed to HTTP
+const resetPassword = t.mutation({
+  args: z.object({ email: z.string().email() }),
+  handler: async (ctx, args) => {
+    await ctx.auth.sendResetEmail(args.email)
+    return ok({ sent: true })
+  },
+})
+
+// ✅ Do - mark sensitive operations as internal
+const resetPassword = t.internalMutation({
+  args: z.object({ email: z.string().email() }),
+  handler: async (ctx, args) => {
+    await ctx.auth.sendResetEmail(args.email)
+    return ok({ sent: true })
+  },
+})
+```
+
+### Don't Return Sensitive Data from Public Operations
+
+```typescript
+// ❌ Don't - exposes sensitive data
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    return ok(await ctx.db.users.findFull(args.id)) // Full record with password hash!
+  },
+})
+
+// ✅ Do - return only public fields
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    return ok({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      // No password, no internal notes, no sensitive data
+    })
+  },
+})
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/security/create-public-api" title="createPublicAPI">
+    Create a client-safe API that only exposes public operations
+  </Card>
+  <Card href="/docs/core-concepts/queries" title="Queries">
+    Learn how to define read operations
+  </Card>
+  <Card href="/docs/core-concepts/mutations" title="Mutations">
+    Learn how to define write operations
+  </Card>
+  <Card href="/docs/core-concepts/internal-procedures" title="Internal Procedures">
+    Learn more about internal operations
+  </Card>
+</Cards>

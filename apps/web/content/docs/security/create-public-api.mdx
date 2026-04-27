@@ -1,4 +1,320 @@
 ---
 title: createPublicAPI
-description: Client-safe API only
+description: Create a client-safe API that only exposes public operations
+icon: Lock
 ---
+
+import { Cards, Card } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+When you have internal operations mixed with public ones in your router, you need a way to expose only the public operations to clients. `createPublicAPI` creates a separate API object that only includes `query` and `mutation` operations - TypeScript will error if you try to call internal operations on it.
+
+## The Problem
+
+Imagine your router has both public and internal operations:
+
+```typescript
+// src/api.ts
+import { defineContext } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Public operations
+const getUser = t.query({ ... })
+const createUser = t.mutation({ ... })
+
+// Internal operations - server only!
+const deleteUser = t.internalMutation({ ... })
+const getAdminStats = t.internalQuery({ ... })
+
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+    delete: deleteUser,        // Should NOT be exposed to clients
+    getAdminStats: getAdminStats, // Should NOT be exposed to clients
+  }),
+})
+
+export type AppRouter = typeof appRouter
+```
+
+If you give this router directly to clients, they could technically call internal operations (though they're not exposed via HTTP, the types allow it). This is a type safety issue.
+
+## The Solution
+
+Use `createPublicAPI` to create a client-safe version of your API:
+
+```typescript
+// src/api.ts
+import { defineContext, createPublicAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Public operations
+const getUser = t.query({ ... })
+const createUser = t.mutation({ ... })
+
+// Internal operations
+const deleteUser = t.internalMutation({ ... })
+const getAdminStats = t.internalQuery({ ... })
+
+// Full API for server use
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+    delete: deleteUser,
+    getAdminStats,
+  }),
+})
+
+// Public API for clients - only includes query and mutation
+export const clientRouter = createPublicAPI(appRouter)
+
+export type AppRouter = typeof appRouter
+export type ClientRouter = typeof clientRouter
+```
+
+## How It Works
+
+`createPublicAPI` filters your router and returns a new API that:
+
+1. **Includes only `query` and `mutation` operations** - Internal operations are removed
+2. **Preserves all public operations** - Your `getUser` and `createUser` remain accessible
+3. **Provides TypeScript safety** - Trying to call internal operations causes a compile error
+
+```typescript
+// Server code - can use everything
+import { appRouter } from './api'
+
+// This works - internal operations are available
+await appRouter.users.delete({ id: 1 })
+await appRouter.users.getAdminStats({})
+
+// Client code - restricted to public only
+import { clientRouter } from './api'
+
+// This works - query and mutation are available
+const user = await clientRouter.users.get.query({ id: 1 })
+await clientRouter.users.create.mutation({ name: 'John', email: 'john@example.com' })
+
+// This causes a TypeScript error - internal operations removed!
+// await clientRouter.users.delete({ id: 1 }) // Error!
+// await clientRouter.users.getAdminStats.query({}) // Error!
+```
+
+## Usage Example
+
+Here's a complete example showing how to set up both server and client APIs:
+
+### 1. Define Your Operations
+
+```typescript
+// src/api.ts
+import { defineContext, createPublicAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// ============================================
+// PUBLIC OPERATIONS
+// ============================================
+
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    return ok({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    })
+  },
+})
+
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.users.findByEmail(args.email)
+    if (existing) {
+      return err({ code: 'DUPLICATE', message: 'Email already exists' })
+    }
+    const user = await ctx.db.users.create(args)
+    return ok({ id: user.id }, { invalidate: ['users:list'] })
+  },
+})
+
+// ============================================
+// INTERNAL OPERATIONS (Server only)
+// ============================================
+
+const deleteUser = t.internalMutation({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    await ctx.db.users.delete(args.id)
+    return ok({ success: true }, { invalidate: ['users:*'] })
+  },
+})
+
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    return ok({
+      totalUsers: await ctx.db.users.count(),
+      revenue: await ctx.db.orders.sum(),
+    })
+  },
+})
+
+// ============================================
+// EXPORT APIS
+// ============================================
+
+// Full API for server use
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+    delete: deleteUser,
+    getAdminStats,
+  }),
+})
+
+// Public API for client use
+export const clientRouter = createPublicAPI(appRouter)
+
+export type AppRouter = typeof appRouter
+export type ClientRouter = typeof clientRouter
+```
+
+### 2. Use on Server
+
+```typescript
+// app/admin/page.tsx (Server Component)
+import { appRouter } from '@/api'
+
+export default async function AdminPage() {
+  // Works - internal operations available on server
+  const stats = await appRouter.users.getAdminStats({})
+
+  return <Dashboard stats={stats} />
+}
+```
+
+### 3. Use on Client
+
+```typescript
+// src/lib/client.ts
+import { createClient } from '@deessejs/client-react'
+import { httpBatchLink } from '@deessejs/client'
+import type { ClientRouter } from '@/api'
+
+export const client = createClient<ClientRouter>({
+  links: [httpBatchLink({ url: '/api' })],
+})
+```
+
+```typescript
+// app/components/UserList.tsx
+import { client } from '@/lib/client'
+
+async function createUser(data: { name: string; email: string }) {
+  // Works - createUser is a public mutation
+  const result = await client.users.create.mutation(data)
+  if (result.ok) {
+    console.log('Created:', result.value)
+  }
+}
+
+// TypeScript error! deleteUser is internal
+// await client.users.delete.mutation({ id: 1 })
+```
+
+## Type Safety in Action
+
+The key benefit is TypeScript errors when you try to use internal operations on the client:
+
+```typescript
+// src/lib/client.ts
+import type { ClientRouter } from '@/api'
+
+export const client = createClient<ClientRouter>({
+  links: [httpBatchLink({ url: '/api' })],
+})
+
+// These work fine
+client.users.get.query({ id: 1 })
+client.users.create.mutation({ name: 'John', email: 'john@example.com' })
+
+// TypeScript errors - internal operations removed
+// Property 'delete' does not exist on 'ClientRouter.users'
+// client.users.delete.mutation({ id: 1 })
+
+// Property 'getAdminStats' does not exist on 'ClientRouter.users'
+// client.users.getAdminStats.query({})
+```
+
+## Why Not Just Use Two Routers?
+
+You could create completely separate routers for public and internal operations:
+
+```typescript
+// Alternative approach - two separate routers
+const publicRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+  }),
+})
+
+const internalRouter = t.router({
+  users: t.router({
+    delete: deleteUser,
+    getAdminStats,
+  }),
+})
+```
+
+This works but has downsides:
+
+1. **Duplication** - You define operations twice
+2. **Sync issues** - You might forget to add operations to both
+3. **Shared context** - You need to configure both routers separately
+
+`createPublicAPI` avoids these problems by deriving the public API from your full API automatically.
+
+<Callout type="info">
+The internal operations still exist on `appRouter` - they're just not available on `clientRouter`. You can still use them from server-side code.
+</Callout>
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/security/public-vs-internal" title="Public vs Internal">
+    Understand the security model behind public and internal operations
+  </Card>
+  <Card href="/docs/core-concepts/queries" title="Queries">
+    Learn how to define read operations
+  </Card>
+  <Card href="/docs/core-concepts/mutations" title="Mutations">
+    Learn how to define write operations
+  </Card>
+  <Card href="/docs/core-concepts/internal-procedures" title="Internal Procedures">
+    Learn more about internal operations
+  </Card>
+</Cards>
