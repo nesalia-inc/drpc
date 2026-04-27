@@ -33,23 +33,16 @@ function isMutationMethod(method: string): boolean {
  * - Empty strings remain empty strings (not coerced to 0)
  * - Everything else → string
  */
-function coerceQueryParams(query: Record<string, string[]>): Record<string, unknown> {
-  const coerced: Record<string, unknown> = {};
-  for (const [key, values] of Object.entries(query)) {
-    const value = values[0]; // Take first value from array (Hono returns string[])
-    if (value === 'true' || value === '1') {
-      coerced[key] = true;
-    } else if (value === 'false' || value === '0') {
-      coerced[key] = false;
-    } else if (value !== '' && !isNaN(Number(value))) {
-      // Guard against empty string to prevent "" → 0 coercion bug
-      coerced[key] = Number(value);
-    } else {
-      coerced[key] = value;
-    }
-  }
-  return coerced;
-}
+const coerceQueryParams = (query: Record<string, string[]>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(query).map(([key, values]) => {
+      const value = values[0];
+      if (value === 'true' || value === '1') return [key, true];
+      if (value === 'false' || value === '0') return [key, false];
+      if (value !== '' && !isNaN(Number(value))) return [key, Number(value)];
+      return [key, value];
+    })
+  );
 
 /**
  * Gets a procedure function from the client proxy using a dot-separated path

@@ -42,24 +42,18 @@ export class FetchTransport implements Transport {
     if (method === 'GET' && args && typeof args === 'object' && Object.keys(args).length > 0) {
       const searchParams = new URLSearchParams();
 
-      for (const [key, value] of Object.entries(args as Record<string, unknown>)) {
+      Object.entries(args).forEach(([key, value]) => {
         if (Array.isArray(value)) {
-          // Arrays: use repeat param syntax ?ids=1&ids=2&ids=3
-          for (const item of value) {
-            searchParams.append(key, String(item));
-          }
+          value.forEach(item => searchParams.append(key, String(item)));
         } else if (typeof value === 'object' && value !== null) {
-          // Nested objects cannot be serialized to URL
-          // Log warning to help users debug issues
           console.warn(
             `[deesse] Nested object "${key}" skipped in GET request. ` +
             `Use POST body for complex queries with nested objects.`
           );
-          continue;
-        } else {
+        } else if (value !== undefined) {
           searchParams.append(key, String(value));
         }
-      }
+      });
 
       return `${base}/${normalizedPath}?${searchParams}`;
     }
