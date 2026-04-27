@@ -1,4 +1,150 @@
 ---
 title: Vanilla Client
-description: client usage
+description: Use the vanilla JavaScript/TypeScript client to call your API from any environment.
 ---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+## Installation
+
+```bash
+npm install @deessejs/client
+```
+
+## Setup
+
+```typescript
+import { createClient } from '@deessejs/client'
+import { fetchTransport } from '@deessejs/client'
+
+// Create a typed client
+const client = createClient<AppRouter>({
+  transport: fetchTransport('/api'),
+})
+```
+
+## Calling Procedures
+
+### Queries (GET Requests)
+
+Queries use HTTP GET and accept arguments as URL query parameters:
+
+```typescript
+// Simple query with primitives
+const users = await client.users.list({ limit: 20, offset: 0 })
+// GET /api/users.list?limit=20&offset=0
+```
+
+### Mutations (POST Requests)
+
+Mutations use HTTP POST and send arguments as JSON body:
+
+```typescript
+// Mutation with JSON body
+const user = await client.users.create({ name: 'John', email: 'john@example.com' })
+// POST /api/users.create with JSON body
+```
+
+## Query Parameters
+
+When calling queries, arguments are sent as URL query parameters.
+
+### Type Coercion
+
+The server automatically coerces URL string values to their proper types:
+
+<TypeTable
+  type={{
+    URL_Value: {
+      description: 'Value in the URL query string',
+      type: 'string',
+    },
+    Coerced_To: {
+      description: 'JavaScript type after coercion',
+      type: 'TypeScript type',
+    },
+  }}
+/>
+
+| URL Value | Coerced To |
+|-----------|------------|
+| `"20"` | `20` (number) |
+| `"true"`, `"1"` | `true` (boolean) |
+| `"false"`, `"0"` | `false` (boolean) |
+| Other strings | `string` (passthrough) |
+
+### Arrays
+
+Arrays are serialized using repeat parameter syntax:
+
+```typescript
+const users = await client.users.list({ ids: [1, 2, 3] })
+// GET /api/users.list?ids=1&ids=2&ids=3
+```
+
+The server receives arrays as string arrays: `{ ids: ['1', '2', '3'] }`.
+
+### Complex Objects
+
+Complex nested objects cannot be serialized to URL parameters. Use a mutation with POST for complex query arguments:
+
+```typescript
+// Don't - nested objects are skipped with a warning
+const results = await client.users.search({
+  filter: { status: 'active', role: 'admin' },
+})
+
+// Do - use POST for complex queries
+const results = await client.users.search({
+  filter: { status: 'active', role: 'admin' },
+})
+// POST /api/users.search with JSON body
+```
+
+When a nested object is passed to a GET request, a warning is logged and the object is skipped.
+
+## Type Safety
+
+The client is fully type-safe. All procedure inputs and outputs are inferred from your server router:
+
+```typescript
+// TypeScript knows the exact types
+const user = await client.users.get({ id: 1 })
+// user is typed based on server return type
+
+// Autocomplete works for procedure names
+client.users.  // VS Code suggests: get, list, create, delete, etc.
+```
+
+## Request Options
+
+You can customize requests with options:
+
+```typescript
+const user = await client.users.get({ id: 1 }, {
+  method: 'GET',              // HTTP method (default varies by procedure type)
+  headers: {                 // Custom headers
+    'Authorization': 'Bearer token',
+  },
+})
+```
+
+## Error Handling
+
+The client returns a result object with `ok` boolean:
+
+```typescript
+const result = await client.users.get({ id: 999 })
+
+if (result.ok) {
+  console.log(result.value) // Typed user object
+} else {
+  console.error(result.error) // Error details
+}
+```
+
+## Next Steps
+
+- [React Hooks](/docs/client-libraries/react-hooks) - Use the client with React
+- [Query Options](/docs/client-libraries/query-options) - Configure query behavior
+- [Mutations](/docs/core-concepts/mutations) - Define write operations

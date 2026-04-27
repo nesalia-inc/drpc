@@ -25,6 +25,26 @@ function isMutationMethod(method: string): boolean {
 }
 
 /**
+ * Coerces URL query string values to primitive types.
+ * Mirrors tRPC OpenAPI behavior:
+ * - "true"/"1" → true (boolean)
+ * - "false"/"0" → false (boolean)
+ * - Numeric strings → number
+ * - Empty strings remain empty strings (not coerced to 0)
+ * - Everything else → string
+ */
+const coerceQueryParams = (query: Record<string, string[]>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(query).map(([key, values]) => {
+      const value = values[0];
+      if (value === 'true' || value === '1') return [key, true];
+      if (value === 'false' || value === '0') return [key, false];
+      if (value !== '' && !isNaN(Number(value))) return [key, Number(value)];
+      return [key, value];
+    })
+  );
+
+/**
  * Gets a procedure function from the client proxy using a dot-separated path
  */
 function getProcedure(client: unknown, pathParts: string[]): ((args: unknown) => Promise<Result<unknown>>) | undefined {
@@ -68,9 +88,9 @@ export function createHonoHandler(client: HTTPClient): Hono {
         args = {};
       }
     } else {
-      // For queries, parse search params
+      // For queries, parse search params with type coercion
       const queryParams = c.req.queries();
-      args = queryParams as Record<string, unknown>;
+      args = coerceQueryParams(queryParams);
     }
 
     // Get the procedure function using the proxy-based access
