@@ -1,4 +1,296 @@
 ---
 title: Hono
-description: Hono framework adapter
+description: Use DeesseJS RPC with Hono for multi-runtime support
 ---
+
+import { Cards, Card } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Hono is a lightweight, multi-runtime web framework that works on Cloudflare Workers, Vercel Edge, AWS Lambda, Bun, Deno, and Node.js. The `@deessejs/server-hono` package lets you use DeesseJS RPC with Hono as the server adapter.
+
+## Why Hono?
+
+Hono provides several advantages:
+
+- **Multi-runtime** - Run on Cloudflare Workers, Vercel Edge, AWS Lambda, Bun, Deno, Node.js
+- **Lightweight** - Under 12kB with zero dependencies
+- **Fast** - Uses RegExpRouter for ultrafast routing
+- **TypeScript** - 99.4% TypeScript with excellent type inference
+
+## Requirements
+
+- Hono 4.0+
+- TypeScript 5.0+
+
+## Installation
+
+```bash
+npm install @deessejs/server-hono
+# or
+pnpm add @deessejs/server-hono
+```
+
+## Quick Setup
+
+### 1. Define Your API
+
+```typescript
+// src/api.ts
+import { defineContext, createPublicAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Public query
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    return ok(user)
+  },
+})
+
+// Public mutation
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+
+// Internal query - not exposed via HTTP
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    return ok({ totalUsers: await ctx.db.users.count() })
+  },
+})
+
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+    getAdminStats,
+  }),
+})
+
+export const clientRouter = createPublicAPI(appRouter)
+
+export type AppRouter = typeof appRouter
+```
+
+### 2. Create the Hono App
+
+```typescript
+// src/index.ts
+import { Hono } from 'hono'
+import { createHonoHandler } from '@deessejs/server-hono'
+import { cors } from 'hono/cors'
+import { clientRouter } from './api'
+
+const app = new Hono()
+
+// Add middleware
+app.use('*', cors())
+
+// Mount DeesseJS RPC handler at /api
+app.route('/api', createHonoHandler({ router: clientRouter }))
+
+export default app
+```
+
+### 3. Run Your Server
+
+```typescript
+// For local development
+ Bun.serve({
+  port: 3000,
+  fetch: app.fetch,
+})
+
+// For production, export the handler
+export default {
+  fetch: app.fetch,
+}
+```
+
+## Multi-Runtime Deployment
+
+One of Hono's key features is running on multiple runtimes:
+
+### Cloudflare Workers
+
+```typescript
+// src/index.ts
+import { Hono } from 'hono'
+import { createHonoHandler } from '@deessejs/server-hono'
+import { clientRouter } from './api'
+
+const app = new Hono()
+
+app.route('/api', createHonoHandler({ router: clientRouter }))
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return app.fetch(request, env)
+  },
+}
+```
+
+### Vercel Edge
+
+```typescript
+// src/index.ts
+import { Hono } from 'hono'
+import { createHonoHandler } from '@deessejs/server-hono'
+import { clientRouter } from './api'
+
+const app = new Hono()
+
+app.route('/api', createHonoHandler({ router: clientRouter }))
+
+// Vercel Edge function
+export const config = { runtime: 'edge' }
+export default app.fetch
+```
+
+### AWS Lambda
+
+```typescript
+// src/index.ts
+import { Hono } from 'hono'
+import { createHonoHandler } from '@deessejs/server-hono'
+import { clientRouter } from './api'
+
+const app = new Hono()
+
+app.route('/api', createHonoHandler({ router: clientRouter }))
+
+// AWS Lambda handler
+export const handler = (event: AWSLambda.APIGatewayProxyEvent, context: AWSLambda.Context) => {
+  return app.fetch(
+    new Request(`https://${event.headers.host}${event.path}`, {
+      method: event.httpMethod,
+      headers: event.headers,
+      body: event.body,
+    }),
+    {}
+  ).then((response) => response)
+}
+```
+
+## Using Internal Operations
+
+Internal operations work from server-side code just like with Next.js:
+
+```typescript
+// Lambda handler or Cloudflare Worker
+app.post('/admin/stats', async (c) => {
+  // Internal operations work here
+  const stats = await appRouter.users.getAdminStats({})
+
+  return c.json(stats)
+})
+```
+
+<Callout type="info">
+Internal operations are NOT exposed via HTTP. They can only be called from server-side code within your handlers.
+</Callout>
+
+## With Hono Middleware
+
+You can combine DeesseJS RPC with Hono's built-in middleware:
+
+```typescript
+// src/index.ts
+import { Hono } from 'hono'
+import { createHonoHandler } from '@deessejs/server-hono'
+import { cors } from 'hono/cors'
+import { bearerAuth } from 'hono/bearer-auth'
+import { logger } from 'hono/logger'
+import { clientRouter } from './api'
+
+const app = new Hono()
+
+// Add logging
+app.use('*', logger())
+
+// Add CORS
+app.use('*', cors())
+
+// Add authentication (skip for public API)
+app.use('/api/public/*', cors())
+
+// Protected routes
+app.use('/api/admin/*', bearerAuth({ token: 'secret' }))
+
+// Mount DeesseJS RPC
+app.route('/api', createHonoHandler({ router: clientRouter }))
+
+export default app
+```
+
+## How It Works
+
+The Hono adapter creates HTTP endpoints for your operations:
+
+1. **Queries** - Accessible via GET (e.g., `GET /api/users.get?args={"id":1}`)
+2. **Mutations** - Accessible via POST (e.g., `POST /api/users.create` with body `{ "args": {...} }`)
+3. **Response format** - Always `{ ok: true, value: {...} }` or `{ ok: false, error: {...} }`
+
+## Anti-Patterns
+
+### Don't Expose Internal Operations
+
+```typescript
+// ❌ Don't - internal operations should not be in clientRouter
+app.route('/api', createHonoHandler({
+  router: appRouter // Contains internal operations!
+}))
+```
+
+```typescript
+// ✅ Do - use createPublicAPI to filter internal operations
+app.route('/api', createHonoHandler({
+  router: clientRouter // Only public operations
+}))
+```
+
+### Don't Mix Authentication Levels
+
+```typescript
+// ❌ Don't - all operations share the same auth
+app.use('/api/*', bearerAuth({ token: 'admin-token' }))
+app.route('/api', createHonoHandler({ router: clientRouter }))
+```
+
+```typescript
+// ✅ Do - split public and protected routes
+app.use('/api/public/*', cors()) // Public operations
+app.use('/api/protected/*', bearerAuth({ token: 'admin-token' })) // Protected
+app.route('/api', createHonoHandler({ router: clientRouter }))
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/core-concepts/queries" title="Queries">
+    Learn how to define read operations
+  </Card>
+  <Card href="/docs/core-concepts/mutations" title="Mutations">
+    Learn how to define write operations
+  </Card>
+  <Card href="/docs/security/public-vs-internal" title="Security">
+    Understand the security model
+  </Card>
+  <Card href="/docs/server-adapters/nextjs" title="Next.js">
+    Use DeesseJS RPC with Next.js App Router
+  </Card>
+</Cards>

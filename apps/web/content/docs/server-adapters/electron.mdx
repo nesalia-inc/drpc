@@ -1,4 +1,329 @@
 ---
 title: Electron
-description: Electron desktop app adapter
+description: Use DeesseJS RPC in Electron desktop applications
 ---
+
+import { Cards, Card } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Electron applications can use DeesseJS RPC via IPC (Inter-Process Communication). The `@deessejs/server-electron` package enables type-safe communication between the main process and renderer process.
+
+## Architecture
+
+Electron has two main processes:
+
+- **Main Process** - Node.js runtime with full OS access, manages windows
+- **Renderer Process** - Chromium-based web page with limited API access
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    MAIN PROCESS                      │
+│  ┌─────────────────────────────────────────────┐   │
+│  │            @deessejs/server                  │   │
+│  │            (Your API handlers)              │   │
+│  └─────────────────────────────────────────────┘   │
+│                         │                            │
+│                  ipcMain.handle()                    │
+└─────────────────────────┼───────────────────────────┘
+                          │ contextBridge (secure)
+┌─────────────────────────┼───────────────────────────┐
+│                   RENDERER PROCESS                   │
+│                          │                           │
+│  ┌─────────────────────────────────────────────┐   │
+│  │          window.electronAPI (preload)        │   │
+│  └─────────────────────────────────────────────┘   │
+│                          │                           │
+│  ┌─────────────────────────────────────────────┐   │
+│  │          @deessejs/client                    │   │
+│  │          (React Query + types)              │   │
+│  └─────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+## Requirements
+
+- Electron 28+
+- TypeScript 5.0+
+
+## Installation
+
+```bash
+npm install @deessejs/server-electron
+# or
+pnpm add @deessejs/server-electron
+```
+
+## Quick Setup
+
+### 1. Define Your API
+
+```typescript
+// src/main/api.ts
+import { defineContext, createPublicAPI } from '@deessejs/server'
+import { z } from 'zod'
+import { ok, err } from '@deessejs/fp'
+
+const { t } = defineContext({
+  context: () => ({ db: myDatabase }),
+})
+
+// Public query - exposed via IPC
+const getUser = t.query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.find(args.id)
+    if (!user) return err({ code: 'NOT_FOUND', message: 'User not found' })
+    return ok(user)
+  },
+})
+
+// Public mutation - exposed via IPC
+const createUser = t.mutation({
+  args: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.users.create(args)
+    return ok(user, { invalidate: ['users:list'] })
+  },
+})
+
+// Internal query - main process only, NOT exposed to renderer
+const getAdminStats = t.internalQuery({
+  handler: async (ctx) => {
+    return ok({ totalUsers: await ctx.db.users.count() })
+  },
+})
+
+export const appRouter = t.router({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+    getAdminStats,
+  }),
+})
+
+export const clientRouter = createPublicAPI(appRouter)
+
+export type AppRouter = typeof appRouter
+```
+
+### 2. Create the IPC Handler
+
+```typescript
+// src/main/index.ts
+import { app, BrowserWindow, ipcMain } from 'electron'
+import { createIpcHandler } from '@deessejs/server-electron'
+import { appRouter, clientRouter } from './api'
+
+let mainWindow: BrowserWindow
+
+app.whenReady().then(() => {
+  mainWindow = new BrowserWindow({
+    webPreferences: {
+      preload: './preload.js',
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  // Register DeesseJS RPC handler
+  createIpcHandler({
+    router: clientRouter,
+    ipcMain,
+    channel: 'drpc',
+  })
+
+  mainWindow.loadFile('./renderer/index.html')
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+```
+
+### 3. Create the Preload Script
+
+```typescript
+// preload.ts
+import { contextBridge, ipcRenderer } from 'electron'
+import { createIpcClient } from '@deessejs/server-electron/client'
+import type { AppRouter } from './api'
+
+// Create the IPC client
+const client = createIpcClient<AppRouter>({
+  invoke: (channel: string, ...args: unknown[]) =>
+    ipcRenderer.invoke(channel, ...args),
+})
+
+// Expose to renderer process
+contextBridge.exposeInMainWorld('electronAPI', {
+  drpc: client,
+})
+```
+
+### 4. Use in Renderer
+
+```typescript
+// renderer/components/UserList.tsx
+function UserList() {
+  const [userId, setUserId] = useState(1)
+
+  async function fetchUser() {
+    // Call via exposed API
+    const result = await window.electronAPI.drpc.users.get.query({ id: userId })
+
+    if (result.ok) {
+      console.log('User:', result.value)
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={fetchUser}>Fetch User</button>
+    </div>
+  )
+}
+```
+
+## Security Best Practices
+
+### Always Enable Context Isolation
+
+```typescript
+// main/index.ts
+const mainWindow = new BrowserWindow({
+  webPreferences: {
+    preload: './preload.js',
+    contextIsolation: true,   // REQUIRED
+    nodeIntegration: false,    // REQUIRED
+    sandbox: true,             // RECOMMENDED
+  },
+})
+```
+
+### Never Expose Node.js APIs Directly
+
+```typescript
+// ❌ Don't - exposes full Node.js API
+contextBridge.exposeInMainWorld('electronAPI', {
+  fs: require('fs'), // DANGEROUS!
+})
+```
+
+```typescript
+// ✅ Do - only expose what you need
+contextBridge.exposeInMainWorld('electronAPI', {
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+})
+```
+
+## Using Internal Operations
+
+Internal operations are available in the main process but not exposed to the renderer:
+
+```typescript
+// main/index.ts
+app.whenReady().then(() => {
+  // Internal operations work in main process
+  const stats = await appRouter.users.getAdminStats({})
+  console.log('Stats:', stats)
+})
+```
+
+## With React Query
+
+Combine with React Query for full-featured data fetching:
+
+```typescript
+// renderer/lib/client.ts
+import { createClient } from '@deessejs/client-react'
+import type { AppRouter } from '../main/api'
+
+// Use the electron API as the link
+export const client = createClient<AppRouter>({
+  links: [
+    // Custom link that uses window.electronAPI
+    {
+      request: async (op, forward) => {
+        const path = op.path.join('.')
+        const type = op.type
+
+        const result = await window.electronAPI.drpc[path][type].query(op.input)
+        return result
+      },
+    },
+  ],
+})
+```
+
+## How IPC Communication Works
+
+1. **Renderer calls** `window.electronAPI.drpc.users.get.query({ id: 1 })`
+2. **Preload** forwards via `ipcRenderer.invoke('drpc', { path: 'users.get', type: 'query', input: {...} })`
+3. **Main process** receives via `ipcMain.handle('drpc', ...)` and calls the handler
+4. **Response** flows back through the same channel
+
+<Callout type="info">
+Internal operations (`internalQuery`, `internalMutation`) are never exposed to the renderer. They can only be called from main process code.
+</Callout>
+
+## Performance Advantages
+
+Using IPC instead of HTTP for local Electron apps provides:
+
+- **Lower latency** - ~0.1-1ms vs ~1-5ms for localhost HTTP
+- **No serialization overhead** - Electron uses structured clone instead of JSON
+- **No network stack** - Direct process communication
+
+## Anti-Patterns
+
+### Don't Expose Raw IPC
+
+```typescript
+// ❌ Don't - raw ipcRenderer is insecure
+contextBridge.exposeInMainWorld('electronAPI', {
+  ipcRenderer, // DANGEROUS!
+})
+```
+
+```typescript
+// ✅ Do - wrap in a safe API
+contextBridge.exposeInMainWorld('electronAPI', {
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+})
+```
+
+### Don't Expose Internal Operations to Renderer
+
+```typescript
+// ❌ Don't - internal operations shouldn't reach renderer
+createIpcHandler({
+  router: appRouter, // Contains internal operations!
+})
+```
+
+```typescript
+// ✅ Do - use createPublicAPI
+createIpcHandler({
+  router: clientRouter, // Only public operations
+})
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/core-concepts/queries" title="Queries">
+    Learn how to define read operations
+  </Card>
+  <Card href="/docs/core-concepts/mutations" title="Mutations">
+    Learn how to define write operations
+  </Card>
+  <Card href="/docs/security/public-vs-internal" title="Security">
+    Understand the security model
+  </Card>
+  <Card href="/docs/server-adapters/nextjs" title="Next.js">
+    Use DeesseJS RPC with Next.js App Router
+  </Card>
+</Cards>
