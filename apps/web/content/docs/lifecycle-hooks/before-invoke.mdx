@@ -33,6 +33,7 @@ const getUser = t.query({
   handler: async (ctx, args) => {
     ctx.logger.info(`Fetching user ${args.id}`)
     // Handler logic here
+    const user = await ctx.db.users.find(args.id)
     return ok(user)
   }
 })
@@ -119,10 +120,8 @@ const getSecret = t.query({
 })
 
 // Correct approach: Use middleware for auth
-const router = t.router({
+export const appRouter = t.router({
   getSecret: t.query({ /* ... */ }),
-}, {
-  middlewares: [authMiddleware],
 })
 ```
 
