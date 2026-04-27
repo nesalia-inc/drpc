@@ -143,12 +143,10 @@ Choose your framework and install the adapter:
 
     ```typescript
     // app/api/[...route]/route.ts
-    import { createServerHandler } from '@deessejs/server-next'
-    import { appRouter } from '@/api'
+    import { createNextHandler } from '@deessejs/server-next'
+    import { clientRouter } from '@/api'
 
-    export const { api: serverApi, startServer } = createServerHandler({
-      router: appRouter,
-    })
+    export const { GET, POST, PUT, PATCH, DELETE } = createNextHandler(clientRouter)
     ```
 
     Start the development server with `npm run dev`.
@@ -160,10 +158,10 @@ Choose your framework and install the adapter:
     // src/index.ts
     import { createHonoHandler } from '@deessejs/server-hono'
     import { Hono } from 'hono'
-    import { appRouter } from './api'
+    import { clientRouter } from './api'
 
     const app = new Hono()
-    app.route('/api', createHonoHandler({ router: appRouter }))
+    app.route('/api', createHonoHandler({ router: clientRouter }))
     ```
 
     Start with `bun dev` or `npm run dev`.
