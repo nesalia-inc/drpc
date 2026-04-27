@@ -1,6 +1,13 @@
 import type { Transport, RequestOptions } from './types';
 
 /**
+ * Type guard to check if value is a plain object (not null, not array).
+ * Note: typeof null === 'object' in JavaScript, hence the null check.
+ */
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
  * Fetch-based transport implementation for making HTTP requests.
  * Uses POST by default with JSON body, and GET with query params.
  */
@@ -39,13 +46,13 @@ export class FetchTransport implements Transport {
       base = base.endsWith('/') ? base.slice(0, -1) : base;
     }
 
-    if (method === 'GET' && args && typeof args === 'object' && Object.keys(args).length > 0) {
+    if (method === 'GET' && args && isPlainObject(args) && Object.keys(args).length > 0) {
       const searchParams = new URLSearchParams();
 
       Object.entries(args).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach(item => searchParams.append(key, String(item)));
-        } else if (typeof value === 'object' && value !== null) {
+        } else if (isPlainObject(value)) {
           console.warn(
             `[deesse] Nested object "${key}" skipped in GET request. ` +
             `Use POST body for complex queries with nested objects.`
