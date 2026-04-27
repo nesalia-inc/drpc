@@ -1,6 +1,6 @@
 {
   "name": "@deessejs/server-hono",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "type": "module",
   "description": "Hono HTTP adapter for @deessejs/server",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@deessejs/server": "^1.2.0",
+    "@deessejs/server": "^1.2.1",
     "hono": "^4.0.0"
   },
   "peerDependencies": {
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@deessejs/fp": "^3.0.0",
-    "@deessejs/server": "^1.2.0",
+    "@deessejs/server": "^1.2.1",
     "@eslint/js": "^9.17.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.15.0",
