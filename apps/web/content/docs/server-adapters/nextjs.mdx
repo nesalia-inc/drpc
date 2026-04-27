@@ -88,12 +88,10 @@ Create a catch-all route that handles all RPC requests:
 
 ```typescript
 // app/api/[...route]/route.ts
-import { createServerHandler } from '@deessejs/server-next'
+import { createNextHandler } from '@deessejs/server-next'
 import { clientRouter } from '@/server/api'
 
-export const { api: serverApi, startServer } = createServerHandler({
-  router: clientRouter,
-})
+export const { GET, POST, PUT, PATCH, DELETE } = createNextHandler(clientRouter)
 ```
 
 This creates endpoints like `POST /api/users.get` and `POST /api/users.create`.
@@ -177,18 +175,18 @@ Combine DeesseJS RPC with authentication libraries like better-auth:
 
 ```typescript
 // app/api/[...route]/route.ts
-import { createServerHandler } from '@deessejs/server-next'
+import { createNextHandler } from '@deessejs/server-next'
 import { auth } from '@/lib/auth'
 import { toNextJsHandler } from 'better-auth/next-js'
 import { clientRouter } from '@/server/api'
 
 // DeesseJS RPC handler
-const drpc = createServerHandler({ router: clientRouter })
+const drpc = createNextHandler(clientRouter)
 
 // better-auth handler
 const { GET, POST } = toNextJsHandler(auth)
 
-export { GET, POST, drpc as API }
+export { GET, POST, drpc }
 ```
 
 ## How It Works
@@ -266,16 +264,14 @@ export function CreateUser() {
 
 ```typescript
 // ❌ Don't - exposes internal operations
-export const { api } = createServerHandler({
+export const { GET, POST } = createNextHandler({
   router: appRouter, // Contains internal operations!
 })
 ```
 
 ```typescript
 // ✅ Do - use createPublicAPI to filter internal operations
-export const { api } = createServerHandler({
-  router: clientRouter, // Only public operations
-})
+export const { GET, POST } = createNextHandler(clientRouter)
 ```
 
 ### Don't Use Internal Operations from Client Components
