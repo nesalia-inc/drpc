@@ -24,11 +24,11 @@ export type TypedAPIInstance<Ctx, TRoutes extends Router<Ctx, any>> = APIInstanc
 
 // PublicRouter - filters out internal queries and mutations from router type
 export type PublicRouter<TRoutes extends Router<any, any>> = {
-  readonly [K in keyof TRoutes as TRoutes[K] extends Procedure<any, any, any>
-    ? TRoutes[K] extends { type: "query" | "mutation" }
+  readonly [K in keyof TRoutes as [TRoutes[K]] extends [Procedure<any, any, any>]
+    ? [TRoutes[K]] extends [{ type: "query" | "mutation" }]
       ? K
       : never
-    : K]: TRoutes[K] extends Router<any, any>
+    : K]: [TRoutes[K]] extends [Router<any, any>]
     ? PublicRouter<TRoutes[K]>
     : TRoutes[K];
 };
