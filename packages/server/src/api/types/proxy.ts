@@ -36,12 +36,12 @@ export type DecoratedProcedure<TProc> =
 // ============================================
 
 export type DecoratedRouter<TRoutes extends Record<string, any>, Ctx = any> = {
-  [K in keyof TRoutes]: [TRoutes[K]] extends [AnyProcedure<Ctx>]
-    ? DecoratedProcedure<TRoutes[K]>  // Procedure -> callable proxy
+  [K in keyof TRoutes & string]: [TRoutes[K]] extends [{ type: string }]
+    ? DecoratedProcedure<TRoutes[K]>
     : [TRoutes[K]] extends [Record<string, any>]
-      ? DecoratedRouter<TRoutes[K], Ctx>  // Nested router -> recurse DIRECTLY!
-      : never;
-};
+      ? DecoratedRouter<TRoutes[K], Ctx>
+      : TRoutes[K];
+} & Record<string, any>;
 
 // ============================================
 // TypedAPIInstance - final type using symbol for internal access

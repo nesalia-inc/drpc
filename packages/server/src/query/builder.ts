@@ -57,7 +57,7 @@ export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
     }) as InternalMutationWithHooks<Ctx, Args, Output>;
   }
 
-  router<Routes extends Router<Ctx>>(routes: Routes): Routes {
+  router<Routes extends Record<string, any>>(routes: Routes): Routes {
     return routes;
   }
 

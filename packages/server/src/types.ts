@@ -89,8 +89,15 @@ export interface Plugin<Ctx> {
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
 }
 
-// Router type (simplified to avoid inference issues)
-export type Router<Ctx = unknown, Routes extends Record<string, any> = Record<string, any>> = Routes;
+// Router type - recursively maps routes using non-distributive conditionals
+// Uses [T] instead of T to prevent distribution over union types
+export type Router<Ctx = unknown, Routes extends Record<string, any> = Record<string, any>> = {
+  [K in keyof Routes & string]: [Routes[K]] extends [{ type: string }]
+    ? Routes[K]
+    : [Routes[K]] extends [Record<string, any>]
+      ? Router<Ctx, Routes[K]>
+      : never;
+} & Record<string, any>;
 
 export interface EventRegistry {
   [eventName: string]: {
