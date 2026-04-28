@@ -17,7 +17,8 @@ export const executeRoute = async <Ctx>(
   const { router, ctx, globalMiddleware, eventEmitter, queue, plugins, routeCache } = routeCtx;
 
   // L2: Check cache first (O(1) lookup after first resolution)
-  let procedure: Procedure<unknown, unknown, unknown> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let procedure: Procedure<any, any, any> | undefined;
   if (routeCache) {
     procedure = routeCache.get(route);
   }
@@ -37,7 +38,8 @@ export const executeRoute = async <Ctx>(
     return routeNotFound(route);
   }
 
-  const procedureCtx: ExecuteProcedureContext<Ctx, unknown, unknown> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const procedureCtx: ExecuteProcedureContext<any, unknown, unknown> = {
     procedure,
     ctx,
     args,

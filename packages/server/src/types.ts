@@ -5,28 +5,59 @@ export type { Result } from "@deessejs/fp";
 
 export type ProcedureType = "query" | "mutation" | "internalQuery" | "internalMutation";
 
-export interface BaseProcedure<Ctx, Args, Output> {
+// ============================================
+// Procedure definition with _def (like tRPC)
+// ============================================
+
+export interface ProcedureDef<Ctx, Args, Output> {
   readonly type: ProcedureType;
+  readonly $types: {
+    readonly input: Args;
+    readonly output: Output;
+  };
   readonly argsSchema?: ZodType<Args>;
   readonly handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
   readonly name?: string;
+  readonly metadata?: Record<string | symbol, unknown>;
 }
 
-export interface Query<Ctx, Args, Output> extends BaseProcedure<Ctx, Args, Output> {
-  readonly type: "query";
+// All procedure types are now a single interface with _def
+export interface AnyProcedure<Ctx = unknown, Args = unknown, Output = unknown> {
+  readonly _def: ProcedureDef<Ctx, Args, Output>;
+  readonly type: ProcedureType;
+  readonly argsSchema?: ZodType<Args>;
+  readonly handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+  // Hook methods
+  readonly beforeInvoke: (hook: BeforeInvokeHook<Ctx, Args>) => AnyProcedure<Ctx, Args, Output>;
+  readonly afterInvoke: (hook: AfterInvokeHook<Ctx, Args, Output>) => AnyProcedure<Ctx, Args, Output>;
+  readonly onSuccess: (hook: OnSuccessHook<Ctx, Args, Output>) => AnyProcedure<Ctx, Args, Output>;
+  readonly onError: (hook: OnErrorHook<Ctx, Args, Error>) => AnyProcedure<Ctx, Args, Output>;
+  readonly use: (middleware: Middleware<Ctx>) => AnyProcedure<Ctx, Args, Output>;
+  // Internal state
+  readonly _hooks: {
+    beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
+    afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
+    onSuccess?: OnSuccessHook<Ctx, Args, Output>;
+    onError?: OnErrorHook<Ctx, Args, Error>;
+  };
+  readonly _middleware: Middleware<Ctx>[];
 }
 
-export interface Mutation<Ctx, Args, Output> extends BaseProcedure<Ctx, Args, Output> {
-  readonly type: "mutation";
-}
+// Type aliases for backward compatibility
+export type Query<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+export type Mutation<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+export type InternalQuery<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+export type InternalMutation<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
 
-export interface InternalQuery<Ctx, Args, Output> extends BaseProcedure<Ctx, Args, Output> {
-  readonly type: "internalQuery";
-}
+// Convenience type for procedures without args
+export type NoArgsProcedure<Ctx, Output> = AnyProcedure<Ctx, undefined, Output>;
 
-export interface InternalMutation<Ctx, Args, Output> extends BaseProcedure<Ctx, Args, Output> {
-  readonly type: "internalMutation";
-}
+// Backward compatible Procedure type alias
+export type Procedure<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+
+// ============================================
+// Other types (unchanged)
+// ============================================
 
 export type BeforeInvokeHook<Ctx, Args> = (ctx: Ctx, args: Args) => void | Promise<void>;
 
@@ -58,20 +89,8 @@ export interface Plugin<Ctx> {
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
 }
 
-export type Router<Ctx = unknown, Routes extends Record<string, unknown> = Record<string, unknown>> = {
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  [K in keyof Routes & string]: Routes[K] extends Procedure<Ctx, infer _Args, infer _Output>
-    ? Routes[K]
-    : Routes[K] extends Record<string, unknown>
-      ? Router<Ctx, Routes[K]>
-      : never;
-};
-
-export type Procedure<Ctx, Args, Output> =
-  | Query<Ctx, Args, Output>
-  | Mutation<Ctx, Args, Output>
-  | InternalQuery<Ctx, Args, Output>
-  | InternalMutation<Ctx, Args, Output>;
+// Router type (simplified to avoid inference issues)
+export type Router<Ctx = unknown, Routes extends Record<string, any> = Record<string, any>> = Routes;
 
 export interface EventRegistry {
   [eventName: string]: {

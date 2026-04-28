@@ -1,7 +1,7 @@
 import { createPendingEventQueue } from "../../events/queue.js";
 import { isRouter, isProcedure } from "../../router/index.js";
 import  { type APIInstance, type RequestInfo, type EventEmitterAny } from "../types/api.js";
-import  { type TypedAPIInstance, type PublicRouter } from "../types/proxy.js";
+import  { type TypedAPIInstance, type PublicRouter, apiInternalSymbol } from "../types/proxy.js";
 import  { type APIInstanceState, type RouterProxyContext } from "../types/internal.js";
 import { createRouterProxy } from "./proxy.js";
 import  { type Middleware, type Plugin, type Router } from "../../types.js";
@@ -97,25 +97,33 @@ export const createAPI = <Ctx, TRoutes extends Router<Ctx>>(
   // Create a typed Proxy for the API instance
   const handler: ProxyHandler<APIInstanceState<Ctx, TRoutes>> = {
     get(target, prop) {
-      // Handle root properties (string only)
-      if (typeof prop === "string") {
-        switch (prop) {
-          case "router":
-            return target.router;
-          case "ctx":
-            return target.ctx;
-          case "plugins":
-            return target.plugins;
-          case "globalMiddleware":
-            return target.globalMiddleware;
-          case "eventEmitter":
-            return target.eventEmitter;
+      // Handle symbol access for internal properties
+      if (typeof prop === "symbol") {
+        if (prop === apiInternalSymbol) {
+          return {
+            router: target.router,
+            ctx: target.ctx,
+            plugins: target.plugins,
+            eventEmitter: target.eventEmitter,
+          };
         }
+        return undefined;
       }
 
-      // Handle special property 'getEvents'
-      if (prop === "getEvents") {
-        return () => target.eventEmitter?.getEventLog() ?? [];
+      // Handle root properties (string only)
+      switch (prop) {
+        case "router":
+          return target.router;
+        case "ctx":
+          return target.ctx;
+        case "plugins":
+          return target.plugins;
+        case "globalMiddleware":
+          return target.globalMiddleware;
+        case "eventEmitter":
+          return target.eventEmitter;
+        case "getEvents":
+          return () => target.eventEmitter?.getEventLog() ?? [];
       }
 
       // Delegate to router proxy for route access
@@ -124,7 +132,7 @@ export const createAPI = <Ctx, TRoutes extends Router<Ctx>>(
     },
   };
 
-  return new Proxy(state, handler) as TypedAPIInstance<Ctx, TRoutes>;
+  return new Proxy(state, handler) as unknown as TypedAPIInstance<Ctx, TRoutes>;
 };
 
 /**
@@ -133,7 +141,7 @@ export const createAPI = <Ctx, TRoutes extends Router<Ctx>>(
  */
 export const createPublicAPI = <Ctx, TRoutes extends Router<Ctx>>(
   api: APIInstance<Ctx, TRoutes>
-): APIInstance<Ctx, PublicRouter<TRoutes>> => {
+): TypedAPIInstance<Ctx, PublicRouter<TRoutes>> => {
   const publicRouter = filterPublicRouter(api.router);
 
   // Note: createContext is preserved from original API but called once.
@@ -145,5 +153,5 @@ export const createPublicAPI = <Ctx, TRoutes extends Router<Ctx>>(
     plugins: api.plugins,
     middleware: api.globalMiddleware,
     eventEmitter: api.eventEmitter,
-  }) as APIInstance<Ctx, PublicRouter<TRoutes>>;
+  });
 };
