@@ -36,32 +36,28 @@ export type DecoratedProcedure<TProc> =
 // ============================================
 
 export type DecoratedRouter<TRoutes extends Record<string, any>, Ctx = any> = {
-  [K in keyof TRoutes]: TRoutes[K] extends AnyProcedure<Ctx>
+  [K in keyof TRoutes]: [TRoutes[K]] extends [AnyProcedure<Ctx>]
     ? DecoratedProcedure<TRoutes[K]>  // Procedure -> callable proxy
-    : TRoutes[K] extends Record<string, any>
+    : [TRoutes[K]] extends [Record<string, any>]
       ? DecoratedRouter<TRoutes[K], Ctx>  // Nested router -> recurse DIRECTLY!
       : never;
 };
 
 // ============================================
 // TypedAPIInstance - final type using symbol for internal access
-// No intersection, routes via index signature, internals via symbol
+// Uses DecoratedRouter directly as mapped type (preserves exact keys via [K in keyof TRoutes])
+// Symbol key for internals - no index signature that creates union
 // ============================================
 
-export type TypedAPIInstance<Ctx, TRoutes extends Record<string, any>> = {
-  // For any string key (route access), return decorated procedures or nested routers
-  readonly [key: string]:
-    | DecoratedProcedure<AnyProcedure<Ctx, any, any>>
-    | DecoratedRouter<Record<string, any>, Ctx>;
-
-  // For symbol key, return internal properties
-  readonly [apiInternalSymbol]: {
-    router: TRoutes;
-    ctx: Ctx;
-    plugins: readonly Plugin<Ctx>[];
-    eventEmitter?: EventEmitterAny;
+export type TypedAPIInstance<Ctx, TRoutes extends Record<string, any>> =
+  DecoratedRouter<TRoutes, Ctx> & {
+    readonly [apiInternalSymbol]: {
+      router: TRoutes;
+      ctx: Ctx;
+      plugins: readonly Plugin<Ctx>[];
+      eventEmitter?: EventEmitterAny;
+    };
   };
-};
 
 // ============================================
 // PublicRouter - filters out internal queries and mutations from router type

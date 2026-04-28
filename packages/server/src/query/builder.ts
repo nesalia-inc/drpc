@@ -119,10 +119,25 @@ interface BaseProc<Ctx = any, Args = any, Output = any> {
 function createHookedProcedure<Ctx, Args, Output>(
   proc: BaseProc<Ctx, Args, Output>
 ): BaseProc<Ctx, Args, Output> & HookedProcedureMixin<Ctx, Args, Output> {
+  // Create _def with $types for proper type inference
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const def: any = {
+    type: proc.type,
+    $types: {
+      input: undefined as Args,
+      output: undefined as Output,
+    },
+    argsSchema: proc.argsSchema,
+    handler: proc.handler,
+    name: undefined,
+    metadata: {},
+  };
+
   const hookedProc: any = {
     type: proc.type,
     argsSchema: proc.argsSchema,
     handler: proc.handler,
+    _def: def,
     _hooks: {},
     _middleware: [],
   };
@@ -152,6 +167,7 @@ function createHookedProcedure<Ctx, Args, Output>(
       type: hookedProc.type,
       argsSchema: hookedProc.argsSchema,
       handler: hookedProc.handler,
+      _def: hookedProc._def,
       _hooks: { ...hookedProc._hooks },
       _middleware: [...hookedProc._middleware, middleware],
     };
@@ -181,6 +197,7 @@ function createHookedProcedure<Ctx, Args, Output>(
         type: newProc.type,
         argsSchema: newProc.argsSchema,
         handler: newProc.handler,
+        _def: newProc._def,
         _hooks: { ...newProc._hooks },
         _middleware: [...newProc._middleware, mw],
       };

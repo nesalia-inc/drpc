@@ -58,14 +58,8 @@ export interface Plugin<Ctx> {
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
 }
 
-export type Router<Ctx = unknown, Routes extends Record<string, unknown> = Record<string, unknown>> = {
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  [K in keyof Routes & string]: [Routes[K]] extends [Procedure<Ctx, infer _Args, infer _Output>]
-    ? Routes[K]
-    : [Routes[K]] extends [Record<string, unknown>]
-      ? Router<Ctx, Routes[K]>
-      : never;
-};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Router<Ctx = unknown, Routes = Record<string, any>> = Routes;
 
 export type Procedure<Ctx, Args, Output> =
   | Query<Ctx, Args, Output>
