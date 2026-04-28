@@ -2,7 +2,7 @@
 export type { EventEmitterAny, APIInstance, APIConfig, RequestInfo } from "./api.js";
 
 // Proxy types
-export type { ProcedureProxy, RouterProxy, TypedAPIInstance, PublicRouter } from "./proxy.js";
+export type { TypedAPIInstance, PublicRouter, InferArgs, InferOutput, DecoratedProcedure, DecoratedRouter, apiInternalSymbol } from "./proxy.js";
 
 // Internal types - for use within the API module
 export type {
