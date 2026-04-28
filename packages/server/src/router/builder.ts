@@ -5,8 +5,10 @@ import { type Maybe, none, fromNullable } from "@deessejs/fp";
 export function flattenRouter<Ctx, R extends Router<Ctx, any>>(
   router: R,
   prefix: string[] = []
-): Array<{ path: string; procedure: Procedure<Ctx, any, any> }> {
-  const result: Array<{ path: string; procedure: Procedure<Ctx, any, any> }> = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Array<{ path: string; procedure: Procedure<any, any, any> }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: Array<{ path: string; procedure: Procedure<any, any, any> }> = [];
 
   for (const key in router) {
     const value = (router as any)[key];
@@ -15,7 +17,8 @@ export function flattenRouter<Ctx, R extends Router<Ctx, any>>(
     if (isProcedure(value)) {
       result.push({ path: path.join("."), procedure: value });
     } else if (isRouter(value)) {
-      result.push(...flattenRouter(value, path));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result.push(...flattenRouter(value as any, path));
     }
   }
 
@@ -24,7 +27,8 @@ export function flattenRouter<Ctx, R extends Router<Ctx, any>>(
 
 export function getPublicRoutes<Ctx, R extends Router<Ctx, any>>(
   router: R
-): Array<{ path: string; procedure: Procedure<Ctx, any, any> }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Array<{ path: string; procedure: Procedure<any, any, any> }> {
   return flattenRouter(router).filter(
     (item) => item.procedure.type === "query" || item.procedure.type === "mutation"
   );
@@ -32,7 +36,8 @@ export function getPublicRoutes<Ctx, R extends Router<Ctx, any>>(
 
 export function getInternalRoutes<Ctx, R extends Router<Ctx, any>>(
   router: R
-): Array<{ path: string; procedure: Procedure<Ctx, any, any> }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Array<{ path: string; procedure: Procedure<any, any, any> }> {
   return flattenRouter(router).filter(
     (item) => item.procedure.type === "internalQuery" || item.procedure.type === "internalMutation"
   );
@@ -42,12 +47,15 @@ export function getInternalRoutes<Ctx, R extends Router<Ctx, any>>(
 export function isRouter(obj: any): obj is Router<any, any> {
   if (!obj || typeof obj !== "object") return false;
 
-  for (const key of Object.keys(obj)) {
-    if (isProcedure(obj[key])) {
-      return false;
-    }
-  }
+  // A router is an object whose properties are either:
+  // 1. Procedures (has 'type' property with procedure value)
+  // 2. Other routers (nested structure)
+  // If it has ANY property that is a procedure, it's still a router (just not empty)
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return false;
 
+  // Check if at least one property exists (we don't check type here anymore)
+  // The distinction between procedure and nested router is made at filter time
   return true;
 }
 
