@@ -30,12 +30,17 @@ export const filterPublicRouter = <TRoutes extends Router<Ctx>, Ctx>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (router as Record<string, any>)[key];
 
-    if (isRouter(value)) {
-      // Recursively filter nested routers
-      result[key] = filterPublicRouter(value);
-    } else if (isProcedure(value) && isQueryOrMutation(value)) {
+    // Check procedure FIRST - isRouter returns true for procedure objects too
+    if (isProcedure(value) && isQueryOrMutation(value)) {
       // Only include public queries and mutations
       result[key] = value;
+    } else if (isRouter(value)) {
+      // Recursively filter nested routers
+      const filtered = filterPublicRouter(value);
+      // Only include nested router if it has public procedures
+      if (Object.keys(filtered).length > 0) {
+        result[key] = filtered;
+      }
     }
     // Explicitly ignore everything else (internal procedures, unknown types)
   }
