@@ -10,45 +10,33 @@ import {
   validateRouter,
 } from "../src/router/builder.js";
 import type { Procedure } from "../src/types.js";
+import { createQuery, createMutation, createInternalQuery, createInternalMutation } from "../src/query/index.js";
 
-// Mock procedure factory
-const createMockProcedure = (type: Procedure["type"], name?: string): Procedure => ({
-  _def: {
-    type,
-    $types: { input: undefined, output: undefined },
-    handler: async () => ok({}),
-    name,
-  },
-  type,
-  handler: async () => ok({}),
-  beforeInvoke: () => ({} as any),
-  afterInvoke: () => ({} as any),
-  onSuccess: () => ({} as any),
-  onError: () => ({} as any),
-  use: () => ({} as any),
-  _hooks: {},
-  _middleware: [],
-});
+// Real procedure factory using factory functions
+const createMockQuery = () => createQuery({ handler: async () => ok({}) });
+const createMockMutation = () => createMutation({ handler: async () => ok({}) });
+const createMockInternalQuery = () => createInternalQuery({ handler: async () => ok({}) });
+const createMockInternalMutation = () => createInternalMutation({ handler: async () => ok({}) });
 
 describe("router/builder", () => {
   describe("isProcedure", () => {
     it("returns true for valid procedure with query type", () => {
-      const proc = createMockProcedure("query");
+      const proc = createMockQuery();
       expect(isProcedure(proc)).toBe(true);
     });
 
     it("returns true for valid procedure with mutation type", () => {
-      const proc = createMockProcedure("mutation");
+      const proc = createMockMutation();
       expect(isProcedure(proc)).toBe(true);
     });
 
     it("returns true for internalQuery procedure", () => {
-      const proc = createMockProcedure("internalQuery");
+      const proc = createMockInternalQuery();
       expect(isProcedure(proc)).toBe(true);
     });
 
     it("returns true for internalMutation procedure", () => {
-      const proc = createMockProcedure("internalMutation");
+      const proc = createMockInternalMutation();
       expect(isProcedure(proc)).toBe(true);
     });
 
@@ -81,7 +69,7 @@ describe("router/builder", () => {
   describe("isRouter", () => {
     it("returns true for object with nested procedures", () => {
       const router = {
-        users: createMockProcedure("query"),
+        users: createMockQuery(),
       };
       expect(isRouter(router)).toBe(true);
     });
@@ -89,7 +77,7 @@ describe("router/builder", () => {
     it("returns true for nested router", () => {
       const router = {
         api: {
-          users: createMockProcedure("query"),
+          users: createMockQuery(),
         },
       };
       expect(isRouter(router)).toBe(true);
@@ -117,7 +105,7 @@ describe("router/builder", () => {
   describe("flattenRouter", () => {
     it("flattens a flat router with single procedure", () => {
       const router = {
-        getUser: createMockProcedure("query"),
+        getUser: createMockQuery(),
       };
       const result = flattenRouter(router);
       expect(result).toEqual([{ path: "getUser", procedure: router.getUser }]);
@@ -125,8 +113,8 @@ describe("router/builder", () => {
 
     it("flattens router with multiple procedures", () => {
       const router = {
-        getUser: createMockProcedure("query"),
-        createUser: createMockProcedure("mutation"),
+        getUser: createMockQuery(),
+        createUser: createMockMutation(),
       };
       const result = flattenRouter(router);
       expect(result).toHaveLength(2);
@@ -137,8 +125,8 @@ describe("router/builder", () => {
     it("flattens nested routers with prefix", () => {
       const router = {
         users: {
-          get: createMockProcedure("query"),
-          create: createMockProcedure("mutation"),
+          get: createMockQuery(),
+          create: createMockMutation(),
         },
       };
       const result = flattenRouter(router);
@@ -152,7 +140,7 @@ describe("router/builder", () => {
         api: {
           v1: {
             users: {
-              list: createMockProcedure("query"),
+              list: createMockQuery(),
             },
           },
         },
@@ -164,7 +152,7 @@ describe("router/builder", () => {
 
     it("handles custom prefix", () => {
       const router = {
-        get: createMockProcedure("query"),
+        get: createMockQuery(),
       };
       const result = flattenRouter(router, ["prefix"]);
       expect(result[0].path).toBe("prefix.get");
@@ -177,7 +165,7 @@ describe("router/builder", () => {
 
     it("skips non-procedure/non-router values", () => {
       const router = {
-        get: createMockProcedure("query"),
+        get: createMockQuery(),
         data: { some: "value" },
       };
       const result = flattenRouter(router);
@@ -189,10 +177,10 @@ describe("router/builder", () => {
   describe("getPublicRoutes", () => {
     it("returns only public procedures", () => {
       const router = {
-        getUser: createMockProcedure("query"),
-        createUser: createMockProcedure("mutation"),
-        internalGet: createMockProcedure("internalQuery"),
-        internalCreate: createMockProcedure("internalMutation"),
+        getUser: createMockQuery(),
+        createUser: createMockMutation(),
+        internalGet: createMockInternalQuery(),
+        internalCreate: createMockInternalMutation(),
       };
       const result = getPublicRoutes(router);
       expect(result).toHaveLength(2);
@@ -202,8 +190,8 @@ describe("router/builder", () => {
     it("filters nested public procedures", () => {
       const router = {
         users: {
-          list: createMockProcedure("query"),
-          internalRefresh: createMockProcedure("internalQuery"),
+          list: createMockQuery(),
+          internalRefresh: createMockInternalQuery(),
         },
       };
       const result = getPublicRoutes(router);
@@ -215,9 +203,9 @@ describe("router/builder", () => {
   describe("getInternalRoutes", () => {
     it("returns only internal procedures", () => {
       const router = {
-        getUser: createMockProcedure("query"),
-        internalGet: createMockProcedure("internalQuery"),
-        internalCreate: createMockProcedure("internalMutation"),
+        getUser: createMockQuery(),
+        internalGet: createMockInternalQuery(),
+        internalCreate: createMockInternalMutation(),
       };
       const result = getInternalRoutes(router);
       expect(result).toHaveLength(2);
@@ -228,7 +216,7 @@ describe("router/builder", () => {
   describe("resolvePath", () => {
     it("resolves simple path", () => {
       const router = {
-        users: createMockProcedure("query"),
+        users: createMockQuery(),
       };
       const result = resolvePath(router, "users");
       expect(result.ok).toBe(true);
@@ -240,7 +228,7 @@ describe("router/builder", () => {
     it("resolves nested path", () => {
       const router = {
         api: {
-          users: createMockProcedure("query"),
+          users: createMockQuery(),
         },
       };
       const result = resolvePath(router, "api.users");
@@ -252,7 +240,7 @@ describe("router/builder", () => {
 
     it("returns none for non-existent path", () => {
       const router = {
-        users: createMockProcedure("query"),
+        users: createMockQuery(),
       };
       const result = resolvePath(router, "posts");
       expect(result.ok).toBe(false);
@@ -261,7 +249,7 @@ describe("router/builder", () => {
     it("returns none for partial path in nested structure", () => {
       const router = {
         api: {
-          users: createMockProcedure("query"),
+          users: createMockQuery(),
         },
       };
       const result = resolvePath(router, "api");
@@ -286,8 +274,8 @@ describe("router/builder", () => {
 
     it("returns valid for router with valid procedures", () => {
       const router = {
-        getUser: createMockProcedure("query"),
-        createUser: createMockProcedure("mutation"),
+        getUser: createMockQuery(),
+        createUser: createMockMutation(),
       };
       const result = validateRouter(router);
       expect(result.valid).toBe(true);
@@ -306,7 +294,7 @@ describe("router/builder", () => {
       const router = {
         api: {
           users: {
-            get: createMockProcedure("query"),
+            get: createMockQuery(),
             broken: { type: "query" } as Procedure,
           },
         },
@@ -320,10 +308,10 @@ describe("router/builder", () => {
       const router = {
         api: {
           v1: {
-            users: createMockProcedure("query"),
+            users: createMockQuery(),
           },
         },
-        public: createMockProcedure("mutation"),
+        public: createMockMutation(),
       };
       const result = validateRouter(router);
       expect(result.valid).toBe(true);
