@@ -1,40 +1,40 @@
 # TypeScript Conditional Types & Intersection Distribution
 
-## Le problème
+## The Problem
 
-Quand on a un type intersection comme `QueryWithHooks = Query & HookedProcedureMixin` et qu'on veut vérifier si c'est une procédure via un conditional type:
+When we have an intersection type like `QueryWithHooks = Query & HookedProcedureMixin` and we want to check if it's a procedure via a conditional type:
 
 ```typescript
 type Router<Ctx, Routes> = {
   [K in keyof Routes]: Routes[K] extends Procedure<Ctx, any, any>
-    ? Routes[K]  // ← ici Routes[K] = QueryWithHooks = Query & HookedProcedureMixin
+    ? Routes[K]  // ← here Routes[K] = QueryWithHooks = Query & HookedProcedureMixin
     : never;
 };
 ```
 
-TypeScript infère `never` pour `Routes[K]` dans certains cas.
+TypeScript infers `never` for `Routes[K]` in some cases.
 
-## Pourquoi?
+## Why?
 
-### Distribution conditionnelle
+### Conditional Distribution
 
-Les conditional types de la forme `T extends U ? A : B` **distribuent** sur les unions quand `T` est un paramètre générique nu.
+Conditional types of the form `T extends U ? A : B` **distribute** over unions when `T` is a naked type parameter.
 
-Mais le problème ici est plus subtil avec les **intersections**.
+But the problem here is more subtle with **intersections**.
 
-Quand TypeScript évalue:
+When TypeScript evaluates:
 ```
 QueryWithHooks extends Procedure<Ctx, infer Args, infer Output>
 ```
 
-Il voit que `QueryWithHooks = Query & HookedProcedureMixin`.
+It sees that `QueryWithHooks = Query & HookedProcedureMixin`.
 
-Pour une intersection `A & B`, quand on vérifie `A & B extends X`:
-- TypeScript sépare les membres
-- Chaque membre est vérifié séparément contre l'union `Procedure`
-- Les branches qui échouent peuvent produire `never`
+For an intersection `A & B`, when checking `A & B extends X`:
+- TypeScript separates the members
+- Each member is checked separately against the `Procedure` union
+- Branches that fail can produce `never`
 
-### Exemple minimal
+### Minimal Example
 
 ```typescript
 interface Query { type: 'query'; }
@@ -43,30 +43,30 @@ interface HookedMixin { beforeInvoke(): void; }
 type QueryWithHooks = Query & HookedMixin;
 type Procedure = { type: 'query' } | { type: 'mutation' };
 
-// Ce qui se passe:
+// What happens:
 // QueryWithHooks extends Query          → true
-// QueryWithHooks extends Mutation        → false → parfois infère never
+// QueryWithHooks extends Mutation        → false → sometimes infers never
 ```
 
 ## Solutions
 
-### 1. Tuple brackets `[X] extends [Y]` (Recommandée par TypeScript)
+### 1. Tuple Brackets `[X] extends [Y]` (Recommended by TypeScript)
 
-Entoure les deux côtés de `extends` avec des tuples pour empêcher la distribution:
+Surround both sides of `extends` with tuples to prevent distribution:
 
 ```typescript
-// ❌ Problème - distribution
+// ❌ Problem - distribution
 Routes[K] extends Procedure<Ctx, any, any>
 
-// ✅ Solution - pas de distribution
+// ✅ Solution - no distribution
 [Routes[K]] extends [Procedure<Ctx, any, any>]
 ```
 
-TypeScript considérère que `[X]` n'est pas un paramètre générique nu, donc pas de distributivité. Et `([X] extends [Y])` est équivalent à `(X extends Y)` en termes de logique.
+TypeScript considers `[X]` is not a naked type parameter, so no distributivity. And `([X] extends [Y])` is equivalent to `(X extends Y)` in terms of logic.
 
-### 2. Vérifier la forme de l'objet
+### 2. Check Object Shape Directly
 
-Au lieu de vérifier `extends Procedure`, vérifier les propriétés directement:
+Instead of checking `extends Procedure`, check properties directly:
 
 ```typescript
 type IsProcedure<T> = T extends { type: 'query' | 'mutation' | 'internalQuery' | 'internalMutation'; handler: Function }
@@ -82,21 +82,21 @@ type Router<Ctx, Routes> = {
 };
 ```
 
-**Avantage**: Plus explicite, pas de dépendance sur `Procedure` type.
-**Inconvénient**: Plus permissif (tout objet avec `type` et `handler` passe).
+**Advantage**: More explicit, no dependency on `Procedure` type.
+**Disadvantage**: More permissive (any object with `type` and `handler` passes).
 
-### 3. Pattern ORPC - procédure d'abord
+### 3. ORPC Pattern - Procedure First
 
-ORPC utilise une approche différente: une procédure **est** un router:
+ORPC uses a different approach: a procedure **is** a router:
 
 ```typescript
 export type Router<T> =
   T extends { input: infer I; output: infer O }
-    ? Procedure<T>  // C'est une procédure
-    : { [K in keyof T]: Router<T[K]> };  // C'est un nested router
+    ? Procedure<T>  // It's a procedure
+    : { [K in keyof T]: Router<T[K]> };  // It's a nested router
 ```
 
-Ce pattern évite le problème car il vérifie la présence de propriétés spécifiques.
+This pattern avoids the problem because it checks for specific properties.
 
 ## Sources
 
@@ -105,10 +105,10 @@ Ce pattern évite le problème car il vérifie la présence de propriétés spé
 - [ORPC Router Type](https://github.com/middleapi/orpc/blob/f4868a14/packages/server/src/router.ts)
 - [tRPC Issue #4709 - simplify Router and Procedure types](https://github.com/trpc/trpc/issues/4709)
 
-## Pattern à suivre pour @deessejs/server
+## Pattern to Follow for @deessejs/server
 
-Utiliser `[X] extends [Y]` pour le type `Router` et `PublicRouter`. Les `any` dans `Procedure<any, any, any>` et `Router<Ctx, any>` sont acceptables car:
-- On vérifie juste la **forme**, pas la structure complète
-- `any` signifie "n'importe quel type de routes" dans ce contexte
+Use `[X] extends [Y]` for the `Router` and `PublicRouter` types. The `any` in `Procedure<any, any, any>` and `Router<Ctx, any>` are acceptable because:
+- We're just checking the **shape**, not the complete structure
+- `any` means "any routes type" in this context
 
-Si plus de sécurité est needed, on pourrait explorer le pattern ORPC ou une vérification par forme plutôt que par `extends`.
+If more type safety is needed, we could explore the ORPC pattern or shape-based verification instead of `extends`.
