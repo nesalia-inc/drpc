@@ -69,13 +69,5 @@ export type { InternalMutationConfig } from "./internal-mutation/types.js";
 export type { RequestInfo } from "./api/types/api.js";
 
 // Errors
-export {
-  ok,
-  err,
-  ServerError,
-  ServerException,
-  NotFoundException,
-  UnauthorizedException,
-  ValidationException,
-  ErrorCodes,
-} from "./errors/index.js";
+export { ok, err, ServerException, NotFoundException, UnauthorizedException, ValidationException, ErrorCodes, createErrorResult } from "./errors/index.js";
+export type { ServerError } from "./errors/index.js";
