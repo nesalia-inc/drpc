@@ -65,7 +65,7 @@ export class ContextBuilder<
    */
   build(): {
     t: QueryBuilder<Ctx, Events>;
-    createAPI: (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => TypedAPIInstance<Ctx, Router<Ctx>>;
+    createAPI: (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[]; context?: Ctx }) => TypedAPIInstance<Ctx, Router<Ctx>>;
   } {
     const eventEmitter = this.events ? new EventEmitter<Events>(this.events) : undefined;
     const initialContext = this.createContext ? this.createContext() : this.context;
@@ -90,11 +90,11 @@ export class ContextBuilder<
       }
     }
 
-    const createAPIFn = (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[] }) => {
+    // Use initialContext (enriched by plugins) by default, or user-provided context
+    const createAPIFn = (apiConfig: { router: Router<Ctx>; middleware?: Middleware<Ctx>[]; context?: Ctx }) => {
       return createAPI({
         router: apiConfig.router,
-        context: this.context,
-        createContext: this.createContext,
+        context: apiConfig.context ?? initialContext,
         plugins: this.plugins as Plugin<Ctx>[],
         middleware: apiConfig.middleware,
         eventEmitter,

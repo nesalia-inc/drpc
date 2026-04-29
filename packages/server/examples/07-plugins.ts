@@ -5,11 +5,6 @@
  * - createContextBuilder: fluent builder for context
  * - .use(plugin): adding plugins
  * - Plugin.extend: enriching the context
- *
- * NOTE: This is a simplified demonstration. The ContextBuilder.build()
- * currently has a bug where the context passed to createAPI is ignored.
- * The plugin.extend() enriches the QueryBuilder's context, but that enriched
- * context isn't properly passed to createAPI yet.
  */
 
 import { createContextBuilder } from "../src/context/index.js";
@@ -64,7 +59,10 @@ const router = t.router({
     }),
     create: t.mutation({
       args: z.object({ name: z.string() }),
-      handler: async (_, args) => ok({ id: "1", name: args.name }),
+      handler: async (ctx, args) => {
+        ctx.auditLog.push(`Creating user: ${args.name}`);
+        return ok({ id: "1", name: args.name });
+      },
     }),
   },
 });
@@ -73,11 +71,10 @@ const router = t.router({
 // 4. Create API
 // ============================================
 
-// Note: Context must be passed here, but plugin enrichment isn't working yet
-// due to a bug in ContextBuilder.build()
+// Context can be passed but is enriched by plugins
 const api = createApiWithPlugins({
   router,
-  context: { auditLog: [] }, // This is passed but not enriched by plugins
+  context: { auditLog: [] }, // Initial context, enriched by plugins
 });
 
 // ============================================
@@ -93,9 +90,9 @@ async function main() {
   const created = await api.users.create({ name: "Alice" });
   console.log("Created:", created.ok);
 
-  console.log("\n=== Context passed to createAPI ===");
+  console.log("\n=== Context with audit log ===");
   console.log("api.ctx:", api.ctx);
-  console.log("(Note: plugin.extend() enriches QueryBuilder context, not createAPI context yet)");
+  console.log("auditLog:", api.ctx.auditLog);
 }
 
 main();
