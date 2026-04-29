@@ -87,7 +87,23 @@ export interface Middleware<Ctx, Args = unknown> {
 export interface Plugin<Ctx> {
   readonly name: string;
   readonly extend: (ctx: Ctx) => Partial<Ctx>;
+  readonly procedures?: () => PluginEnrichment<Ctx>;
 }
+
+/**
+ * PluginEnrichment describes how a plugin adds new methods to the t object.
+ * Each namespace contains methods that create procedures.
+ */
+export type PluginEnrichment<Ctx> = {
+  [namespace: string]: {
+    [methodName: string]: (config: {
+      name?: string;
+      args?: ZodType<unknown>;
+      handler: (ctx: Ctx, args: unknown) => Promise<Result<unknown>>;
+      metadata?: Record<string | symbol, unknown>;
+    }) => AnyProcedure<Ctx, unknown, unknown>;
+  };
+};
 
 // Router type - recursively maps routes using non-distributive conditionals
 // Uses [T] instead of T to prevent distribution over union types
