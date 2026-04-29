@@ -1,50 +1,83 @@
-import  { type ZodType } from "zod";
-import  { type Result } from "@deessejs/fp";
-import  { type Query, type HandlerContext, type EventRegistry, type ProcedureType, type Middleware } from "../types.js";
-import  { type BeforeInvokeHook, type AfterInvokeHook, type OnSuccessHook, type OnErrorHook } from "../types.js";
+import { type ZodType } from "zod";
+import { type Result } from "@deessejs/fp";
+import { type AnyProcedure, type ProcedureType, type BeforeInvokeHook, type AfterInvokeHook, type OnSuccessHook, type OnErrorHook, type Middleware } from "../types.js";
 
-export interface QueryConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
+export interface QueryConfig<Ctx, Args, Output> {
   args?: ZodType<Args>;
-  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
 }
 
-// HookedProcedureMixin for chainable hooks
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface HookedProcedureMixin<Ctx, Args, Output = any> {
-  type: ProcedureType;
-  beforeInvoke(hook: BeforeInvokeHook<Ctx, Args>): this;
+export interface MutationConfig<Ctx, Args, Output> {
+  args?: ZodType<Args>;
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+}
 
-  afterInvoke(hook: AfterInvokeHook<Ctx, Args, Output>): this;
+export interface InternalQueryConfig<Ctx, Output> {
+  handler: (ctx: Ctx) => Promise<Result<Output>>;
+}
 
-  onSuccess(hook: OnSuccessHook<Ctx, Args, Output>): this;
+export interface InternalMutationConfig<Ctx, Args, Output> {
+  args?: ZodType<Args>;
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>;
+}
+
+// Factory functions
+export function createQuery<Ctx, Args, Output>(
+  config: QueryConfig<Ctx, Args, Output>
+): AnyProcedure<Ctx, Args, Output> {
+  return createAnyProcedure("query", config.args, config.handler);
+}
+
+export function createMutation<Ctx, Args, Output>(
+  config: MutationConfig<Ctx, Args, Output>
+): AnyProcedure<Ctx, Args, Output> {
+  return createAnyProcedure("mutation", config.args, config.handler);
+}
+
+export function createInternalQuery<Ctx, Output>(
+  config: InternalQueryConfig<Ctx, Output>
+): AnyProcedure<Ctx, undefined, Output> {
+  return createAnyProcedure("internalQuery", undefined, config.handler as any);
+}
+
+export function createInternalMutation<Ctx, Args, Output>(
+  config: InternalMutationConfig<Ctx, Args, Output>
+): AnyProcedure<Ctx, Args, Output> {
+  return createAnyProcedure("internalMutation", config.args, config.handler);
+}
+
+// Internal helper
+function createAnyProcedure<Ctx, Args, Output>(
+  type: ProcedureType,
+  argsSchema: ZodType<Args> | undefined,
+  handler: (ctx: Ctx, args: Args) => Promise<Result<Output>>
+): AnyProcedure<Ctx, Args, Output> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onError(hook: OnErrorHook<Ctx, Args, any>): this;
-  use(middleware: Middleware<Ctx>): this;
-  _hooks: {
-    beforeInvoke?: BeforeInvokeHook<Ctx, Args>;
-
-    afterInvoke?: AfterInvokeHook<Ctx, Args, Output>;
-
-    onSuccess?: OnSuccessHook<Ctx, Args, Output>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError?: OnErrorHook<Ctx, Args, any>;
-  };
-  _middleware: Middleware<Ctx>[];
+  return {
+    _def: {
+      type,
+      $types: {
+        input: argsSchema as unknown as Args,
+        output: undefined as unknown as Output,
+      },
+      argsSchema,
+      handler: handler as any,
+    },
+    type,
+    argsSchema,
+    handler: handler as any,
+    beforeInvoke: function(hook: BeforeInvokeHook<Ctx, Args>) { return this; },
+    afterInvoke: function(hook: AfterInvokeHook<Ctx, Args, Output>) { return this; },
+    onSuccess: function(hook: OnSuccessHook<Ctx, Args, Output>) { return this; },
+    onError: function(hook: OnErrorHook<Ctx, Args, any>) { return this; },
+    use: function(middleware: Middleware<Ctx>) { return this; },
+    _hooks: {},
+    _middleware: [],
+  } as unknown as AnyProcedure<Ctx, Args, Output>;
 }
 
-export type QueryWithHooks<Ctx, Args, Output> = Query<Ctx, Args, Output> &
-  HookedProcedureMixin<Ctx, Args, Output>;
-
-export interface MutationConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
-  args?: ZodType<Args>;
-  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
-}
-
-export interface InternalQueryConfig<Ctx, Output, Events extends EventRegistry = EventRegistry> {
-  handler: (ctx: HandlerContext<Ctx, Events>) => Promise<Result<Output>>;
-}
-
-export interface InternalMutationConfig<Ctx, Args, Output, Events extends EventRegistry = EventRegistry> {
-  args?: ZodType<Args>;
-  handler: (ctx: HandlerContext<Ctx, Events>, args: Args) => Promise<Result<Output>>;
-}
+// Backward compatibility - keep QueryWithHooks as alias
+export type QueryWithHooks<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+export type MutationWithHooks<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;
+export type InternalQueryWithHooks<Ctx, Output> = AnyProcedure<Ctx, undefined, Output>;
+export type InternalMutationWithHooks<Ctx, Args, Output> = AnyProcedure<Ctx, Args, Output>;

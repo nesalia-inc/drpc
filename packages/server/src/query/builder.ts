@@ -16,7 +16,7 @@ export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
     /* eslint-enable @typescript-eslint/no-explicit-any */
   ) {}
 
-  query<Args, Output>(config: QueryConfig<Ctx, Args, Output, Events>): QueryWithHooks<Ctx, Args, Output> {
+  query<Args, Output>(config: QueryConfig<Ctx, Args, Output>): QueryWithHooks<Ctx, Args, Output> {
     return createHookedProcedure({
       type: "query",
       argsSchema: config.args,
@@ -26,7 +26,7 @@ export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
     }) as QueryWithHooks<Ctx, Args, Output>;
   }
 
-  mutation<Args, Output>(config: MutationConfig<Ctx, Args, Output, Events>): MutationWithHooks<Ctx, Args, Output> {
+  mutation<Args, Output>(config: MutationConfig<Ctx, Args, Output>): MutationWithHooks<Ctx, Args, Output> {
     return createHookedProcedure({
       type: "mutation",
       argsSchema: config.args,
@@ -37,7 +37,7 @@ export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
   }
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  internalQuery<Output>(config: InternalQueryConfig<Ctx, Output, Events>): InternalQueryWithHooks<Ctx, Output> {
+  internalQuery<Output>(config: InternalQueryConfig<Ctx, Output>): InternalQueryWithHooks<Ctx, Output> {
     return createHookedProcedure({
       type: "internalQuery",
       handler: config.handler as any,
@@ -46,7 +46,7 @@ export class QueryBuilder<Ctx, Events extends EventRegistry = EventRegistry> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   internalMutation<Args, Output>(
-    config: InternalMutationConfig<Ctx, Args, Output, Events>
+    config: InternalMutationConfig<Ctx, Args, Output>
   ): InternalMutationWithHooks<Ctx, Args, Output> {
     return createHookedProcedure({
       type: "internalMutation",
