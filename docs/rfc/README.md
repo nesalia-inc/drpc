@@ -4,15 +4,26 @@ This directory contains Request for Comments (RFC) documents that describe the d
 
 ## RFCs
 
+### Server (`server/`)
+
+The core `@deessejs/server` package.
+
 | RFC | Title | Status |
 |-----|-------|--------|
-| [01](01-core-api.md) | Core API — `initDRPC` Builder Pattern | Draft |
-| [02](02-events.md) | Events System | Draft |
-| [03](03-middleware.md) | Middleware | Draft |
-| [04](04-plugins.md) | Plugins | Draft |
-| [05](05-procedures.md) | Procedures — Query, Mutation | Draft |
-| [06](06-server-hono.md) | Hono HTTP Adapter | Implemented |
-| [07](07-routers.md) | Routers — Namespaced Procedure Composition | Implemented |
+| [01](server/01-core-api.md) | Core API — `initDRPC` Builder Pattern | Draft |
+| [02](server/02-events.md) | Events System | Draft |
+| [03](server/03-middleware.md) | Middleware | Draft |
+| [04](server/04-plugins.md) | Plugins | Draft |
+| [05](server/05-procedures.md) | Procedures — Query, Mutation | Draft |
+| [07](server/07-routers.md) | Routers — Namespaced Procedure Composition | Implemented |
+
+### Server Adapters (`server-adapters/`)
+
+Adapter packages that expose DRPC via different transports.
+
+| RFC | Title | Status |
+|-----|-------|--------|
+| [06](server-adapters/06-server-hono.md) | Hono HTTP Adapter | Implemented |
 
 ## Status Definitions
 
