@@ -398,6 +398,16 @@ const router = d.router(
 d.router<TRoutes extends DecoratedRouter<TCtx>>(
   ...routes: TRoutes[]
 ): Router<TCtx>
+
+// Or with options
+d.router(routes, {
+  collisionStrategy?: 'error' | 'warn' | 'override';
+  prefix?: string;
+  meta?: Record<string, unknown>;
+  deprecated?: boolean;
+  deprecatedReason?: string;
+  notFound?: (path: string, req: RequestInfo) => Result<unknown>;
+}): Router<TCtx>
 ```
 
 Creates a router from one or more route objects. Routes can be nested but each level must contain only procedures or sub-routers.
@@ -409,11 +419,17 @@ class Router<TCtx> {
   // Attach middleware to all procedures
   use<TMw extends Middleware<TCtx, any>>(middleware: TMw): Router<TCtx>;
 
-  // Merge routers (throws RouterCollisionError on path conflict)
+  // Merge routers with collision strategy
   merge(...routers: Router<TCtx>[]): Router<TCtx>;
 
-  // Create a lazy-loaded sub-router
+  // Filter router to create virtual router
+  filter(filterFn: (path: string, proc: Procedure<TCtx>) => boolean): Router<TCtx>;
+
+  // Create lazy-loaded sub-router
   static lazy<T extends Router<any>>(loader: () => Promise<T>): Router<TCtx>;
+
+  // Generate introspection schema
+  getSchema(): RouterSchema;
 }
 ```
 
@@ -493,22 +509,190 @@ const router = d.router({
 
 ### Collision Detection
 
-When merging routers, DRPC detects path collisions at initialization. If two routers define the same path, a `RouterCollisionError` is thrown to prevent accidental overrides.
+When merging routers, DRPC detects path collisions at initialization. By default, a `RouterCollisionError` is thrown to prevent accidental overrides.
+
+**Collision Strategy Options:**
 
 ```typescript
-const router1 = d.router({
-  users: d.router({ list: d.query({ handler: async () => ok([]) }) }),
-});
-
-const router2 = d.router({
-  users: d.router({ list: d.query({ handler: async () => ok([{}]) }) }), // Same path!
-});
-
-// throws RouterCollisionError: Path 'users.list' is defined in multiple routers
+// Default: error on collision
 const merged = d.router(router1, router2);
+// throws RouterCollisionError if paths overlap
+
+// Warn: log warning but allow override
+const merged = d.router(router1, router2, { collisionStrategy: 'warn' });
+// console.warn('Path users.list collision, using router2')
+
+// Override: later router takes precedence
+const merged = d.router(router1, router2, { collisionStrategy: 'override' });
+// router2's implementation wins
+```
+
+**Use case for `override`:** Gradual migrations where one team is taking over another team's routes.
+
+**Use case for `warn`:** Auditing existing collisions before making changes.
+
+```typescript
+type CollisionStrategy = 'error' | 'warn' | 'override';
 ```
 
 **This behavior is intentional.** In large organizations where multiple teams contribute to the same API, silent path overrides can cause production incidents. DRPC fails fast at startup rather than silently choosing one implementation over another.
+
+### Metadata Inheritance
+
+Router-level metadata is inherited by all child procedures. This enables observability at scale:
+
+```typescript
+const billingRouter = d.router({
+  meta: { team: 'billing', tier: 'production' },
+  users: d.router({
+    list: d.query({ handler: async (ctx) => ok([]) }),
+    invoice: d.query({
+      meta: { authRequired: true },  // Merges with router meta
+      handler: async (ctx) => ok({}),
+    }),
+  }),
+});
+
+// Resulting metadata:
+// 'billing.users.list': { team: 'billing', tier: 'production' }
+// 'billing.users.invoice': { team: 'billing', tier: 'production', authRequired: true }
+```
+
+**Use case:** In tools like Datadog, you can filter 500 errors by `team` to know which team owns the failing service.
+
+**Merge behavior:** Procedure-level meta merges with router-level meta. Procedure meta takes precedence for conflicting keys.
+
+### Alias and Deprecation
+
+Routes can be marked as deprecated at the router level:
+
+```typescript
+const router = d.router({
+  meta: { deprecated: true, deprecatedReason: 'Use v2.users instead' },
+  users: d.router({ ... }),
+});
+```
+
+When a deprecated router's procedure is called:
+- A `Warning` header is added to the response: `Warning: 299 - "Deprecated: Use v2.users instead"`
+- The call is logged with deprecation metadata for monitoring
+
+**Route aliases:** For gradual migrations, a procedure can redirect to another:
+
+```typescript
+const v1Router = d.router({
+  users: d.router({
+    list: d.query({
+      handler: async () => ok([]),
+      alias: 'v2.users.list',  // Redirect calls to new route
+    }),
+  }),
+});
+```
+
+### Virtual Routers (Filtering)
+
+Create a filtered view of a router based on criteria:
+
+```typescript
+const fullRouter = d.router({
+  public: d.router({ data: d.query({ ... }) }),
+  admin: d.router({ secrets: d.query({ ... }) }),
+  internal: d.router({ metrics: d.query({ ... }) }),
+});
+
+// Create public-only view
+const publicRouter = fullRouter.filter((path, proc) => {
+  return !path.startsWith('admin') && !path.startsWith('internal');
+});
+
+// admin and internal routes are not accessible via publicRouter
+```
+
+**Use case:** Multi-tenant APIs where different clients get different route views.
+
+**Filter criteria can include:**
+- Path prefix (`!path.startsWith('admin')`)
+- Procedure metadata (`proc.meta.internalOnly === true`)
+- Procedure type (`proc.type === 'query'`)
+
+### Catch-all Fallback
+
+Handle requests to non-existent paths at the router level:
+
+```typescript
+const router = d.router({
+  notFound: (path, req) => {
+    return { ok: false, error: { code: 'ROUTE_NOT_FOUND', message: `No route: ${path}` } };
+  },
+  users: d.router({ ... }),
+});
+```
+
+**Use case:** Dynamic routing where you want to capture unmatched paths for:
+- Debugging (log what paths are being tried)
+- Fallback logic (serve cached response for missing routes)
+- Redirects (redirect `/old-path` to `/new-path`)
+
+### Global Prefix / Base Path
+
+Mount a router under a specific path prefix:
+
+```typescript
+const api = createAPI({
+  router: d.router({
+    prefix: '/api/v1',
+    users: d.router({ ... }),
+    posts: d.router({ ... }),
+  }),
+});
+```
+
+**Effect:** All routes are prefixed during flattening:
+- `users.list` → `/api/v1/users.list`
+- `posts.create` → `/api/v1/posts.create`
+
+**Use case:** Mounting behind a proxy or on a specific base path without adapter configuration.
+
+### Introspection and Schema Generation
+
+Routers are fully introspectable. Generate a schema for documentation or tooling:
+
+```typescript
+const router = d.router({
+  users: d.router({
+    list: d.query({
+      args: z.object({ limit: z.number().default(10) }),
+      meta: { authRequired: true },
+      handler: async (ctx, args) => ok([]),
+    }),
+  }),
+});
+
+const schema = router.getSchema();
+// Returns JSON representation of all routes
+```
+
+**Schema output:**
+
+```typescript
+interface RouterSchema {
+  version: '1.0';
+  routes: {
+    path: string;
+    type: 'query' | 'mutation' | 'subscription';
+    args?: ZodSchema;
+    meta?: Record<string, unknown>;
+    deprecated?: boolean;
+  }[];
+}
+```
+
+**Generated schema enables:**
+- Automatic OpenAPI/Swagger documentation
+- Client SDK generation
+- Route inventory for monitoring
+- Migration planning tools
 
 ### Flattening Performance
 
