@@ -10,12 +10,10 @@ DRPC plugins allow you to extend the framework's functionality by enriching cont
 
 ### What Is a Plugin?
 
-A plugin is an object that:
-1. **Extends context** — adds new properties or methods to `ctx`
-2. **Declares procedures** (optional) — adds new namespaces/methods accessible via `t`
-3. **Accepts args** (optional) — receives configuration when registered
+A plugin is a **function** that returns a Plugin object. This function receives args when called and produces a Plugin that can extend context and add procedures.
 
 ```typescript
+// Plugin function - receives args and returns Plugin object
 const myPlugin = <Ctx>(args: { prefix: string }): Plugin<Ctx> => ({
   name: 'myPlugin',
   args: z.object({ prefix: z.string() }),
@@ -24,6 +22,7 @@ const myPlugin = <Ctx>(args: { prefix: string }): Plugin<Ctx> => ({
   }),
 });
 
+// Pass the result of calling the plugin function to .use()
 const d = initDRPC
   .context({ value: 1 })
   .use(myPlugin({ prefix: '[APP]' }))
