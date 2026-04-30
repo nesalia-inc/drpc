@@ -13,23 +13,35 @@ DRPC routers compose procedures into a namespaced tree. They provide hierarchica
 A router is a named collection of procedures or sub-routers. It creates a hierarchical namespace:
 
 ```typescript
+const listUsers = d.query({ handler: async () => ok([]) });
+const getUserById = d.query({
+  args: z.object({ id: z.string() }),
+  handler: async (ctx, args) => ok(ctx.db.findUser(args.id)),
+});
+const createUser = d.mutation({
+  args: z.object({ email: z.string().email() }),
+  handler: async (ctx, args) => ok(ctx.db.createUser(args)),
+});
+
+const listPosts = d.query({ handler: async () => ok([]) });
+const getPostById = d.query({ handler: async (ctx, args) => ok(ctx.db.findPost(args.id)) });
+const createPost = d.mutation({ handler: async (ctx, args) => ok(ctx.db.createPost(args)) });
+
+const usersRouter = d.router({
+  list: listUsers,
+  byId: getUserById,
+  create: createUser,
+});
+
+const postsRouter = d.router({
+  list: listPosts,
+  byId: getPostById,
+  create: createPost,
+});
+
 const router = d.router({
-  users: d.router({
-    list: d.query({ handler: async () => ok([]) }),
-    byId: d.query({
-      args: z.object({ id: z.string() }),
-      handler: async (ctx, args) => ok(ctx.db.findUser(args.id)),
-    }),
-    create: d.mutation({
-      args: z.object({ email: z.string().email() }),
-      handler: async (ctx, args) => ok(ctx.db.createUser(args)),
-    }),
-  }),
-  posts: d.router({
-    list: d.query({ handler: async () => ok([]) }),
-    byId: d.query({ handler: async (ctx, args) => ok(ctx.db.findPost(args.id)) }),
-    create: d.mutation({ handler: async (ctx, args) => ok(ctx.db.createPost(args)) }),
-  }),
+  users: usersRouter,
+  posts: postsRouter,
 });
 ```
 
