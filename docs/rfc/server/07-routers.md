@@ -409,8 +409,11 @@ class Router<TCtx> {
   // Attach middleware to all procedures
   use<TMw extends Middleware<TCtx, any>>(middleware: TMw): Router<TCtx>;
 
-  // Merge routers
+  // Merge routers (throws RouterCollisionError on path conflict)
   merge(...routers: Router<TCtx>[]): Router<TCtx>;
+
+  // Create a lazy-loaded sub-router
+  static lazy<T extends Router<any>>(loader: () => Promise<T>): Router<TCtx>;
 }
 ```
 
@@ -426,6 +429,17 @@ type DecoratedRouter<TCtx> = {
 
 ```typescript
 type FlattenedRouter = Map<string, Procedure>;
+```
+
+### RouterCollisionError
+
+Thrown when two routers being merged define the same path:
+
+```typescript
+class RouterCollisionError extends Error {
+  readonly path: string;
+  readonly routers: string[];
+}
 ```
 
 ---
@@ -476,6 +490,49 @@ const router = d.router({
 // Flattened router only contains publicData
 // internalData must be called via createAPI() directly
 ```
+
+### Collision Detection
+
+When merging routers, DRPC detects path collisions at initialization. If two routers define the same path, a `RouterCollisionError` is thrown to prevent accidental overrides.
+
+```typescript
+const router1 = d.router({
+  users: d.router({ list: d.query({ handler: async () => ok([]) }) }),
+});
+
+const router2 = d.router({
+  users: d.router({ list: d.query({ handler: async () => ok([{}]) }) }), // Same path!
+});
+
+// throws RouterCollisionError: Path 'users.list' is defined in multiple routers
+const merged = d.router(router1, router2);
+```
+
+**This behavior is intentional.** In large organizations where multiple teams contribute to the same API, silent path overrides can cause production incidents. DRPC fails fast at startup rather than silently choosing one implementation over another.
+
+### Flattening Performance
+
+The router tree is flattened once at initialization time, not on every request. This operation:
+- Recursively traverses the router tree
+- Generates the `FlattenedRouter` map
+- Filters out internal procedures
+
+For APIs with hundreds of routes, this traversal happens only once when `createAPI()` is called. The resulting `FlattenedRouter` is cached and reused for all subsequent requests.
+
+### Lazy Loading (Optional)
+
+For large monorepos or serverless environments (AWS Lambda, Vercel), routers support lazy loading. Instead of defining all routes upfront, sub-routers can be loaded on demand:
+
+```typescript
+const router = d.router({
+  users: d.router.lazy(() => import('./users.router').then(m => m.default)),
+  posts: d.router.lazy(() => import('./posts.router').then(m => m.default)),
+});
+```
+
+The lazy router is loaded when first accessed. This can reduce cold start times in serverless environments by deferring route registration until needed.
+
+**Note:** Lazy-loaded routers are resolved asynchronously. The first request to a lazy route may have slightly higher latency while the module loads.
 
 ### Router Immutability
 
