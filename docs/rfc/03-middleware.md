@@ -179,6 +179,75 @@ Request
 
 ---
 
+### Context Morphing
+
+Middleware can transform the context type for downstream middleware and procedures. This is the **onion model** in action — each `next()` call passes an enriched context that subsequent middleware and handlers see:
+
+```typescript
+// Initial context: { userId: string | null }
+const d = initDRPC
+  .context<{ userId: string | null }>({ userId: null })
+  .create();
+
+// Auth middleware enriches context
+const authMiddleware = d.middleware({
+  handler: (ctx, args, extra) => {
+    if (!ctx.userId) {
+      return extra.next({ ctx: { userId: 'guest' } });
+    }
+    return extra.next({
+      ctx: {
+        ...ctx,
+        user: await db.getUser(ctx.userId),  // Now ctx has .user
+        isAuthenticated: true,
+      },
+    });
+  },
+});
+
+// Procedure handler sees enriched context: { userId: string, user: User, isAuthenticated: true }
+const router = d.router({
+  profile: d.query({
+    handler: async (ctx) => {
+      // ctx.user is guaranteed to exist here (not null)
+      return ok(ctx.user.profile);
+    },
+  }).use(authMiddleware),
+});
+```
+
+**TypeScript inference:** The `next({ ctx: {...} })` return type propagates through the middleware chain. TypeScript automatically narrows `TCtx` for subsequent handlers.
+
+**Practical pattern for auth:**
+
+```typescript
+// Define a base context with nullable fields
+interface BaseCtx {
+  userId: string | null;
+  db: Database;
+}
+
+// Auth middleware transforms BaseCtx → AuthenticatedCtx
+const authMiddleware = d.middleware({
+  handler: (ctx, args, extra) => {
+    if (!ctx.userId) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    return extra.next({
+      ctx: {
+        ...ctx,
+        user: ctx.db.getUser(ctx.userId),
+        session: await ctx.db.getSession(ctx.userId),
+      } as AuthenticatedCtx,
+    });
+  },
+});
+
+// Handlers after authMiddleware have ctx.user: User (not null)
+```
+
+---
+
 ## Attaching Middleware to Procedures
 
 ### Using `.use()` on a Procedure
@@ -198,6 +267,35 @@ const router = d.router({
     handler: async () => ok('public'),
   }),
 });
+```
+
+### Global Middleware
+
+Apply middleware to all procedures in a router via `.use()` at the router level:
+
+```typescript
+const router = d.router({
+  adminPanel: d.query({
+    meta: { authRequired: true },
+    handler: async (ctx) => ok('admin data'),
+  }),
+  userProfile: d.query({
+    handler: async (ctx) => ok({ user: ctx.userId }),
+  }),
+}).use(loggingMiddleware);  // Applies to ALL procedures in this router
+```
+
+**Global middleware at builder level:**
+
+```typescript
+const d = initDRPC
+  .context({ userId: 'anonymous' })
+  .create();
+
+// Logging middleware applied to every procedure
+const globalRouter = d.router({
+  data: d.query({ handler: async () => ok('data') }),
+}).use(loggingMiddleware);
 ```
 
 ### Chaining Multiple Middleware
@@ -315,6 +413,71 @@ Procedure
 ```
 
 **All middleware in the chain before the error point are executed.** Middleware after the error point never run.
+
+### Error Handler Pattern (Rollback)
+
+Middleware can catch errors from downstream handlers/middleware and perform rollback:
+
+```typescript
+const transactionMiddleware = d.middleware({
+  handler: (ctx, args, extra) => {
+    const tx = db.beginTransaction();
+
+    try {
+      // Pass transaction in context, then catch any errors after next() returns
+      return extra.next({
+        ctx: { ...ctx, tx },
+      }).catch((error) => {
+        tx.rollback();  // Rollback on error
+        throw error;     // Re-throw so caller sees the error
+      });
+    } finally {
+      tx.commit();  // Commit on success
+    }
+  },
+});
+```
+
+**Execution flow with rollback:**
+```
+Middleware1 (transaction)
+    │
+    ▼  try { next() }
+    │
+┌─────────────┐
+│ Middleware2 │
+│    next()   │
+└─────────────┘
+    │
+    ▼  Handler throws
+    │
+    ▼  catch(error) { rollback() }
+    │
+[Error propagated to caller]
+```
+
+### Default Error Handler
+
+When a middleware throws, the error is formatted before being sent to the client. Middleware can customize error formatting:
+
+```typescript
+const errorFormatter = d.middleware({
+  handler: (ctx, args, extra) => {
+    try {
+      return extra.next();
+    } catch (error) {
+      // Log error details internally
+      logger.error('Procedure error', { error, path: extra.path });
+
+      // Return sanitized error to client (don't leak internals)
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred',
+      });
+    }
+  },
+});
+```
 
 ---
 
@@ -586,6 +749,54 @@ const router = d.router({
 3. Hook: beforeInvoke
 4. Procedure handler
 5. Hook: afterInvoke / onError (if error)
+
+### Performance Considerations
+
+Middleware chains add overhead to each procedure call. Consider these guidelines:
+
+**1. Keep middleware fast:**
+```typescript
+// Bad: Expensive operation in middleware
+const slowMiddleware = d.middleware({
+  handler: (ctx, args, extra) => {
+    const data = await someSlowOperation();  // Avoid in hot path
+    return extra.next();
+  },
+});
+
+// Good: Pass through quickly
+const fastMiddleware = d.middleware({
+  handler: (ctx, args, extra) => {
+    ctx.requestId = generateRequestId();  // Fast operation only
+    return extra.next();
+  },
+});
+```
+
+**2. Use hooks for expensive operations (logging, metrics):**
+```typescript
+// Better: Put expensive operations in hooks, not middleware
+const router = d.router({
+  data: d.query({
+    hooks: {
+      afterInvoke: async (ctx, args, output) => {
+        await analytics.track('procedure_completed', { duration: ctx.duration });
+      },
+    },
+    handler: async (ctx) => ok(processData(ctx)),
+  }),
+});
+```
+
+**3. Global middleware on router is cheaper than per-procedure:**
+```typescript
+// Good: Single middleware applies to all procedures
+const router = d.router({
+  a: d.query({ handler: async () => ok('a') }),
+  b: d.query({ handler: async () => ok('b') }),
+  c: d.query({ handler: async () => ok('c') }),
+}).use(requestIdMiddleware);  // One middleware, three procedures
+```
 
 ---
 

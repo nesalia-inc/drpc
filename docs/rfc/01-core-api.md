@@ -418,6 +418,22 @@ const d = initDRPC
 
 The function receives `RequestInfo` and returns context data. Type is inferred from the return value.
 
+**Async Context Factory:**
+
+For production scenarios requiring external data (e.g., Redis session lookup):
+
+```typescript
+const d = initDRPC
+  .context(async (req) => {
+    const session = await redis.getSession(req.headers['x-session-id']);
+    return {
+      userId: session?.userId ?? 'anonymous',
+      permissions: session?.permissions ?? [],
+    };
+  })
+  .create();
+```
+
 **`RequestInfo`:**
 ```typescript
 interface RequestInfo {
@@ -426,6 +442,13 @@ interface RequestInfo {
   readonly url?: string;
 }
 ```
+
+**Edge Runtime Compatibility:**
+
+The builder is designed to work in edge environments (Cloudflare Workers, Vercel Edge). It avoids Node.js-specific APIs:
+- No `process`, `Buffer`, or `crypto` dependencies in core types
+- `RequestInfo` uses standard web APIs only
+- Dynamic context factories can be sync or async without native dependencies
 
 ---
 
@@ -837,6 +860,64 @@ console.log('Audit log:', api.ctx.auditLog);
 ### Plugin Execution Order
 
 Plugins execute in the order added via `.use()`. Each plugin's `extend()` builds on the context from the previous plugin.
+
+### Middleware Composition Model
+
+DRPC uses an **onion model** for middleware — each middleware wraps the ones that come after it:
+
+```
+Request
+  │
+  ▼
+┌─────────────────────────┐
+│ Middleware A            │
+│   │                     │
+│   ▼  ┌─────────────────┐│
+│      │ Middleware B    ││
+│      │   │             ││
+│      │   ▼  ┌─────────┐││
+│      │      │Handler │││
+│      │      └─────────┘││
+│      └─────────────────┘│
+└─────────────────────────┘
+```
+
+This allows middleware to:
+- Execute code before calling `next()`
+- Execute code after `next()` returns (in reverse order on the way back)
+- Wrap errors in a try/catch for rollback scenarios
+
+```typescript
+// Example: Transaction middleware with rollback
+const transactionMw = d.middleware({
+  handler: (ctx, args, extra) => {
+    return extra.next({
+      ctx: {
+        ...ctx,
+        tx: db.beginTransaction(),
+      },
+    }).catch((error) => {
+      ctx.tx.rollback();
+      throw error;
+    });
+  },
+});
+```
+
+### Observability with OpenTelemetry
+
+The builder integrates with OpenTelemetry for tracing:
+
+```typescript
+const d = initDRPC
+  .context({ traceId: '' })  // Placeholder for injection
+  .create();
+
+// Trace ID is automatically injected by adapters
+// ctx.traceId available in all procedures
+```
+
+Adapters (Hono, Next, Electron) automatically inject trace context.
 
 ---
 

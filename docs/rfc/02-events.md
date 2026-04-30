@@ -536,12 +536,116 @@ This prevents partial state — if a procedure fails midway, any events it emitt
 
 ### Event Delivery Timing
 
-Events are delivered synchronously after the procedure succeeds but before the response is returned. This means:
+Events are delivered synchronously after the procedure succeeds but before the response is returned:
 
 ```typescript
 const result = await api.users.create({ email: 'test@example.com' });
 // Events already delivered to subscribers at this point
 ```
+
+**Important:** This means subscribers that perform slow operations (network calls, heavy computation) will block the response. For non-blocking delivery, see Async Subscribers below.
+
+### Execution Strategy
+
+Handlers are executed **in parallel** via `Promise.all()`:
+
+```typescript
+// When 'user.created' is emitted:
+// All matching handlers are called concurrently
+t.on('user.created', handler1);  // Runs in parallel with handler2
+t.on('user.*', handler2);        // Also runs in parallel
+t.on('*', handler3);             // Also runs in parallel
+
+// If handler1 is slow, it doesn't block handler2 or handler3
+```
+
+**Async Subscribers (Fire-and-Forget):**
+
+For non-blocking delivery, subscribers can return and the framework will not wait:
+
+```typescript
+t.on('*', async (payload) => {
+  // fire-and-forget: doesn't block response
+  await notificationService.send(payload);
+});
+```
+
+Note: Errors in async fire-and-forget subscribers are not caught by the procedure's error handling.
+
+### Error Isolation
+
+**Subscriber errors do not affect the API response** if the procedure succeeded:
+
+```typescript
+const createUser = d.mutation({
+  handler: async (ctx, args) => {
+    const user = { id: 'new-user', email: args.email };
+    ctx.send('user.created', { id: user.id, email: user.email });
+    return ok(user);  // Procedure succeeds
+  },
+});
+
+// Even if this subscriber throws, the client receives the successful response
+t.on('user.created', (payload) => {
+  throw new Error('Analytics down');  // Doesn't affect API response
+});
+```
+
+**Rationale:** The procedure's business logic has already succeeded. Silently discarding subscriber errors prevents the API from failing when external systems (analytics, notifications) have issues.
+
+### Context in Event Handlers
+
+Event handlers receive a context snapshot for read-only access:
+
+```typescript
+t.on('user.created', (payload, ctxSnapshot) => {
+  // ctxSnapshot contains the context at time of emission
+  // Useful for: logging userId, tenant info, requestId
+  logger.info('User created', {
+    event: payload.name,
+    userId: ctxSnapshot.userId,
+    timestamp: payload.timestamp,
+  });
+});
+```
+
+**Read-only:** Event handlers should not modify context. The context snapshot is for inspection only.
+
+### External Bridge (Multi-Server Distribution)
+
+For horizontal scaling (multiple server instances), an external bridge can forward events:
+
+```typescript
+// Plugin that bridges events to Redis Streams / RabbitMQ
+const redisBridgePlugin = plugin({
+  name: 'redis-bridge',
+  extend: (ctx) => ({ ... }),
+  procedures: () => ({
+    bridge: {
+      publish: {
+        args: z.object({ channel: z.string(), data: z.unknown() }),
+        handler: async (ctx, args) => {
+          await redis.publish(args.channel, JSON.stringify(args.data));
+          return ok({ published: true });
+        },
+      },
+    },
+  }),
+});
+
+// Subscribe locally and forward
+t.on('*', async (payload) => {
+  await redisBridge.publish({
+    channel: 'drpc:events',
+    data: payload,
+  });
+});
+```
+
+This allows:
+- Multiple server instances to receive events
+- Events forwarded to message queues for async processing
+- Integration with systems like Redis Streams, RabbitMQ, AWS EventBridge
 
 ### Type Safety
 

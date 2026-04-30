@@ -57,8 +57,11 @@ const d = initDRPC
 interface Plugin<Ctx> {
   readonly name: string;
   readonly args?: ZodType<unknown>;
+  readonly requires?: ZodType<Partial<Ctx>>;                    // Context requirements
   readonly extend: (ctx: Ctx, args: unknown) => Partial<Ctx>;
   readonly procedures?: () => PluginEnrichment<Ctx>;
+  readonly onInit?: (ctx: Ctx) => void | Promise<void>;          // Lifecycle: after plugin registered
+  readonly onClose?: (ctx: Ctx) => void | Promise<void>;        // Lifecycle: cleanup
 }
 ```
 
@@ -359,8 +362,11 @@ const d = initDRPC
 interface Plugin<Ctx> {
   readonly name: string;
   readonly args?: ZodType<unknown>;
+  readonly requires?: ZodType<Partial<Ctx>>;                    // Context requirements
   readonly extend: (ctx: Ctx, args: unknown) => Partial<Ctx>;
   readonly procedures?: () => PluginEnrichment<Ctx>;
+  readonly onInit?: (ctx: Ctx) => void | Promise<void>;          // Lifecycle: after plugin registered
+  readonly onClose?: (ctx: Ctx) => void | Promise<void>;        // Lifecycle: cleanup
 }
 ```
 
@@ -429,6 +435,67 @@ use(cachePlugin())
 Plugin args are type-safe at two levels:
 1. **TypeScript** — Zod schema infers TypeScript types
 2. **Runtime** — Zod validates at `.use()` time
+
+### Namespace Conflict Detection
+
+When two plugins add procedures with the same namespace/method name, a warning is logged at `.use()` time:
+
+```typescript
+const pluginA = plugin({
+  name: 'pluginA',
+  procedures: () => ({
+    cache: {
+      get: { handler: async (ctx) => ok('a') },
+    },
+  }),
+});
+
+const pluginB = plugin({
+  name: 'pluginB',
+  procedures: () => ({
+    cache: {
+      get: { handler: async (ctx) => ok('b') },  // Same namespace.method!
+    },
+  }),
+});
+
+d.use(pluginA());  // OK
+d.use(pluginB());   // Warning: Plugin 'pluginB' is overwriting 'cache.get' from 'pluginA'
+```
+
+**Behavior:** Later plugins overwrite earlier ones. The warning helps identify accidental collisions.
+
+### Namespacing Best Practices
+
+To avoid conflicts, plugins should use their name as a namespace prefix:
+
+```typescript
+// Good: Namespaced under plugin name
+const auditPlugin = plugin({
+  name: 'audit',
+  procedures: () => ({
+    audit: {
+      getLog: { handler: async (ctx) => ok(ctx.auditLog) },
+      clear: { handler: async (ctx) => { ctx.auditLog = []; return ok(true); } },
+    },
+  }),
+});
+
+// Good: ctx uses namespaced structure
+const auditPlugin = plugin({
+  name: 'audit',
+  extend: (ctx) => ({
+    audit: {
+      log: (msg: string) => ctx.auditLog.push(msg),
+      logList: ctx.auditLog,
+    },
+  }),
+});
+
+// Access: ctx.audit.log() and ctx.audit.logList
+```
+
+This prevents collisions with user-defined procedures and other plugins.
 
 ### No Dependency Resolution
 
