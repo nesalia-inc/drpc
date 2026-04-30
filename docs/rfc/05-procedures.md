@@ -2,7 +2,7 @@
 
 ## Summary
 
-DRPC provides three types of procedures: **queries** (read-only), **mutations** (write operations), and **subscriptions** (streaming). Procedures are created via factory methods on `DRPCRoot`. Each procedure type has specific semantics, input validation via Zod, and integrates with middleware and hooks.
+DRPC provides two types of procedures: **queries** (read-only) and **mutations** (write operations). Procedures are created via factory methods on `DRPCRoot`. Each procedure type has specific semantics, input validation via Zod, and integrates with middleware and hooks.
 
 ---
 
@@ -125,49 +125,6 @@ const triggerCleanup = d.internalMutation({
 });
 ```
 
-### Subscription — Streaming Procedures
-
-Subscriptions provide **streaming responses**. They return a generator that yields data as it becomes available.
-
-```typescript
-const watchUsers = d.subscription({
-  args: z.object({ onlineOnly: z.boolean().default(false) }),
-  handler: function* (ctx, args) {
-    for await (const user of ctx.db.watchUsers({ onlineOnly: args.onlineOnly })) {
-      yield ok(user);
-    }
-  },
-});
-```
-
-**Characteristics:**
-- Returns `AsyncGenerator<Result<T>>`
-- Each `yield` sends a value to the client
-- Client subscribes and receives streaming responses
-- Adapter must support WebSocket or SSE
-
-**Server-side emit (for WebSocket-based subscriptions):**
-```typescript
-const watchUsers = d.subscription({
-  handler: function* (ctx, args) {
-    const emitter = ctx.db.watchUsers(args);
-
-    emitter.on('user.online', (user) => {
-      yield ok(user);  // Push to client
-    });
-
-    emitter.on('user.offline', (user) => {
-      yield ok(user);
-    });
-
-    // Keep subscription alive until client disconnects
-    while (ctx.connected) {
-      yield* emitter.stream();
-    }
-  },
-});
-```
-
 ---
 
 ## Procedure Factory Methods
@@ -228,23 +185,6 @@ Creates an internal mutation (not exposed via adapters).
 
 ```typescript
 d.internalMutation<Args, Output>(config: InternalConfig<TCtx, Args, Output>): InternalMutationProcedure<TCtx, Args, Output>
-```
-
-### d.subscription()
-
-Creates a subscription procedure.
-
-```typescript
-d.subscription<Args, Output>(config: SubscriptionConfig<TCtx, Args, Output>): SubscriptionProcedure<TCtx, Args, Output, TMeta>
-```
-
-```typescript
-interface SubscriptionConfig<TCtx, Args, Output> {
-  args?: ZodType<Args>;
-  meta?: TMeta;
-  hooks?: Hooks<TCtx, Args, Output>;
-  handler: (ctx: TCtx, args: Args) => AsyncGenerator<Result<Output>>;
-}
 ```
 
 ### d.router()
@@ -312,7 +252,6 @@ d.procedure
   .use<TMw>(middleware: TMw)      // Attach middleware
   .query(config)                   // Create as query
   .mutation(config)                // Create as mutation
-  .subscription(config)           // Create as subscription
 ```
 
 **Example with full chain:**
@@ -330,6 +269,51 @@ const protectedMutation = d.procedure
       return ok(ctx.db.archiveAll());
     },
   });
+```
+
+### d.on() — Event Subscriptions
+
+After calling `.withEvents(events)`, the `d` instance provides `d.on()` for subscribing to events:
+
+```typescript
+const d = initDRPC
+  .context({ userId: '1' })
+  .withEvents(events)
+  .create();
+
+// Subscribe to specific event
+d.on('user.created', (payload) => {
+  console.log('User created:', payload.data);
+});
+
+// Subscribe to namespace wildcard
+d.on('user.*', (payload) => {
+  console.log('Any user event:', payload.name);
+});
+
+// Subscribe to global wildcard
+d.on('*', (payload) => {
+  console.log('All events:', payload.name);
+});
+```
+
+**Returns:** An unsubscribe function to stop the subscription.
+
+```typescript
+const unsubscribe = d.on('user.created', handler);
+
+// Later: stop listening
+unsubscribe();
+```
+
+**EventPayload:**
+
+```typescript
+interface EventPayload {
+  name: string;       // 'user.created'
+  data: unknown;      // { id: '1', email: '...' }
+  timestamp: number;  // Date.now()
+}
 ```
 
 ---
@@ -651,17 +635,6 @@ interface InternalConfig<TCtx, Args, Output> {
 }
 ```
 
-### SubscriptionConfig
-
-```typescript
-interface SubscriptionConfig<TCtx, Args, Output> {
-  args?: ZodType<Args>;
-  meta?: TMeta;
-  hooks?: Hooks<TCtx, Args, Output>;
-  handler: (ctx: TCtx, args: Args) => AsyncGenerator<Result<Output>>;
-}
-```
-
 ### Hooks
 
 ```typescript
@@ -731,4 +704,4 @@ Each procedure returns a `marker` symbol in the `MiddlewareResult` for internal 
 
 ## Status
 
-**Draft** — Procedure types as described. Implementation details for subscriptions (streaming) pending.
+**Draft** — Procedure types as described.
