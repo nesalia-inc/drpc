@@ -81,36 +81,52 @@ const router = d.router({
 
 ### Modular Routers
 
-Each module can be defined separately and merged:
+Each module should be defined in its own file, separating procedure definitions from router composition.
+
+**Convention:**
+1. Define procedures in a dedicated file (or at the top of the module)
+2. Compose procedures into routers at the end (or in a separate file)
 
 ```typescript
-// users.ts
-export const usersRouter = d.router({
-  list: d.query({ handler: async () => ok([]) }),
-  byId: d.query({ handler: async (ctx, args) => ok(ctx.db.findUser(args.id)) }),
-  create: d.mutation({
-    args: z.object({ email: z.string().email() }),
-    handler: async (ctx, args) => ok(ctx.db.createUser(args)),
+// users.procedures.ts — define procedures first
+export const usersProcedures = {
+  list: d.query({
+    meta: { authRequired: true },
+    handler: async (ctx) => ok(await ctx.db.listUsers()),
   }),
-});
+  byId: d.query({
+    meta: { authRequired: true },
+    args: z.object({ id: z.string().uuid() }),
+    handler: async (ctx, args) => {
+      const user = await ctx.db.findUser(args.id);
+      return user ? ok(user) : err({ code: 'NOT_FOUND' });
+    },
+  }),
+  create: d.mutation({
+    args: z.object({ email: z.string().email(), name: z.string() }),
+    handler: async (ctx, args) => ok(await ctx.db.createUser(args)),
+  }),
+};
 
-// posts.ts
-export const postsRouter = d.router({
-  list: d.query({ handler: async () => ok([]) }),
-  byId: d.query({ handler: async (ctx, args) => ok(ctx.db.findPost(args.id)) }),
-});
+// users.router.ts — then compose into router
+import { usersProcedures } from './users.procedures';
 
-// main.ts — merge into single router
+export const usersRouter = d.router(usersProcedures);
+
+// main.ts — compose routers
 const router = d.router({
   users: usersRouter,
   posts: postsRouter,
 });
 ```
 
-This enables:
-- **Code splitting** — each domain in its own file
-- **Shared routers** — reuse routers across projects
-- **Testing in isolation** — test each router separately
+**Why this separation matters:**
+- **Testing** — procedures can be tested in isolation without router context
+- **Reusability** — procedures can be composed into different routers
+- **Readability** — clear distinction between "what this module does" vs "how it's organized"
+- **Diff friendliness** — adding a procedure doesn't require restructuring the router tree
+
+This separation is a **recommended convention** rather than a strict rule. Small modules or prototypes may inline everything, but production code at scale benefits from this structure.
 
 ---
 
@@ -263,6 +279,8 @@ const router = d.router({
 
 ### Full API with Nested Routers
 
+This example follows the **procedure/router separation convention**:
+
 ```typescript
 const d = initDRPC
   .context({ db: myDb, logger: myLogger })
@@ -270,10 +288,10 @@ const d = initDRPC
   .create();
 
 // ============================================
-// Define domain routers
+// Step 1: Define procedures (separate from routers)
 // ============================================
 
-const usersRouter = d.router({
+const usersProcedures = {
   list: d.query({
     handler: async (ctx) => ok(await ctx.db.listUsers()),
   }),
@@ -281,7 +299,7 @@ const usersRouter = d.router({
     args: z.object({ id: z.string().uuid() }),
     handler: async (ctx, args) => {
       const user = await ctx.db.findUser(args.id);
-      return user ? ok(user) : err({ code: 'NOT_FOUND', message: 'User not found' });
+      return user ? ok(user) : err({ code: 'NOT_FOUND' });
     },
   }),
   create: d.mutation({
@@ -295,9 +313,9 @@ const usersRouter = d.router({
       return ok({ deleted: true });
     },
   }),
-});
+};
 
-const postsRouter = d.router({
+const postsProcedures = {
   list: d.query({
     handler: async (ctx) => ok(await ctx.db.listPosts()),
   }),
@@ -309,10 +327,23 @@ const postsRouter = d.router({
     args: z.object({ title: z.string(), content: z.string() }),
     handler: async (ctx, args) => ok(await ctx.db.createPost(args)),
   }),
-});
+};
+
+const healthProcedures = {
+  check: d.query({ handler: async () => ok({ status: 'ok' }) }),
+  ready: d.query({ handler: async (ctx) => ok({ ready: await ctx.db.isReady() }) }),
+};
 
 // ============================================
-// Compose with global middleware
+// Step 2: Compose procedures into routers
+// ============================================
+
+const usersRouter = d.router(usersProcedures);
+const postsRouter = d.router(postsProcedures);
+const healthRouter = d.router(healthProcedures);
+
+// ============================================
+// Step 3: Compose routers into final API
 // ============================================
 
 const router = d.router({
@@ -320,10 +351,7 @@ const router = d.router({
     users: usersRouter,
     posts: postsRouter,
   }),
-  health: d.router({
-    check: d.query({ handler: async () => ok({ status: 'ok' }) }),
-    ready: d.query({ handler: async (ctx) => ok({ ready: await ctx.db.isReady() }) }),
-  }),
+  health: healthRouter,
 }).use(loggingMiddleware);
 
 // ============================================
@@ -336,8 +364,10 @@ const api = createAPI({ router });
 // api.v1.users.list()
 // api.v1.users.byId({ id: '...' })
 // api.v1.posts.create({ title: '...', content: '...' })
-// api.v1.health.check()
+// api.health.check()
 ```
+
+**Key insight:** Procedures are defined first, then passed to `d.router()`. This separation makes testing easier and keeps each file focused.
 
 ### Router with Auth Middleware
 
