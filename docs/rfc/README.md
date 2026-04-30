@@ -16,6 +16,7 @@ The core `@deessejs/server` package.
 | [04](server/04-plugins.md) | Plugins | Draft |
 | [05](server/05-procedures.md) | Procedures — Query, Mutation | Draft |
 | [07](server/07-routers.md) | Routers — Namespaced Procedure Composition | Implemented |
+| [08](server/08-api-factory.md) | API Factory — `createAPI` and `createPublicAPI` | Implemented |
 
 ### Server Adapters (`server-adapters/`)
 
