@@ -81,42 +81,35 @@ const router = d.router({
 
 ### Modular Routers
 
-Each module should be defined in its own file, separating procedure definitions from router composition.
+Procedures are defined as named constants and then composed into routers.
 
-**Convention:**
-1. Define procedures in a dedicated file (or at the top of the module)
-2. Compose procedures into routers at the end (or in a separate file)
-
+**Pattern:**
 ```typescript
-// users.procedures.ts — define procedures first
-export const usersProcedures = {
-  list: d.query({
-    meta: { authRequired: true },
-    handler: async (ctx) => ok(await ctx.db.listUsers()),
-  }),
-  byId: d.query({
-    meta: { authRequired: true },
-    args: z.object({ id: z.string().uuid() }),
-    handler: async (ctx, args) => {
-      const user = await ctx.db.findUser(args.id);
-      return user ? ok(user) : err({ code: 'NOT_FOUND' });
-    },
-  }),
-  create: d.mutation({
-    args: z.object({ email: z.string().email(), name: z.string() }),
-    handler: async (ctx, args) => ok(await ctx.db.createUser(args)),
-  }),
-};
+// Define each procedure as a named constant
+const listUsers = d.query({
+  meta: { authRequired: true },
+  handler: async (ctx) => ok(await ctx.db.listUsers()),
+});
 
-// users.router.ts — then compose into router
-import { usersProcedures } from './users.procedures';
+const getUserById = d.query({
+  meta: { authRequired: true },
+  args: z.object({ id: z.string().uuid() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.findUser(args.id);
+    return user ? ok(user) : err({ code: 'NOT_FOUND' });
+  },
+});
 
-export const usersRouter = d.router(usersProcedures);
+const createUser = d.mutation({
+  args: z.object({ email: z.string().email(), name: z.string() }),
+  handler: async (ctx, args) => ok(await ctx.db.createUser(args)),
+});
 
-// main.ts — compose routers
-const router = d.router({
-  users: usersRouter,
-  posts: postsRouter,
+// Compose into router
+const usersRouter = d.router({
+  list: listUsers,
+  byId: getUserById,
+  create: createUser,
 });
 ```
 
@@ -125,8 +118,6 @@ const router = d.router({
 - **Reusability** — procedures can be composed into different routers
 - **Readability** — clear distinction between "what this module does" vs "how it's organized"
 - **Diff friendliness** — adding a procedure doesn't require restructuring the router tree
-
-This separation is a **recommended convention** rather than a strict rule. Small modules or prototypes may inline everything, but production code at scale benefits from this structure.
 
 ---
 
@@ -288,59 +279,73 @@ const d = initDRPC
   .create();
 
 // ============================================
-// Step 1: Define procedures (separate from routers)
+// Step 1: Define procedures as named constants
 // ============================================
 
-const usersProcedures = {
-  list: d.query({
-    handler: async (ctx) => ok(await ctx.db.listUsers()),
-  }),
-  byId: d.query({
-    args: z.object({ id: z.string().uuid() }),
-    handler: async (ctx, args) => {
-      const user = await ctx.db.findUser(args.id);
-      return user ? ok(user) : err({ code: 'NOT_FOUND' });
-    },
-  }),
-  create: d.mutation({
-    args: z.object({ email: z.string().email(), name: z.string() }),
-    handler: async (ctx, args) => ok(await ctx.db.createUser(args)),
-  }),
-  delete: d.mutation({
-    args: z.object({ id: z.string().uuid() }),
-    handler: async (ctx, args) => {
-      await ctx.db.deleteUser(args.id);
-      return ok({ deleted: true });
-    },
-  }),
-};
+const listUsers = d.query({
+  handler: async (ctx) => ok(await ctx.db.listUsers()),
+});
 
-const postsProcedures = {
-  list: d.query({
-    handler: async (ctx) => ok(await ctx.db.listPosts()),
-  }),
-  byId: d.query({
-    args: z.object({ id: z.string().uuid() }),
-    handler: async (ctx, args) => ok(await ctx.db.findPost(args.id)),
-  }),
-  create: d.mutation({
-    args: z.object({ title: z.string(), content: z.string() }),
-    handler: async (ctx, args) => ok(await ctx.db.createPost(args)),
-  }),
-};
+const getUserById = d.query({
+  args: z.object({ id: z.string().uuid() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.findUser(args.id);
+    return user ? ok(user) : err({ code: 'NOT_FOUND' });
+  },
+});
 
-const healthProcedures = {
-  check: d.query({ handler: async () => ok({ status: 'ok' }) }),
-  ready: d.query({ handler: async (ctx) => ok({ ready: await ctx.db.isReady() }) }),
-};
+const createUser = d.mutation({
+  args: z.object({ email: z.string().email(), name: z.string() }),
+  handler: async (ctx, args) => ok(await ctx.db.createUser(args)),
+});
+
+const deleteUser = d.mutation({
+  args: z.object({ id: z.string().uuid() }),
+  handler: async (ctx, args) => {
+    await ctx.db.deleteUser(args.id);
+    return ok({ deleted: true });
+  },
+});
+
+const listPosts = d.query({
+  handler: async (ctx) => ok(await ctx.db.listPosts()),
+});
+
+const getPostById = d.query({
+  args: z.object({ id: z.string().uuid() }),
+  handler: async (ctx, args) => ok(await ctx.db.findPost(args.id)),
+});
+
+const createPost = d.mutation({
+  args: z.object({ title: z.string(), content: z.string() }),
+  handler: async (ctx, args) => ok(await ctx.db.createPost(args)),
+});
+
+const healthCheck = d.query({ handler: async () => ok({ status: 'ok' }) });
+
+const healthReady = d.query({ handler: async (ctx) => ok({ ready: await ctx.db.isReady() }) });
 
 // ============================================
 // Step 2: Compose procedures into routers
 // ============================================
 
-const usersRouter = d.router(usersProcedures);
-const postsRouter = d.router(postsProcedures);
-const healthRouter = d.router(healthProcedures);
+const usersRouter = d.router({
+  list: listUsers,
+  byId: getUserById,
+  create: createUser,
+  delete: deleteUser,
+});
+
+const postsRouter = d.router({
+  list: listPosts,
+  byId: getPostById,
+  create: createPost,
+});
+
+const healthRouter = d.router({
+  check: healthCheck,
+  ready: healthReady,
+});
 
 // ============================================
 // Step 3: Compose routers into final API
@@ -367,7 +372,7 @@ const api = createAPI({ router });
 // api.health.check()
 ```
 
-**Key insight:** Procedures are defined first, then passed to `d.router()`. This separation makes testing easier and keeps each file focused.
+**Key insight:** Procedures are defined as named constants, then composed into routers. This separation makes testing easier and keeps each file focused.
 
 ### Router with Auth Middleware
 
