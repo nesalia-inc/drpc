@@ -459,6 +459,30 @@ d.router(routes, {
 
 Creates a router from one or more route objects. Routes can be nested but each level must contain only procedures or sub-routers.
 
+### createAPI()
+
+```typescript
+function createAPI(options: {
+  router: Router<TCtx>;
+  context?: Partial<TCtx>;
+}): API<TCtx>
+```
+
+Creates a **local API instance** from a router. The API provides typed procedure callers:
+
+```typescript
+const api = createAPI({ router });
+
+// Call procedures directly
+const result = await api.users.list();
+const user = await api.users.byId({ id: '123' });
+```
+
+**Key characteristics:**
+- Server-only — no network or HTTP involved
+- Internal procedures are accessible via `createAPI()` but not via HTTP adapters
+- Context can be overridden at creation time: `createAPI({ router, context: { custom: 'value' } })`
+
 ### Router
 
 ```typescript
