@@ -47,6 +47,8 @@ const router = d.router({
 
 **Access pattern:**
 ```typescript
+const api = createAPI({ router });
+
 api.users.list();
 api.users.byId({ id: '123' });
 api.users.create({ email: 'alice@example.com' });
@@ -90,6 +92,10 @@ const router = d.router({
 ```
 
 **Access:** `api.v1.users.list()`, `api.v2.posts.byId()`, etc.
+
+```typescript
+const api = createAPI({ router });
+```
 
 ### Modular Routers
 
@@ -157,6 +163,8 @@ const merged = d.router(
   d.router({ users: d.router({ list: ..., byId: ... }) }),
   d.router({ posts: d.router({ list: ..., byId: ... }) }),
 );
+
+const api = createAPI({ router: merged });
 
 // Access merged procedures
 api.users.list();
