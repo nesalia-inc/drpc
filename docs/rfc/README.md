@@ -10,8 +10,9 @@ This directory contains Request for Comments (RFC) documents that describe the d
 | [02](02-events.md) | Events System | Draft |
 | [03](03-middleware.md) | Middleware | Draft |
 | [04](04-plugins.md) | Plugins | Draft |
-| [05](05-procedures.md) | Procedures — Query, Mutation, Subscription | Draft |
+| [05](05-procedures.md) | Procedures — Query, Mutation | Draft |
 | [06](06-server-hono.md) | Hono HTTP Adapter | Implemented |
+| [07](07-routers.md) | Routers — Namespaced Procedure Composition | Implemented |
 
 ## Status Definitions
 
