@@ -10,11 +10,11 @@ DRPC plugins allow you to extend the framework's functionality by enriching cont
 
 ### What Is a Plugin?
 
-A plugin is a **function** that returns a Plugin object. This function receives args when called and produces a Plugin that can extend context and add procedures.
+A plugin is created via a `plugin()` helper function that receives the plugin configuration. This function takes args and produces a Plugin that can extend context and add procedures.
 
 ```typescript
 // Plugin function - receives args and returns Plugin object
-const myPlugin = <Ctx>(args: { prefix: string }): Plugin<Ctx> => ({
+const myPlugin = plugin({
   name: 'myPlugin',
   args: z.object({ prefix: z.string() }),
   extend: (ctx, args) => ({
@@ -22,10 +22,28 @@ const myPlugin = <Ctx>(args: { prefix: string }): Plugin<Ctx> => ({
   }),
 });
 
-// Pass the result of calling the plugin function to .use()
+// Use the plugin directly (no args needed here, they're in the config)
 const d = initDRPC
   .context({ value: 1 })
-  .use(myPlugin({ prefix: '[APP]' }))
+  .use(myPlugin)
+  .create();
+```
+
+**With args:**
+
+```typescript
+const auditPlugin = plugin({
+  name: 'audit',
+  args: z.object({ prefix: z.string().optional() }),
+  extend: (ctx, args) => ({
+    auditLog: ctx.auditLog ?? [],
+    log: (msg: string) => ctx.auditLog.push(`${args.prefix ?? '[audit]'}: ${msg}`),
+  }),
+});
+
+const d = initDRPC
+  .context({ auditLog: [] })
+  .use(auditPlugin({ prefix: '[APP]' }))
   .create();
 ```
 
@@ -168,10 +186,10 @@ ctx = { auditLog: [], log: fn, cache: Map, timing: fn, ... }
 
 ### Args Validation
 
-Plugin args are validated when `.use(plugin(args))` is called:
+Plugin args are validated when passed to `.use()`:
 
 ```typescript
-const auditPlugin = <Ctx>(args: { prefix?: string }): Plugin<Ctx> => ({
+const auditPlugin = plugin({
   name: 'audit',
   args: z.object({ prefix: z.string().optional() }),
   extend: (ctx, args) => ({ ... }),
@@ -199,9 +217,7 @@ interface AuditCtx {
   log: (msg: string) => void;
 }
 
-const auditPlugin = <Ctx extends AuditCtx>(args?: {
-  prefix?: string;
-}): Plugin<Ctx> => ({
+const auditPlugin = plugin({
   name: 'audit',
   args: z.object({ prefix: z.string().optional() }),
   extend: (ctx, args) => ({
@@ -234,7 +250,7 @@ interface TimingCtx {
   duration?: number;
 }
 
-const timingPlugin = <Ctx extends TimingCtx>(): Plugin<Ctx> => ({
+const timingPlugin = plugin({
   name: 'timing',
   extend: (ctx) => ({
     startTime: Date.now(),
@@ -257,7 +273,7 @@ interface CacheCtx {
   setCache: (key: string, value: unknown) => void;
 }
 
-const cachePlugin = <Ctx extends CacheCtx>(): Plugin<Ctx> => ({
+const cachePlugin = plugin({
   name: 'cache',
   extend: (ctx) => ({
     cache: ctx.cache ?? new Map(),
@@ -303,10 +319,7 @@ const router = d.router({
 ### Retry Plugin
 
 ```typescript
-const retryPlugin = <Ctx>(args: {
-  maxRetries: number;
-  delayMs: number;
-}): Plugin<Ctx> => ({
+const retryPlugin = plugin({
   name: 'retry',
   args: z.object({
     maxRetries: z.number().min(1).max(10).default(3),
